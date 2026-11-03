@@ -1327,7 +1327,7 @@ No option is approved by CH-3. A suggested default is explicitly not an authoriz
 - PR #7's actual corrected F22 mapping is adopted above. R2.3's provisional §27 mapping is superseded.
 - R2.4 is a documentation-only amendment. R2.3 remains unchanged for review history.
 
-## 28. T01–T63 retention and expanded test coverage
+## 28A. R2.3 retained test coverage note (superseded by R2.4 §§38–40)
 
 - T01–T39 from R2.2 are retained; semantics are superseded where this R2.3 addendum changes provenance, trusted identity, migration-role boundary, lock ordering, catalog/stock identity or audit restrictions.
 - T40–T63 retained from R2.2; revised by R2.3 matrix/negative provenance cases.
@@ -1337,7 +1337,7 @@ No option is approved by CH-3. A suggested default is explicitly not an authoriz
 - Every test remains **PROPOSED / NOT EXECUTED**. No test has passed in PostgreSQL, Supabase, browser, staging or production.
 - The legacy R2.2 T01–T63 cases do not yet all carry complete row-by-row expected values in this design file. The runtime test harness specification must expand them to the required per-test evidence format before implementation authorization. This is a remaining documentation gap, not a claimed completion.
 
-## 29. Approval gate and stop condition
+## 29A. R2.3 prior approval gate (superseded by R2.4 §43)
 
 Required before implementation:
 1. CH-1 review of R2.3 and resolution of design comments.
@@ -1358,7 +1358,7 @@ Until all gates are satisfied:
 
 
 
-# R2.4 — Corrected design specification
+## R2.4 consolidated correction sections
 
 ## 29. Legacy source memo semantics: authoritative FK vs candidate metadata
 
