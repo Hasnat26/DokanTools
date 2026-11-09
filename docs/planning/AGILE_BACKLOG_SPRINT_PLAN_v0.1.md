@@ -34,13 +34,19 @@
 | ID | Story | Owner | SP | Priority | Acceptance / exit criteria | Status |
 |---|---|---|---:|---|---|---|
 | DT-001 | Review and approve/revise session handoff + governance rules | CH-1 | 2 | P0 | PM disposition recorded; handoff file linked; PR #13 reviewed | IN REVIEW |
-| DT-002 | Review M0-01 R2.6 against CH-4 R2.5 high findings | CH-1 + CH-4 | 5 | P0 | Finding-by-finding traceability; each finding CLOSED/PENDING with evidence; no unsupported closure claims | READY |
+| DT-002 | Review M0-01 R2.6 against CH-4 R2.5 high findings | CH-1 + CH-4 | 5 | P0 | Finding-by-finding traceability; each finding CLOSED/PENDING with evidence; no unsupported closure claims | **IN REVIEW — CH-1 review completed; CH-4 independent cross-check pending** |
 | DT-003 | Produce product backlog with scope and story acceptance criteria | CH-2 | 5 | P0 | Epics, story IDs, acceptance criteria, dependencies, non-goals, PO decisions and open questions captured | IN PROGRESS |
 | DT-004 | Map M0-01 requirements/PO decisions to QA coverage | CH-4 | 5 | P0 | Traceability to PO decisions, risks, and proposed tests; test execution explicitly NOT EXECUTED | READY |
-| DT-005 | Validate repo baseline, PR inventory, and project architecture references | CH-1 + CH-3 | 3 | P0 | Latest main SHA, open PRs, authoritative spec links and architecture decisions recorded | READY |
+| DT-005 | Validate repo baseline, PR inventory, and architecture references | CH-1 + CH-3 | 3 | P0 | Latest main SHA, open PRs, authoritative spec links and architecture decisions recorded | READY |
 | DT-006 | Establish Sprint/Story Register and session handoff update workflow | CH-1 | 2 | P0 | GitHub tracking file exists; statuses/owner/points/dependencies/next action defined | READY |
 
 **Sprint 0 total: 22 SP — PM-approved.** This is an approved plan, not a promise that all 22 points will be completed. No historical velocity is available; review capacity and carryover at Sprint Review.
+
+## DT-002 review output — CH-1 traceability
+
+Review record: [CH-1 DT-002 R2.6 vs F25 traceability](../reviews/CH1_DT-002_R2.6_F25_TRACEABILITY_2026-11-09.md)
+
+**Preliminary CH-1 disposition:** R2.6 **NOT ACCEPTED — HIGH / targeted R2.7 revision required**. F25-01/02/03/06 partially addressed; F25-04/05 not closed; F25-07/08 correctly pending. CH-4 independent cross-check is still required. No runtime tests or implementation authorized.
 
 ## Proposed Sprint 1 — M0-01 design closure + local MVP foundation
 
@@ -92,11 +98,11 @@
 
 | CH | Immediate responsibility | Output | State |
 |---|---|---|---|
-| CH-1 | Review PR #12 against PR #11 findings; maintain status and dependencies | Review/disposition + gate register | ACTION |
+| CH-1 | Review PR #12 against PR #11 findings; maintain status and dependencies | Review/disposition + gate register | REVIEW DONE; awaiting CH-4 cross-check |
 | CH-2 | Build prioritized MVP product backlog, acceptance criteria, PO decision list | Product Backlog v0.1 | IN PROGRESS |
 | CH-3 | Do not start M0-01 implementation; respond to design findings after CH-1/CH-4 review. Prepare local MVP technical design only within approved scope | M0-01 revision plan / technical design | BLOCKED / DESIGN ONLY |
 | CH-4 | Independently map PR #11 findings to R2.6; define test/acceptance coverage | QA finding closure matrix | ACTION |
-| PM/PO | Confirm priority/scope, resolve decisions, approve next phase/gates | Written PO/PM decision | REQUIRED |
+| PM/PO | Confirm priority/scope, resolve decisions, approve next phase/gates | Written PM/PO decision | REQUIRED |
 
 ## Critical dependencies and release blockers
 
