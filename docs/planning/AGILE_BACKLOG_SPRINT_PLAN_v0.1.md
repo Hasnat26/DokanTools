@@ -1,15 +1,15 @@
 # DokanTools — Agile Backlog & Sprint Plan v0.1
 
 **Date:** 2026-11-09  
-**Status:** DRAFT / SUBMITTED FOR PM REVIEW  
+**Status:** **Sprint 0 APPROVED by PM (user confirmation in ChatGPT on 2026-11-09); Sprint 1+ remain PROPOSED.**  
 **Planning basis:** Available project memory + GitHub PR #2–#13 metadata. Confirm requirements against authoritative PR/spec files before treating stories as READY.  
-**This document does not authorize implementation, QA execution, merge, production/pilot, or gate closure.**
+**Authorization boundary:** Approval applies to Sprint 0 planning/coordination and documentation activities only. It does not authorize M0-01 implementation, QA execution, merge, production/pilot, or gate closure.
 
 ## Agile rules
 
 - Estimation: relative **Fibonacci story points** (1, 2, 3, 5, 8, 13).
 - Points represent complexity, uncertainty, dependencies, and effort—not hours or days.
-- Sprint length proposed: **2 weeks**. Actual capacity/velocity is unknown; Sprint 1 commitment should be calibrated after the first completed sprint.
+- Sprint length proposed: **2 weeks** for future execution sprints. Sprint 0 is a **1-week baseline/closure sprint**.
 - Story assignment is a proposed CH owner, not a personal/individual developer assignment.
 - Definition of Done (DoD): acceptance criteria satisfied; relevant docs/code in GitHub; review completed; test evidence linked; no unapproved scope change; status and next step updated.
 - For documentation/design stories, DoD means approved/reviewed artifact—not implementation.
@@ -27,7 +27,7 @@
 | E5 | QR, print/share, and invoice output | P1 |
 | E6 | QA, security, release readiness, and pilot gate | P0 / release blocker |
 
-## Proposed Sprint 0 — Baseline & unblock (1 week; planning/closure sprint)
+## Sprint 0 — Baseline & unblock (1 week; PM-approved)
 
 **Goal:** Establish reliable project record, review current M0-01 remediation, and make local MVP backlog sprint-ready. Do not begin unapproved implementation.
 
@@ -40,7 +40,7 @@
 | DT-005 | Validate repo baseline, PR inventory, and project architecture references | CH-1 + CH-3 | 3 | P0 | Latest main SHA, open PRs, authoritative spec links and architecture decisions recorded | READY |
 | DT-006 | Establish Sprint/Story Register and session handoff update workflow | CH-1 | 2 | P0 | GitHub tracking file exists; statuses/owner/points/dependencies/next action defined | READY |
 
-**Sprint 0 total: 22 SP (proposed).** This is not a capacity commitment; no historical velocity is available.
+**Sprint 0 total: 22 SP — PM-approved.** This is an approved plan, not a promise that all 22 points will be completed. No historical velocity is available; review capacity and carryover at Sprint Review.
 
 ## Proposed Sprint 1 — M0-01 design closure + local MVP foundation
 
@@ -88,7 +88,7 @@
 | DT-404 | Release candidate package and release notes | CH-3 | 3 | P1 | QA gate + PM authorization | Build provenance, version, hash, release notes, known issues |
 | DT-405 | PM/PO release/pilot decision | PM/PO + CH-1 | 2 | P0 | M0-01 gate, QA, security, release evidence | Written GO/NO-GO; pilot remains prohibited until explicit GO |
 
-## Current assignment board (right now)
+## Current assignment board (Sprint 0)
 
 | CH | Immediate responsibility | Output | State |
 |---|---|---|---|
@@ -112,6 +112,6 @@
 At sprint start: sprint goal, selected story IDs, points, owner, dependencies, authorization, expected evidence.  
 At sprint end: each story `DONE / NOT DONE / BLOCKED`, PR/commit/evidence, accepted/rejected disposition, actual points completed, carryover reason, new blockers, next sprint recommendation.
 
-## Important note
+## Approval / governance note
 
-This is a **proposed Agile plan**. PM approval is required to adopt the sprint cadence, commitment, priorities, and authorization. Story points are estimates, not promises or elapsed-time forecasts.
+**PM approval recorded for Sprint 0 (22 SP) only.** Sprint 1+ remain proposed backlog and require planning/refinement and approval before commitment. This approval does not authorize implementation, QA execution, M0-01 gate closure, merge, production DB changes, real customer data, deployment, or live pilot.
