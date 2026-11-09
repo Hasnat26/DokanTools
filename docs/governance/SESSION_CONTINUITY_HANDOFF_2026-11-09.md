@@ -1,124 +1,106 @@
 # DokanTools — Session Continuity / Project Handoff
 
-**Record type:** Working handoff / coordination snapshot  
-**Last consolidated:** 2026-11-09  
-**Status:** SUBMITTED / WORKING RECORD — not a gate approval  
-**Purpose:** Preserve accepted decisions, current work, blockers, and authorization boundaries so a new ChatGPT/CH session can resume without relying on chat history.
+**Record type:** Working project handoff  
+**Date:** 2026-11-09  
+**Status:** DRAFT / SUBMITTED FOR PM REVIEW — not merged or gate-approved  
+**Purpose:** Make a new ChatGPT/CH session able to resume from GitHub without depending on previous chats.
 
-> This file is a continuity record, not a substitute for formal PO/PM approval, evidence, or review. A status written here must not be upgraded without supporting evidence and explicit authority.
+> This is a coordination snapshot, not proof that an item is approved, implemented, tested, or released. “Reported” means not independently verified in this record.
 
-## 1. Project identity and scope
+## 1. Project and repository
 
-- Repository: [Hasnat26/DokanTools](https://github.com/Hasnat26/DokanTools)
+- Repository: [Hasnat26/DokanTools](https://github.com/Hasnat26/DokanTools) (private)
 - Default branch: `main`
-- Product slice: native Android Slice A — Shop Profile only.
-- Stack baseline reported: Kotlin, Jetpack Compose, Room, MVVM; offline/local create-read-update.
-- One shop profile per local installation.
-- Out of scope for Slice A: cloud/Supabase/Firebase, invoices, inventory, sales, tax, QR/PDF/print/share, and other unapproved features.
+- GitHub is the durable source of project status, approved decisions, artifacts, evidence pointers, and work tracking.
+- ChatGPT/CH sessions do **not** automatically sync to GitHub.
+- Current recorded project stream includes invoice-first MVP planning and M0-01 reliability remediation. Do not substitute the separate Android-only Shop Profile context for this repository's active scope.
 
-## 2. Confirmed product/UX decisions
+## 2. Product direction / authorized scope
 
-- **UX Specification v0.4:** PO-approved (approval limited to UX requirements).
-- Required fields: Shop Name, Address, Mobile Number.
-- Mobile validation: 7–20 digits; accepted formatting characters are digits, `+`, spaces, hyphens, and parentheses.
-- Create/Edit discard confirmation: Keep Editing / Discard.
-- UX approval does **not** authorize implementation, source changes, builds, QA execution, APK distribution, or pilot.
+**Recorded product direction (as of 2026-11-04):** invoice-first local MVP, including:
+- Shop setup
+- Menu/items
+- Offline sale
+- Bangla invoice
+- Bill QR
+- Local stock/sales
+- Cancellation and stock restoration
+- Printing/sharing
 
-## 3. Current governance structure
+**Architecture direction previously recorded:** React Native + Expo + TypeScript + SQLite; retain Next.js web client and Supabase backend/shared domain logic; offline-first sync is future work. Verify current approved architecture/spec artifacts before implementation; this is a historical context summary, not a substitute for the exact decision record.
 
-- **CH-1:** Project Lead / Chief Reviewer; coordination, consolidated status, acceptance/rejection of deliverables, gate recommendation.
-- **CH-2:** Product & UX Lead; UX requirements, PO decision tracking, UX-to-QA traceability.
-- **CH-3:** Implementation / provenance; source/toolchain/repository evidence and implementation tasks only within explicit authorization.
-- **CH-4:** QA; QA planning, readiness, execution only when separately authorized.
-- PM/PO approval remains the controlling authority for scope, decisions, and phase/gate transitions.
+**Limited PO approval previously recorded:** local MVP development may proceed in parallel with M0-01 under the approved scope. No production deployment, production/pilot use, real customer data, or production DB changes. M0-01 gate remains mandatory.
 
-## 4. Gate / readiness snapshot (as of 2026-11-09)
+## 3. Current high-priority stream — M0-01 remediation
 
-| Gate | Status | Notes |
+GitHub PR history is the current repository evidence:
+- PR #12: CH-3 M0-01 Remediation Design R2.6, documentation-only; CH-1/CH-4 review required.
+- PR #11: CH-4 QA review of R2.5, **NEEDS REVISION — HIGH**.
+- PR #10: M0-01 R2.5 design candidate.
+- PR #2–#9: prior design revisions/reviews.
+- PR #13: this session-continuity handoff draft.
+
+**M0-01 status:** design remediation/review not yet accepted; implementation approval NOT GRANTED; financial pilot NO-GO; runtime/database verification NOT EXECUTED. PR #12 does not imply design closure or implementation authorization.
+
+## 4. Governance roles
+
+- **CH-1 — Project Lead / Chief Reviewer:** backlog prioritization, coordination, cross-CH dependency management, review/disposition, master register/handoff.
+- **CH-2 — Product & UX Lead:** product requirements, UX/specification, PO decisions, acceptance criteria, product backlog.
+- **CH-3 — Implementation / Engineering:** source, architecture, implementation and provenance tasks only within explicit authorization.
+- **CH-4 — QA Lead:** independent review, test strategy, acceptance coverage, QA execution only when authorized.
+- **PM/PO (user):** scope, priority, product decisions, implementation/pilot/release authorization, gate approval.
+
+## 5. Current known statuses
+
+| Work item | Current recorded status | Next action |
 |---|---|---|
-| G-01 UX v0.4 | PO-APPROVED | UX scope only; no implementation authorization |
-| G-02 Provenance | OPEN — BLOCKER | Source ZIP exists; source commit identity and source-to-APK relationship unresolved |
-| G-03 Toolchain freeze | OPEN — BLOCKER | Reported configuration exists; reproducibility/freeze not verified |
-| G-04 Environment readiness | OPEN — NOT VERIFIED | Evidence not yet sufficient |
-| G-05 QA Plan v1.2 | CH-1-approved planning baseline | Planning only; QA cases NOT EXECUTED |
-| G-06 Repository governance | OPEN — NOT VERIFIED | Repository control/process not yet independently verified |
-| G-07 PO decisions | PARTIAL / OPEN | UX decisions approved; API 26 requirement vs source minSdk 24 conflict unresolved |
+| M0-01 R2.6 design | PR #12 open / review required | CH-1 and CH-4 review exact head |
+| CH-4 R2.5 QA | PR #11 NEEDS REVISION — HIGH | Ensure all high findings addressed and independently verified |
+| Local MVP product specs | Partial / needs consolidated backlog | CH-2 create stories and acceptance criteria |
+| Local MVP implementation | Limited parallel approval was recorded; confirm exact scope/task authorization before code work | CH-1 map approved specs to implementation stories |
+| QA/runtime/database | Not executed unless exact test evidence says otherwise | Do not claim PASS; obtain explicit test authorization |
+| Production/pilot | NO-GO / NOT AUTHORIZED | M0-01 gate and PM approval required |
 
-**Overall readiness: NOT READY.**
+## 6. Safety and authorization boundaries
 
-## 5. Source and toolchain evidence currently reported
+- No production deployment, real customer data, production DB mutation, or live financial pilot.
+- M0-01 implementation approval remains NOT GRANTED until explicit PM gate approval.
+- Do not claim tests passed if they are planned, simulated, or not executed.
+- Do not merge PRs, close gates, or upgrade statuses without review/evidence and PM approval where required.
+- Scope/architecture conflict must be surfaced, not silently reconciled.
 
-- Colab source path: `/content/dokantools_export/DokanTools`.
-- Source folder reportedly has no `.git`; Git commands return “not a git repository”.
-- Reported source config: minSdk 24, compileSdk 35, targetSdk 35, Java 17, AGP 9.1.1, Gradle 9.3.1, KSP 2.2.10-2.0.2, Compose/Kotlin plugin 2.2.10, Room 2.8.5.
-- Reported Gradle workaround: `android.disallowKotlinSourceSets=false`.
-- **API 26 is the governing PM requirement.** Reported source `minSdk=24` conflicts with it; do not silently change or treat as resolved.
-- Reported APK SHA-256: `6ee606ce8c510174ba0f700ce9e7124c11af24ee4f9e824b1dc5b0461afe64c6` — not independently verified here.
-- Reported evidence ZIP: `/content/DokanTools_source_evidence_20261105T081251Z.zip`; SHA-256 `86200ba0fbff5282405c2786273a535888c76199387c337c4451dabb6f8a0ebe`; manifest `/content/DokanTools_source_evidence_20261105T081251Z_manifest.json`.
-- ZIP hash and source-to-APK correspondence have not been independently verified. Do not claim reproducibility or provenance closure.
+## 7. Status vocabulary
 
-## 6. Worker deliverables / progress
+`DRAFT` → `SUBMITTED` → `ACCEPTED` (or `REVISE` / `REJECTED`)  
+`ACCEPTED` ≠ `AUTHORIZED`; `AUTHORIZED` ≠ `EXECUTED`; `EXECUTED` ≠ `PASS`; `PASS` ≠ release approval.
 
-### CH-2 — UX-to-QA Traceability Matrix and PO Decision Register
-- Reported submitted; CH-1 formal acceptance pending inspection of the actual artifacts.
-- Summary identifies coverage gaps UXQA-G01–G12, including discard behavior, Back/keyboard handling, mobile boundary/format validation, inline validation, retry/write failure, reboot persistence, saved profile read-only/edit prefill.
-- QA Plan v1.2 reportedly unchanged; no QA execution.
+Use story statuses: `BACKLOG`, `READY`, `IN PROGRESS`, `BLOCKED`, `IN REVIEW`, `DONE` (Done requires defined acceptance criteria/evidence).
 
-### CH-4 — QA Plan v1.2 Planning-Baseline Maintenance Note + QA Readiness Checklist
-- Reported submitted; CH-1 formal acceptance pending.
-- Reportedly maps UXQA-G01–G12 and readiness dependencies R-01–R-27.
-- QA cases remain PLANNED / NOT EXECUTED.
-- No browser regression, APK distribution, or pilot.
+## 8. Chat-to-GitHub session continuity
 
-### CH-3 — Provenance / toolchain closure addendum
-- Last recorded status: awaiting receipt.
-- On receipt, review source repo/commit identity, ZIP integrity, APK/source correspondence, toolchain reproducibility, and minSdk/API 26 conflict.
+At every meaningful milestone and before switching ChatGPT chats:
+1. Record accepted decisions with decision source/date.
+2. Record completed work, current status, owner/CH, and PR/commit links.
+3. Record work in progress, blockers, dependencies, and next action.
+4. Record story points, sprint assignment, and acceptance evidence where applicable.
+5. Record authorizations and explicit “not authorized” boundaries.
+6. Update this handoff and the sprint/backlog register.
 
-## 7. Authorization boundaries — mandatory
+New chat startup:
+1. Read this handoff.
+2. Read current Sprint/Backlog and relevant PRs/issues.
+3. Verify latest main SHA and open PRs.
+4. State the baseline and blockers before doing work.
+5. Do not rely on chat-only history for approval or status.
 
-Unless PM gives explicit separate authorization, do **not**:
-- modify or reconcile source code;
-- create or alter repository implementation branches/PRs/commits beyond explicitly approved documentation-only work;
-- build or test the app / execute QA;
-- distribute APKs, conduct browser regression, or run a pilot;
-- change API/minSdk or any approved baseline.
+## 9. Immediate actions
 
-Read-only evidence inspection and documentation-only coordination may proceed only within the currently approved scope.
+1. Review PR #12 R2.6 and PR #11 high findings; determine whether R2.6 actually closes them.
+2. CH-2 create a prioritized product backlog with acceptance criteria.
+3. CH-1 split backlog into sprint-ready stories with dependencies and story points.
+4. CH-4 map test strategy to story acceptance criteria; execution remains separately authorized.
+5. Keep M0-01 and production/pilot gates fail-closed.
 
-## 8. Status vocabulary (do not conflate)
+## 10. Evidence limitations
 
-- `SUBMITTED` ≠ `ACCEPTED`
-- `ACCEPTED` ≠ `AUTHORIZED`
-- `AUTHORIZED` ≠ `EXECUTED`
-- `EXECUTED` ≠ `PASS`
-- `PASS` ≠ PO/PM approval or gate closure
-
-Use explicit labels: `DRAFT`, `SUBMITTED`, `ACCEPTED`, `ACCEPTED WITH CONDITIONS`, `REVISE`, `REJECTED`, `AUTHORIZED`, `NOT AUTHORIZED`, `PLANNED / NOT EXECUTED`, `EXECUTED`, `PASS`, `FAIL`, `BLOCKED`.
-
-## 9. Chat-to-GitHub continuity rule
-
-- ChatGPT/CH conversations do **not** automatically sync to GitHub.
-- GitHub is the durable project record for approved decisions, accepted artifacts, current status, blockers, evidence pointers, and handoff snapshots.
-- Each CH should submit its deliverable/status in the coordination thread; CH-1 consolidates it into the project record.
-- At each meaningful milestone or before switching chat sessions, update this handoff (or a dated handoff entry) with:
-  1. latest accepted decisions and source references;
-  2. deliverables submitted/accepted/rejected and by whom;
-  3. active work and owner;
-  4. blockers/open questions;
-  5. current gates and whether work is authorized;
-  6. next action and its authorization status;
-  7. latest relevant repository commit/PR/evidence links.
-- A new chat should start by reading this file and the linked authoritative artifacts, then confirm its baseline before taking action.
-- Never rely on an uncommitted chat-only statement as a final project decision.
-
-## 10. Immediate next actions
-
-1. CH-1 review actual CH-2 and CH-4 artifacts and record formal disposition.
-2. Receive and review CH-3 provenance/toolchain closure addendum.
-3. Resolve API 26 vs source minSdk 24 through explicit PM decision; do not implement the change yet.
-4. Keep readiness **NOT READY** until blockers are evidence-closed and PM authorizes the next phase.
-5. Establish/update the Project Operating Model, Master Coordination & Gate Register, and Phase/Gate Transition Protocol as documentation-only governance artifacts, subject to PM review.
-
-## 11. Record limitations
-
-This snapshot is compiled from project coordination context available on 2026-11-09. Items described as “reported” or “awaiting review” are not independently verified or formally accepted. When newer evidence is available, update the record with date, source link, author/owner, and disposition; retain historical status rather than silently rewriting it.
+This record consolidates available project memory and GitHub PR metadata as of 2026-11-09. Verify exact product/architecture decisions and current PR states from linked GitHub artifacts. No gate or implementation authorization is changed by this handoff.
