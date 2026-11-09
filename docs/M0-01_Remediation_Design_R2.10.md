@@ -531,6 +531,8 @@ FK-O-L is a normal nullable foreign key from operation.ledger_entry_id to ledger
 
 FK-O-L is DEFERRABLE INITIALLY DEFERRED. This permits the transaction to establish the reciprocal cycle in more than one statement order, but does not waive final referential integrity. The minimum canonical cycle uses FK-O-L plus FK-L-O-L and the unique/check constraints from §14. FK-L-O remains optional/redundant as previously stated.
 
+**Explicit NULL semantics:** For FK-O-L, a single-column NULL referencing value means the FK comparison is not performed for that row; it does not require or identify a ledger parent. This is valid only for a non-posted operation, because CK-O-STATE-LINK requires non-posted ⇒ ledger_entry_id IS NULL. Conversely, POSTED ⇒ ledger_entry_id IS NOT NULL, so the FK must find the referenced ledger row by COMMIT. The FK itself does not prove that a non-posted operation has no unrelated ledger row; the separate operation/ledger cardinality and approval-link constraints/triggers must enforce that invariant. No NULL exception permits a posted operation to commit without its ledger.
+
 ### 21.2 Canonical posted transaction sequence
 
 One approved RPC transaction performs these logical actions in one transaction after authenticated context, complete key discovery and all locks are established:
