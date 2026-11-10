@@ -239,3 +239,281 @@ These are recommendations only, not active controls.
 Global GitHub SSOT is **ACTIVE ON MAIN**. PM approved PR #21, whose reviewed head was `10bf1fb4c7687d2223e17c7303902df281deb4c5`; it was merged at commit `3abd0455a7755208049da310f85aab930e9f4200`. The exact paths and blob SHAs of both governance documents at activation are recorded in this document's metadata. This DT-GOV-002 consistency-update PR proposes only to correct the post-merge status record; it does not deactivate or replace the active governance baseline until any approved follow-up merge takes effect.
 
 All existing task-specific PM instructions, missing-baseline hard stops, approval gates and execution restrictions remain in force. Governance activation does not grant implementation, QA execution, SQL/database, build, deployment, APK distribution or pilot authorization.
+
+
+---
+
+## 12. Invoice-First Web MVP — current authority and control record
+
+**Control snapshot:** 2026-11-10, refreshed against main HEAD 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1. This section is a current workstream addendum; it does not rewrite the historical audit snapshot in §§2–3.1. It becomes an active main-branch authority entry only when the governance PR carrying this change is reviewed and merged.
+
+### 12.1 Exact source baseline and repository evidence
+
+| Item | Exact identity at the pinned source | Status / bounded authority |
+|---|---|---|
+| Repository main | main HEAD 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1 | VERIFIED current source snapshot |
+| Worker instructions | WORKER_SINGLE_SOURCE_OF_TRUTH.md — blob 5714e127aad7a81d3e26da2ac2d77fe875927fdc | ACTIVE governance instruction |
+| Project authority register | PROJECT_SOURCE_OF_TRUTH.md — blob 0a2534fd67ebf5d1c3094faf147cdfa4b2cb73a5 | ACTIVE before this proposed update |
+| PO invoice mockup | docs/decisions/PO_CONFIRMED_INVOICE_MOCKUP.md — blob efe0d261c50a4cfc706e82c832a6f052c676127c | PO-CONFIRMED — invoice layout/content and bill-QR purpose only |
+| Existing app package | package.json — blob ae172ae60fa1ea497ea57c076026b46d70790109 | Next.js 15.5.28, React 19.3.1, Supabase JS ^2.45.4 |
+| Dashboard source | src/app/dashboard/page.tsx — blob ee6dc3733cd4d50ec1dd76106477d50ab4b25c0c | Existing app source only; not Phase A1 acceptance |
+| Supabase client / Shop type | src/lib/supabase.ts — blob 93c187a8384752346c0f0911c84b61f35b88cae6 | Existing client and shop field type |
+| Shop loading hook | src/components/ShopGuard.tsx — blob 1f2509f02ce717ea90fbe939b03f56e2ad1775a9 | Existing auth/profile loading helper |
+| Existing utility functions | src/lib/utils.ts — blob f7dbb1f5309de4f79a2dab032d60715f7607a470 | Includes normalizeBdPhone; not a profile validator |
+| Repository schema | supabase/schema.sql — blob e859b6de9660533962eddb6f9f3d17ad8a4c1cca | Repository SQL source only; not proof of deployed DB state |
+| Reliability migration | supabase/migrations/20261019_reliability_foundation.sql — blob 6b6b51318a5b4d1f38880ec2007049409102931c | Repository migration source only; not proof it ran in the live project |
+
+The GitHub branch endpoint reported main as protected=false. Ruleset/branch-protection configuration is not independently verified; do not claim that required-review or status-check protections are active.
+
+### 12.2 PO-confirmed mockup — limited authority
+
+The pinned PO record confirms the standard Bangla food-bill layout for Bangladesh food shops, hotels and restaurants. It confirms shop name, shop address, mobile number, Google Maps shop location, bill number, date/time, item name, quantity, price, total, an individual bill verification/details QR, the exact heading **খাবারের বিল**, and the exact footer **ধন্যবাদ, আবার আসবেন!**.
+
+The QR on an individual bill must identify that bill. A shop promotional/profile QR is a separate concept and must not replace the bill QR.
+
+This record does **not** decide paper size, unit-price versus line-amount semantics, QR token protocol or lifetime, revocation/cancellation policy, offline issuance/verification, menu policy, or implementation. It grants no implementation, QA, merge, deployment or pilot authorization.
+
+### 12.3 PR #28 — CH-3 technical design v0.2
+
+| Field | Verified value |
+|---|---|
+| PR | https://github.com/Hasnat26/DokanTools/pull/28 |
+| Branch | docs/dt-invoice-first-mvp-tech-design-001 |
+| Base | main at 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1 |
+| Current head | 2b1e0be89e2487bedf841dbc8247d646529ae7cc |
+| v0.2 file | docs/design/INVOICE_FIRST_WEB_MVP_TECHNICAL_DESIGN_v0.2.md |
+| v0.2 blob | 348ec933a2798ba2c790707397d723e8377a8442 |
+| Preserved v0.1 blob | 10f795ddfc24b0d3eab204b8006379616ab2ec13 |
+| PR state | OPEN / UNMERGED; two Markdown files; not part of main |
+| CH-1 review object | Review 5839806278, state COMMENTED, against exact v0.2 head |
+| CH-1 disposition | ACCEPTED WITH CONDITIONS — DESIGN DOCUMENTATION ONLY |
+
+The v0.2 document maps CH4-01..CH4-11 to technical sections and proposed acceptance scenarios. CH-1's review records CH4-01 as design-resolved only with the PO-12 bearer-link risk gate; CH4-02..CH4-11 as document-level design-resolved. All database enforcement, key/KMS, CDN/cache, rate-limit, font/renderer and runtime evidence remains outstanding. Proposed tests are NOT EXECUTED. This review is not implementation approval, QA acceptance or merge approval.
+
+### 12.4 PR #30 — CH-2 owner/customer UX v0.1
+
+| Field | Verified value |
+|---|---|
+| PR | https://github.com/Hasnat26/DokanTools/pull/30 |
+| Branch | docs/invoice-first-owner-customer-ux |
+| Base | main at 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1 |
+| Current head | ca8324005048148b8d82c5151528ea41a2aa8a5a |
+| UX file | docs/ux/INVOICE_FIRST_WEB_MVP_OWNER_CUSTOMER_UX_v0.1.md |
+| File blob | 076987722886a1b08246f8c644e8aa2744eb33de |
+| PR state | OPEN / UNMERGED; one Markdown file; not part of main |
+| CH-1 disposition | ACCEPT WITH CONDITIONS — UX DESIGN ONLY, recorded in PR comment 6763856297; this is a conversation comment, not a formal CH-1 PR review object |
+
+**Outstanding review thread:** PR #30 has one unresolved, non-outdated P2 inline thread at line 160, thread ID PRRT_kwDOVhBFWs61okrS, comment 4523203685. It requires menu deactivation/reactivation/deletion behavior to remain explicitly provisional until the canonical PO menu decision is recovered or re-approved. The Issue #24/31 authority addenda gate menu policy, but the inline thread itself remains unresolved. Owner: CH-2. Closure requires a narrowly scoped correction on the existing UX PR (no new UX version unless necessary), followed by CH-1 review of the exact revised head. This does not block Phase A1; it blocks menu-policy acceptance and the full menu workflow.
+
+### 12.5 CH-2 final UX reconciliation
+
+The controlling criterion-level recount is Issue #24 comment 6764578884. UX-01 through UX-39 are each listed exactly once:
+
+| Status | Count | Criteria |
+|---|---:|---|
+| MAPPED | 14 | UX-05, UX-15, UX-16, UX-18, UX-19, UX-20, UX-22, UX-27, UX-28, UX-30, UX-32, UX-34, UX-35, UX-36 |
+| PARTIAL | 12 | UX-01, UX-02, UX-06, UX-13, UX-14, UX-17, UX-21, UX-24, UX-25, UX-37, UX-38, UX-39 |
+| GAP | 5 | UX-03, UX-04, UX-10, UX-11, UX-33 |
+| PO-GATED | 8 | UX-07, UX-08, UX-09, UX-12, UX-23, UX-26, UX-29, UX-31 |
+| TOTAL | 39 | 14 + 12 + 5 + 8 = 39 |
+
+MAPPED means design mapping and proposed acceptance coverage only; it does not mean implemented, tested or accepted at runtime. UX-19 is mapped for the confirmed invoice field inventory; only the affected price presentation remains PO-04-gated. UX-21 is PARTIAL, not PO-GATED: engineering selects a default PDF profile, and a defined normal-bill corpus must render on one page without clipping, truncation, overlap or illegible shrinkage; larger bills paginate losslessly. UX-23 is PO-GATED for end-to-end public verification, while bill-specific QR identity itself is PO-confirmed.
+
+For Phase A1, the relevant UX profile criteria are UX-01..UX-05. UX-01 and UX-02 remain PARTIAL; UX-03 and UX-04 are GAPs requiring direct required-field/preservation and failed-save/retry assertions. UX-05 concerns future issued-invoice snapshot immutability and is not an A1 feature. A1 must add its own criterion-level test coverage before QA acceptance; it must not claim these gaps were tested.
+
+### 12.6 CH-3 technical closeout and existing application findings for Phase A1
+
+**Verified repository facts at main 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1:**
+
+1. The existing stack is Next.js 15.5.28, React 19.3.1 and Supabase JS. No replacement architecture or new dependency is proposed for A1.
+2. The existing shops table contains shop_name, address, phone and map_link. shop_name is NOT NULL; address, phone and map_link are nullable in the repository schema. The Shop type already contains these fields.
+3. The original schema defines owner-scoped RLS policies for shop SELECT, INSERT and UPDATE using auth.uid() = user_id. The reliability migration grants authenticated users SELECT, INSERT on named shop columns and UPDATE on named shop columns, including the four A1 fields. The repository source does not prove that the same migration/schema/policies are deployed in the live Supabase project.
+4. The current dashboard creation form requires only shop_name. It also exposes shop_type and owner_name, and its createShop function inserts default rows into item_catalog after creating the shop. That side effect is outside Phase A1 and makes the existing create path unsafe to reuse unchanged.
+5. The current dashboard displays shop information but has no complete profile-edit flow. ShopGuard loads the first shop by created_at; the app does not expose multi-shop selection.
+6. The shops table has no unique constraint on user_id and no updated_at column in the pinned schema. Existing data cardinality and live RLS state have not been inspected.
+7. normalizeBdPhone strips non-digits and prefixes 88 when the number does not start with 880 or 0. It is a WhatsApp-link helper, not a profile validator and must not be reused as one.
+8. Existing tests use Node's built-in test runner. The repository has no dedicated Shop Profile test suite. No dependency installation, build, lint, automated test, browser test or live DB inspection was performed for this assignment.
+
+**Engineering conclusion:** the existing shops table is sufficient for basic A1 CRUD at the repository-schema level; no new table or column is indicated. A1 must isolate profile create/view/edit and remove the default item_catalog seeding side effect from the profile-creation path. It must update only shop_name, address, phone and map_link, preserving existing shop_type, owner_name, logo_url, plan and is_public values. RLS, not a client-supplied user_id filter alone, is the tenant boundary. No service-role key may be exposed to the browser.
+
+The current UI's earliest-shop selection implies a single primary-shop experience, but the database does not enforce one shop per user. A1 should not add multi-shop or branch selection. Do not add a unique index until a read-only duplicate-data audit and explicit PM decision establish that one-shop-per-user is the intended invariant. Live data and deployed RLS remain NOT VERIFIED.
+
+### 12.7 PO decision closure — current status
+
+The latest consolidated PO response request is Issue #31 comment 6764860208. At this snapshot, the issue contains no PO response comments. Silence, acknowledgement, CH-1 recommendations and issue closure are not approval. No duplicate reminder issue is to be created; use the existing Issue #31 request.
+
+| Decision ID | Required PO response | Status | Feature dependency |
+|---|---|---|---|
+| PO-02 — online-only issuance and verification promise | APPROVE / MODIFY / DEFER with exact wording | PENDING-PO | Gates final customer-facing online/offline promise and invoice release; does not block A1 |
+| PO-04 — unit price and line amount presentation | APPROVE / MODIFY / DEFER with exact wording | PENDING-PO | Gates final customer-facing invoice/PDF price presentation; does not block A1 |
+| PO-05 — quantity precision, fractional quantity and units | APPROVE / MODIFY / DEFER with exact wording | PENDING-PO | Gates final composer/quantity semantics; does not block A1 |
+| PO-06 — food-menu minimum fields and lifecycle | APPROVE / MODIFY / DEFER with exact wording | PENDING-PO | Gates menu fields/lifecycle and menu implementation; does not block A1 |
+| PO-11 — invoice revocation, correction and customer-visible state | APPROVE / MODIFY / DEFER with exact wording | PENDING-PO | Gates revocation/correction and customer-visible revoked state; does not block A1 |
+| PO-12 — public bill-link lifetime and bearer-access risk | APPROVE / MODIFY / DEFER; specify expiry if finite | PENDING-PO | Gates public bill verification/link lifecycle; does not block A1 |
+| PO-I11 — customer verification wording | APPROVE / MODIFY / DEFER with exact wording | PENDING-PO | Gates public verification wording; does not block A1 |
+| PO-I06A — key-compromise business-impact acknowledgement | Explicit acknowledgement and PO/Security disposition | PENDING-PO | Gates acceptance of key-retention/compromise business risk; does not block A1 |
+
+The six principal decisions and two supplementary decisions remain separate. PO-11/12 gate public bill verification, not independent shop-profile work. Database integrity, RLS, HMAC, key management, cache controls, rate limits and QA evidence remain engineering obligations and cannot be waived by PO approval.
+
+### 12.8 Phase A1 — Shop Profile Foundation: PM authorization package
+
+**Package status:** PREPARED FOR PM DECISION; NOT AUTHORIZED FOR IMPLEMENTATION.
+
+**Proposed source baseline:** repository main commit 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1. The package is valid only against this exact source snapshot. If main moves before PM authorization, CH-1 must re-pin the baseline and reassess the diff; workers must not silently rebase or select a new source.
+
+**Proposed implementation branch:** feat/phase-a1-shop-profile, created from the exact source commit above only after explicit PM authorization.
+
+**Purpose:** implement the authenticated owner's Shop Profile foundation in the existing Next.js/Supabase application.
+
+**Included scope:**
+1. Create a shop profile.
+2. View the saved profile.
+3. Edit the same profile record.
+4. Persist the four fields: shop name, shop address, mobile number and Google Maps location.
+5. Field validation and actionable field-level errors.
+6. Authenticated access and shop ownership checks.
+7. Tenant isolation and data-access controls using the existing Supabase RLS model.
+8. Loading, empty, saving, success, failure and retry states.
+9. Automated test source for profile validation and persistence/ownership behavior.
+10. Required QA evidence plan for desktop/mobile browser behavior and tenant isolation.
+
+The CH-2 O-01 UX proposal treats all four fields as required. The PO mockup confirms that these fields belong in the invoice header, but does not separately specify field requiredness or exact validation rules. For A1 planning, all four are proposed as required; this is an explicit UX/engineering proposal, not a new PO decision.
+
+**Explicit exclusions:**
+- Food menu/catalog CRUD or lifecycle.
+- Invoice composer, issue, numbering or history.
+- Financial calculations, price overrides, discount, tax, paid or due.
+- Customer records or customer ledger.
+- Public bill QR, public bill verification or shop promotional QR changes.
+- PDF generation, printing or WhatsApp sharing.
+- Payment, accounting, stock, inventory or supplier functions.
+- Multi-branch or multi-shop selection.
+- Unrelated dashboard redesign, refactoring or architecture replacement.
+- Database schema/RPC/policy/migration changes unless separately authorized after source/live-state verification.
+- Dependency, build configuration or environment-secret changes unless separately authorized.
+
+**Proposed minimum code impact:**
+- Modify src/app/dashboard/page.tsx only for the shop-profile create/view/edit flow; do not broaden the change into existing memo, stock, public-page or other dashboard features.
+- Add a focused src/components/ShopProfileForm.tsx if needed to isolate create/edit behavior.
+- Add src/lib/shop-profile-validation.mjs and its declaration file src/lib/shop-profile-validation.d.mts, following the repository's existing .mjs/.d.mts helper pattern.
+- Add tests/shop-profile-validation.test.mjs using the existing Node test runner.
+- Modify src/components/ShopGuard.tsx only if the implementation needs a narrowly scoped correction to authentication/loading/error handling.
+- No change to src/lib/supabase.ts is expected because the Shop type already includes the four fields.
+- No other application paths are authorized by this package.
+
+**Database impact and permission boundary:**
+- Preferred A1 implementation uses the existing shops table and existing owner RLS/grants; no new table, column, index, RPC, SQL, migration or policy change is included.
+- No live database inspection or operation has been performed. Before implementation acceptance, the deployed schema and RLS/grants must be checked under a separate explicit read-only DB-inspection permission.
+- If the live schema differs, required fields cannot be safely enforced, existing data contains duplicates that affect the primary-shop assumption, or a database constraint is judged necessary, STOP and obtain a separate PM authorization for the exact migration/SQL scope. Do not improvise a schema change.
+- Do not add a unique user_id index without a data audit and explicit PM approval.
+
+**Proposed validation contract for CH-4 review:**
+- Trim outer whitespace and reject empty shop name and address; preserve Bengali/Unicode display text.
+- Require a non-empty mobile number. Reject alphabetic characters; allow digits and common display characters (+, spaces, hyphens and parentheses). Do not claim carrier verification or a verified phone identity. Do not reuse normalizeBdPhone as validation. A stricter Bangladesh-number rule must be explicitly specified and tested before adoption.
+- Require a Google Maps URL using HTTPS and an explicit host allow-list. Proposed hosts for review: maps.google.com, www.google.com with a /maps path, maps.app.goo.gl, and goo.gl/maps. Parse the URL; do not accept javascript:, data:, arbitrary external hosts or malformed values. Do not claim geocoding or pin accuracy; store the supplied share URL only.
+- Preserve all entered values after validation or save failure. Do not silently truncate input.
+- Exact maximum text lengths are not specified in the existing PO mockup/schema; CH-3 must propose bounded UI limits and CH-4 must review them before implementation. Do not silently invent a PO limit.
+
+**Security and privacy controls:**
+- Resolve the authenticated user from Supabase Auth; never trust a user_id supplied by a form.
+- Insert the authenticated user's ID and rely on RLS WITH CHECK to enforce ownership.
+- On update, target the selected shop row and authenticated owner; RLS must independently reject cross-tenant access.
+- Do not expose service-role credentials in browser code.
+- Select only the profile fields needed by the UI; do not expose internal account/auth data.
+- Preserve existing column-level grants and RLS. Do not broaden table privileges.
+- Display the Maps link only after safe URL validation; no geocoding or third-party tracking is part of A1.
+- No profile deletion or owner-transfer flow.
+
+**Proposed acceptance criteria (all require future evidence):**
+- A1-AC-01: Unauthenticated access to the profile flow redirects to login and exposes no shop data.
+- A1-AC-02: An authenticated account without a shop sees the empty/create state with all four profile fields and clear required-field labels.
+- A1-AC-03: A valid save creates the shop profile for the authenticated owner and persists all four fields; it creates no item_catalog, stock, memo, customer or ledger rows.
+- A1-AC-04: A page reload retrieves and displays the same saved profile from Supabase.
+- A1-AC-05: Edit updates the existing shop row, not a second row, and preserves unrelated existing columns such as shop_type, owner_name, logo_url, plan and is_public.
+- A1-AC-06: Empty/whitespace required fields and malformed phone/Maps values produce adjacent actionable errors; valid fields remain unchanged.
+- A1-AC-07: A failed save retains the full draft and provides a retry path; duplicate taps do not create duplicate profile rows.
+- A1-AC-08: Two-user negative tests prove that one authenticated user cannot read or update another user's shop, including when the other shop ID is supplied directly.
+- A1-AC-09: The Maps link is HTTPS and matches the approved host/path allow-list; invalid schemes/hosts are rejected.
+- A1-AC-10: A1 contains no menu, invoice, QR, PDF, WhatsApp, payment, accounting, customer, stock or inventory capability.
+
+**Proposed test strategy (NOT EXECUTED):**
+- Unit: required-field trimming, Unicode preservation, phone character grammar, Maps URL parsing/allow-list, invalid scheme/host and boundary lengths.
+- Supabase integration: two authenticated test users; owner create/read/update; cross-tenant SELECT/UPDATE denial; spoofed user_id denial; profile persistence; no catalog/ledger side effects.
+- UI/browser: empty/create/view/edit, field errors, loading/saving/success/failure/retry, duplicate taps, reload persistence, 320 CSS px and common mobile widths, keyboard/focus/labels.
+- Regression: existing login/signup and existing dashboard routes remain functional; profile-only changes do not alter existing memo/stock/public-page behavior.
+- Use existing Node test infrastructure where possible. No new test dependency is included. Browser/DB QA execution requires separate PM authorization and an identified staging environment/test accounts.
+- All results must record environment, exact commit, command/action, output and limitations. No BLOCKED or NOT EXECUTED result may be reported as PASS.
+
+**Implementation sequence after authorization:**
+1. Reconfirm main/source commit and mandatory SSOT files.
+2. Under explicit read-only DB permission, verify deployed shops columns, RLS policies and grants; stop on drift.
+3. Implement isolated profile create/view/edit and validation.
+4. Remove the item_catalog seeding side effect from the profile creation path; verify no menu writes.
+5. Add unit and authorized integration test source.
+6. CH-4 reviews the exact implementation candidate and acceptance evidence.
+7. Execute only the separately authorized QA scope; report results and defects.
+8. Submit a separate merge request for PM approval. Deployment and pilot remain separate gates.
+
+**Effort estimate (engineering estimate, not commitment):** 3–5 engineering person-days for focused UI, validation, persistence and unit-test implementation; 1–2 QA person-days for authorized staging/RLS and browser acceptance. Add 1–2 engineering days if live schema drift, duplicate shop records or migration needs are discovered. These estimates exclude invoice/menu work and production release.
+
+**Rollback:** A1 is intended to require no database migration. Roll back by reverting the A1 application commit/deployment to the prior known-good app version. Retain shop profile records; do not delete user data. If a migration is later separately authorized, it requires a pre-migration backup, explicit forward/rollback SQL and its own approval.
+
+**PM permissions requested — not granted by this package:**
+- Implementation: authorize only the exact A1 code paths above on feat/phase-a1-shop-profile from the pinned baseline.
+- Database: no schema/SQL/migration changes. Separately authorize read-only staging schema/RLS inspection if required.
+- Tests: authorize writing the A1 test source as part of implementation; test execution is NOT AUTHORIZED until a separate QA permission specifies test layers, environment and accounts.
+- Merge, deployment and pilot: NOT AUTHORIZED; separate later decisions required.
+
+### 12.9 CH-4 assurance status and findings
+
+The recorded independent CH-4 report at PR #28 comment 6763798273 reviewed v0.1 and returned REJECT. Issue #29 is now closed as completed for that v0.1 review scope. There is **no recorded independent CH-4 review of PR #28 v0.2 or of this Phase A1 package**. CH-1's v0.2 integrated review is not a substitute for CH-4's independent review. Issue #27 remains open for the required v0.2/A1 review. Do not claim the CH-4 gate is complete.
+
+CH-1's adversarial cross-check identified the following items for CH-4 to confirm independently:
+
+| Finding | Severity | Evidence / impact | Owner | Required closure evidence | Blocks A1? | Blocks full MVP? |
+|---|---|---|---|---|---|---|
+| A1-F01 — profile creation has an out-of-scope catalog side effect | MAJOR | dashboard createShop inserts default item_catalog rows; violates profile-only scope | CH-3 | isolated create path and test proving zero catalog/stock/ledger writes | YES | No, but profile onboarding |
+| A1-F02 — existing profile form does not enforce all four required fields and has no edit flow | MAJOR | dashboard form requires only shop_name; phone/address/map_link optional; no profile edit | CH-3 | field-level validation and create/view/edit acceptance evidence | YES | No |
+| A1-F03 — live RLS/schema state unverified | MAJOR | repository SQL is not deployed DB evidence | CH-3 / DBA | authorized read-only staging inspection with exact environment and policy/grant evidence | YES for acceptance/release | YES for secure tenant release |
+| A1-F04 — mobile normalization helper is not a validator | MINOR | normalizeBdPhone blindly prefixes 88; unsuitable as input validation | CH-3 | separate validator unit tests; no false phone-verification claim | YES | No |
+| A1-F05 — shop cardinality is not enforced | OBSERVATION | current UI selects earliest shop; schema has no unique user_id constraint | PM / CH-3 | preserve primary-shop assumption or explicit PM decision after duplicate-data audit; no unapproved unique index | CONDITIONAL | No |
+| UX-F01 — menu lifecycle statements remain under an unresolved P2 thread | MAJOR | PR #30 line 160; menu lifecycle may be interpreted as approved despite missing PO-B01–B07 baseline | CH-2 | narrowly scoped UX correction or canonical PO decision; resolve exact inline thread and CH-1 re-review | NO | YES for menu |
+| UX-F02 — profile-specific UX-03/UX-04 coverage is incomplete | MAJOR | Issue #24 crosswalk marks required-field/preservation and failed-save/retry as GAP | CH-2 / CH-4 | A1-AC-06/07 and corresponding unit/UI tests in the QA plan | YES for QA acceptance | No |
+
+**Provisional review recommendation:** ACCEPT WITH CONDITIONS for the Phase A1 design package, subject to CH-4 independently confirming the acceptance criteria and the findings above. This is a CH-1 recommendation only; it is not a CH-4 disposition or QA acceptance. The formal independent CH-4 gate remains PENDING-QA.
+
+### 12.10 Consolidated pending-item register — Invoice-First workstream
+
+Statuses below use the controlled status vocabulary in the PM directive. A completed design deliverable does not imply that its PR is merged or that implementation/QA is authorized.
+
+| ID / GitHub location | Status | Owner | Closure criteria / evidence | Blocks A1? | Blocks full MVP? |
+|---|---|---|---|---|---|
+| Issue #24 — overall coordination and authority-register assignment | PENDING-PM | CH-1 / PM | Review and decide the governance PR carrying this register update; separately decide A1 implementation/QA gates | YES for authorization | YES for controlled workstream baseline |
+| Issue #25 / PR #30 — UX specification | PENDING-ENGINEERING | CH-2 | Resolve P2 menu-lifecycle thread on exact PR #30 revision; preserve UX-01..39 traceability; CH-1 re-review exact revised head | NO | YES for menu UX and full UX baseline |
+| Issue #26 / PR #28 — technical design | ACCEPTED | CH-3 / CH-1 | v0.2 accepted with conditions for design documentation only; PR remains open/unmerged; outstanding PO/security/runtime gates tracked separately | NO | YES as design reference; not a release baseline |
+| Issue #27 — independent CH-4 review | PENDING-QA | CH-4 | Independent review of exact PR #28 v0.2 and Phase A1 package; return ACCEPT / ACCEPT WITH CONDITIONS / NEEDS REVISION / REJECT with severity, evidence, owner and closure action | YES before A1 implementation | YES before full MVP acceptance |
+| Issue #29 — CH-4 review of PR #28 v0.1 | CLOSED | CH-4 / CH-1 | v0.1 review report and REJECT disposition recorded at comment 6763798273; closure comment 6765081410 | NO | No; v0.1 is preserved historical review evidence |
+| Issue #31 — PO decision closure | PENDING-PO | PO | Explicit APPROVE / MODIFY / DEFER and exact wording for each of PO-02, PO-04, PO-05, PO-06, PO-11, PO-12, PO-I11 and PO-I06A | NO | YES for affected invoice/menu/public-verification capabilities |
+| PR #28 — technical design v0.2 | ACCEPTED | CH-1 / PM | Accepted with conditions for design documentation only; PM separately decides whether/when to merge after all required review; never treat as implementation authorization | NO | YES as controlled design input |
+| PR #30 — UX v0.1 | PENDING-ENGINEERING | CH-2 / CH-1 | Resolve outstanding P2 inline thread and obtain CH-1 disposition on exact corrected head; remains open/unmerged until separately approved | NO | YES for UX/menu design baseline |
+| Governance PR from this assignment | PENDING-PM | CH-1 / PM | CH-1 review and PM merge decision; the register update is not active on main until merged | YES for active authority-register correction | YES for controlled workstream authority |
+
+### 12.11 Current authorization matrix
+
+| Activity | Invoice-First / Phase A1 status |
+|---|---|
+| Repository/source inspection for this assignment | COMPLETED |
+| Documentation reconciliation and A1 package preparation | COMPLETED IN THIS GOVERNANCE SUBMISSION |
+| Governance-only branch/PR submission | AUTHORIZED; pending PR review/PM merge decision |
+| Application implementation | NOT AUTHORIZED |
+| SQL/schema/RPC/migration or database mutation | NOT AUTHORIZED |
+| Live DB inspection | NOT AUTHORIZED |
+| Dependency/configuration changes | NOT AUTHORIZED |
+| Build/lint/typecheck/test execution | NOT AUTHORIZED |
+| Browser/manual QA or Supabase integration QA | NOT AUTHORIZED |
+| CH-4 independent review of v0.2/A1 | PENDING |
+| PR #28 / PR #30 merge | NOT AUTHORIZED |
+| Deployment / production release | NOT AUTHORIZED |
+| Customer pilot | NOT AUTHORIZED |
+
+**CH-1 final recommendation:** The Invoice-First technical design v0.2 is accepted with conditions for documentation only. The UX v0.1 remains accepted with conditions, with one unresolved P2 thread. The eight requested PO decisions remain PENDING-PO. Phase A1 is technically separable from those PO decisions and can use the existing web architecture and shops table, but its current dashboard creation side effect, missing edit flow, incomplete required-field validation and unverified live RLS state must be addressed. Do not authorize A1 implementation until CH-4 independently reviews this exact package and PM grants the explicit A1 implementation and separate QA permissions. No implementation, database operation, build, test, merge, deployment or pilot is authorized by this register update.
