@@ -10,14 +10,32 @@
 - `docs/decisions/PO_CONFIRMED_INVOICE_MOCKUP.md` — blob `efe0d261c50a4cfc706e82c832a6f052c676127c`
 
 **Technical design reviewed:** PR #28, document `docs/design/INVOICE_FIRST_WEB_MVP_TECHNICAL_DESIGN_v0.1.md`, review target HEAD `ec67f403a625acea195c7913d23e7a69254c5ecc`, blob `10f795ddfc24b0d3eab204b8006379616ab2ec13`.  
-**Document version:** 0.1  
-**Status:** SUBMITTED — CH-1 / PO REVIEW REQUIRED  
+**Document version:** 0.2  
+**Status:** UPDATED SUBMISSION — CH-1 / CH-4 REVIEW REQUIRED  
 **UX disposition of PR #28:** **ACCEPT WITH CONDITIONS**  
 **Implementation authorization:** NOT GRANTED
+**Additional PM-directed UX scope:** Shop Logo Management and Optional Shop Tagline
 
 ---
 
 ## 1. Purpose, authority and boundaries
+
+**Revision 0.2 scope:** resolve the open PR #30 P2 menu-lifecycle classification finding; add Shop Logo Management and Optional Shop Tagline UX; preserve UX-01–UX-39 identifiers and intent. This is an in-place revision of the existing v0.1 document on the same PR branch.
+
+**Current review evidence:**
+- PR #30 pre-revision HEAD: `ca8324005048148b8d82c5151528ea41a2aa8a5a`.
+- Existing unresolved inline P2 finding: comment database ID `4523203685`, thread `PRRT_kwDOVhBFWs61okrS`, path `docs/ux/INVOICE_FIRST_WEB_MVP_OWNER_CUSTOMER_UX_v0.1.md`, lines 157–160 at that reviewed head.
+- Finding: deactivation, deletion and reactivation were specified as requirements although PO-B01–PO-B07 were not established as a canonical PO baseline.
+- Issue #31 records PO-06 (minimum menu fields/lifecycle) and PO-07 (duplicate-name policy) as PENDING; its recommendations are proposals, not approvals.
+
+**PM-directed requirements added by this assignment:** invoice logo defaults to Generated from shop name and shop type unless owner uploads a logo or explicitly chooses Blank; Uploaded takes priority over Generated; optional owner-entered tagline supports Bangla and English. UX documentation only.
+
+**Source verification relevant to logo/tagline:**
+- At pinned commit `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`, `supabase/schema.sql` blob `e859b6de9660533962eddb6f9f3d17ad8a4c1cca` defines `shops.shop_type` (NOT NULL; legacy values: grocery, pharmacy, food, salon, general) and nullable `shops.logo_url`.
+- `src/app/dashboard/page.tsx` blob `ee6dc3733cd4d50ec1dd76106477d50ab4b25c0c` reads/writes `shop_type` for product presets; no logo-management UI was found there.
+- No `tagline` field was found in the inspected schema/dashboard source. Tagline persistence is a CH-3 design dependency; no schema change is proposed here.
+- The legacy `shop_type` choices are source-verified, not a PO-approved Invoice-First category taxonomy.
+
 
 This document defines the mobile-first owner journey and customer bill-view journey for the Invoice-First Web MVP. It translates the PO-confirmed invoice mockup into screen-level requirements, interaction states, field mapping and testable UX acceptance criteria. It also independently reviews PR #28 for UX implications.
 
@@ -30,10 +48,11 @@ The project authority register at the pinned baseline records:
 - Implementation, schema/database operations, builds, QA execution, deployment and pilot as not authorized.
 
 Accordingly:
-1. PO-confirmed fields and exact Bangla wording below are binding.
-2. Menu field rules, duplicate semantics, units, offline behavior, paper size, numbering and other unresolved policy are explicitly provisional or pending PO decision.
-3. PR #28 is a submitted technical proposal, not an approved architecture or implementation baseline.
-4. This document is design-only. It does not authorize code, database, schema, build, test, QA, deployment, merge or pilot work.
+1. PO-confirmed invoice fields and exact Bangla wording below are binding.
+2. Logo/tagline scope is PM-directed for UX design; persistence and implementation mechanics remain subject to CH-3 and PO/PM review.
+3. Menu fields, duplicate semantics, units and other unresolved policies remain PO-gated.
+4. PR #28 is a submitted technical proposal, not an approved architecture or implementation baseline.
+5. This document is design-only. It does not authorize code, database, schema, build, test, QA, deployment, merge or pilot work.
 
 ## 2. Product UX principles
 
@@ -70,7 +89,7 @@ Accordingly:
 Authenticated owner shell:
 - **নতুন বিল** — primary action and default landing action after setup.
 - **বিলসমূহ** — recent issued bills and bill detail.
-- **খাবারের মেনু** — active/inactive food items.
+- **খাবারের মেনু** — food-item catalogue; lifecycle controls appear only as approved by PO.
 - **দোকানের তথ্য** — shop profile and location.
 
 Use a compact top bar with shop identity and a persistent primary “নতুন বিল” action. On narrow screens, a bottom navigation bar may expose the four destinations. Do not add inventory, customer ledger, accounting, payment gateway, multi-branch or public-ordering destinations to this MVP navigation.
@@ -80,7 +99,7 @@ Use a compact top bar with shop identity and a persistent primary “নতু�
 1. **Open / authenticate:** owner signs in through the existing application authentication. Authentication is a prerequisite, not a new customer-facing feature.
 2. **Shop setup:** if no usable shop profile exists, route to the shop details form. If a profile exists, show a concise profile summary and continue to the dashboard.
 3. **Save shop profile:** owner enters shop name, address, mobile number and Google Maps location. Save and show the persisted profile summary.
-4. **Build menu:** owner adds food items and selling prices; optional unit behavior remains subject to PO decision. The owner can edit, activate or deactivate entries.
+4. **Build menu:** owner maintains food-item records within PO-06. Only menu actions expressly approved by PO may be exposed.
 5. **Start a bill:** owner taps “নতুন বিল”. The composer initially shows active menu items, a search field and an empty bill summary.
 6. **Add bill lines:** owner selects menu entries, enters quantity and confirms the applicable price. The bill summary updates immediately.
 7. **Review:** owner checks item names, quantities, prices and total. The review screen shows shop identity and bill contents; it must not introduce unapproved discount, tax, paid or due calculations.
@@ -127,44 +146,90 @@ Use a compact top bar with shop identity and a persistent primary “নতু�
 
 **States:** initial loading, empty profile, field validation, save pending, saved, network failure, retry. During a failed save, preserve entered values and allow retry.
 
+#### O-01A — Invoice logo management (PM-directed UX)
+
+**Classification:** PM-directed requirement for UX design. Storage, generator mechanics, upload policy and historical snapshots require CH-3/PO/PM disposition.
+
+**Logo modes and precedence:**
+
+| Mode | Owner choice | Invoice behavior | Classification |
+|---|---|---|---|
+| Generated | Default when no upload exists and owner has not explicitly selected Blank | Generated mark based on shop name + shop type | PM-directed; generator/persistence mechanics CH-3 design |
+| Uploaded | Owner uploads or replaces an image | Uploaded asset takes priority over Generated | PM-directed; upload/storage constraints technical-gated |
+| Blank | Owner explicitly chooses “লোগো দেখাবেন না” | No logo, mark, placeholder or automatic logo | PM-directed |
+| Return to Generated | Owner selects Generated after Blank/removal | Generate/use mark from current name and type | PM-directed |
+
+Resolution order: uploaded asset → Generated by default; explicit Blank is an override and suppresses generation. Removing an uploaded logo requires an explicit choice between Generated and Blank. Regenerate applies only to Generated and never overwrites Uploaded.
+
+**Shop-type dependency — source verified; taxonomy PO-gated:**
+- Pinned schema already defines `shops.shop_type`, NOT NULL, with legacy values grocery/pharmacy/food/salon/general.
+- Pinned owner dashboard reads/writes the field for product presets. A shop-type field already exists in source.
+- Legacy choices are not proof of the final PO-approved Invoice-First taxonomy. Do not add, rename or remove options. Use saved type for design preview; PO/PM must confirm the accepted list and owner editability.
+- Missing/invalid type must not be guessed; prompt from approved options only after the taxonomy is established.
+
+**Owner controls:** Generated/Uploaded/Blank selector; generated preview identifies name/type inputs; Upload/Replace; Remove asks Generated or Blank; Regenerate only in Generated mode. Shop name/type edits do not affect Uploaded or Blank. Logo actions never modify tagline.
+
+**Upload errors (limits unresolved):**
+- Unsupported format: reject with actionable guidance; accepted formats require CH-3/PM definition.
+- Oversized file: reject; byte/pixel limits require CH-3/PM definition.
+- Corrupt/unreadable image: reject before replacing current asset.
+- Upload timeout/failure: preserve old logo, mode and tagline; offer retry.
+- Failed replacement must not delete old asset.
+- Missing asset on preview/print: show warning/retry; never show fallback logo in Blank mode.
+
+**Responsive behavior:** mobile stacks mode controls and compact preview without horizontal scroll; larger screens may place controls/preview side-by-side. Preview, customer view, PDF and print use the same resolved mode/asset. Preserve aspect ratio; exact bounds are a CH-3 design parameter.
+
+#### O-01B — Optional shop tagline (PM-directed UX)
+
+- Field label: “দোকানের স্লোগান / Tagline (Optional)”.
+- Owner-entered text only; no AI generation, auto-suggestion, rewrite, translation or automatic replacement.
+- Blank is valid and renders no text, placeholder or separator.
+- Supports Bangla, English and mixed-script text.
+- Proposed maximum: **80 Unicode grapheme clusters**. This is CH-2 recommendation, not approved policy; CH-3 must define consistent grapheme-aware validation/persistence.
+- A counter appears only after the proposed limit is approved; until then it is labelled proposed.
+- Tagline edit/save is independent of logo upload/replace/remove/regenerate/Blank.
+- Examples only, never defaults: “নামাজ কায়েম করুন”, “আপনার বাচ্চাকে স্কুলে দিন”, “বিশুদ্ধ খাবার, সাশ্রয়ী দাম”, “সততা ও গুণগত মানে আমরা অঙ্গীকারবদ্ধ”.
+- Proposed placement: below shop/contact/map details and above “খাবারের বিল”. No PO-confirmed invoice field changes.
+- Tagline is not sent to a logo-generation prompt.
+- Over-limit text shows inline validation and is preserved; blank remains valid.
+- Mixed scripts wrap without clipping in preview/print/PDF. Emoji/control/line-break acceptance needs definition; do not silently strip text.
+
+**Historical invoice header — recommendation, not approved:** CH-2 recommends snapshotting logo mode, immutable uploaded/generated asset reference or derivative, tagline and shop identity at invoice issue. PR #28's earlier technical design snapshots shop name/address/phone/map but does not define logo/tagline snapshots. Existing `shops.logo_url` alone does not guarantee immutable history. CH-3 must define immutable asset/reference retention and missing-asset behavior. PO/PM must decide original-header snapshot versus latest profile display; until then this remains PO-GATED. Logo edits never change tagline and vice versa.
+
+
 ### 4.2 Screen O-02 — Food menu
 
-**Purpose:** maintain the list of selectable foods for future bills, without inventory functionality.
+**Purpose:** maintain the PO-approved food-item catalogue for future bills, without inventory functionality.
 
-**List view:**
+**List view — PO-GATED lifecycle presentation:**
 - Page title: “খাবারের মেনু”.
-- Primary action: “নতুন খাবার যোগ করুন”.
-- Search active items by displayed name.
-- Active and inactive status must be visually and textually distinguishable.
-- Default list shows active items; a filter/tab exposes inactive items.
-- Each row shows food name, selling price and (if PO approves) unit.
-- Row actions: Edit; Deactivate for active entries; Activate for inactive entries.
-- No stock quantity, purchase price, supplier, stock adjustment or inventory status is shown.
+- Exact catalogue actions (create, edit, enable/disable, archive, delete, restore/reactivate) must come only from PO-06 once approved.
+- Do not assume the existing `is_active` column authorizes an owner-facing lifecycle, default filter, confirmation or deletion policy.
+- Search, grouping, status labels, active/inactive tabs and row actions remain provisional until PO-06 is approved.
+- No stock quantity, purchase price, supplier, stock adjustment or inventory status is shown; Invoice-First exclusion of inventory controls is confirmed scope.
 
-**Add/edit form — proposed fields pending exact PO menu baseline:**
+**Menu form — PO-GATED fields:**
 
-| Field | Proposed control | Current authority |
+| Candidate field | Proposed control | Classification |
 |---|---|---|
-| Food/item name | Text input | Required field policy/length not established in canonical PO record |
-| Selling price (BDT) | Numeric input, BDT label | Requiredness and precision rules require PO baseline |
-| Unit | Select or simple text | Not PO-confirmed; default “পিস” in PR #28 is a CH-3 proposal only |
+| Food/item name | Text input | Proposed UX; requiredness/name limits depend on PO-06 |
+| Selling price (BDT) | Numeric input | Proposed UX; precision/range depends on PO-06 and PO-08 |
+| Unit | No fixed control until decision | PO-GATED; do not assume required, optional or default |
+| Lifecycle state | Control only if expressly approved | PO-GATED |
 
-Do not represent the proposed field requirements or validation rules as PO-approved until the exact PO-B01–PO-B07 record is established and accepted in GitHub.
-
-**Interactions:**
-- Add → validate → save → return to list with new active item visible.
-- Edit → update the menu record → future bill composers use the updated menu value; existing issued invoices remain unchanged.
-- Deactivate → confirmation dialog states the item will no longer be selectable for new bills. It does not delete old invoice lines.
-- Activate → item becomes selectable for new bills.
-- If an item is already included in an unsaved bill and is deactivated elsewhere, the current draft must not silently change. On next validation, explain that the item is no longer active and require owner review.
-- Deactivated entries remain available in the inactive list for reactivation; do not permanently delete through the normal UX.
+**Pending PO-06 behavior:**
+- Do not present Add/Edit/Deactivate/Activate/Delete as a frozen implementation contract.
+- Use a neutral catalogue list/form shell in review material; lifecycle actions are marked “Pending product decision”.
+- Do not claim new entries default active, inactive entries are excluded from bills, old names become reusable, or reactivation re-checks uniqueness unless PO-06/PO-07 says so.
+- Composer eligibility is exactly the rule later approved under PO-06; it is not defined here.
+- Issued invoice lines retain persisted details; exact snapshot fields must align with PO-04/PO-05 and approved technical design.
 
 **Empty states:**
-- No menu entries: explain that foods must be added before a bill can be composed; show “খাবার যোগ করুন”.
-- No search result: show “কোনো খাবার পাওয়া যায়নি” and a clear action to clear search.
-- No inactive entries: show a neutral empty message, not an error.
+- No menu entries: explain that PO-approved menu setup is needed before invoice composition; action label depends on PO-06.
+- No search result: show “কোনো খাবার পাওয়া যায়নি” with clear search reset.
+- Lifecycle-specific empty states are omitted until PO approves those states.
 
-**Policy boundary:** menu duplicate rules, Unicode normalization, exact character limit, unit handling and price validation remain unresolved until the canonical PO decision is pinned. The screen structure can be reviewed, but implementation must not infer these rules.
+**Policy boundary:** PO-06 must decide minimum fields/lifecycle, including deactivation/reactivation/deletion/restore availability and effect on invoice selection/history. PO-07 must decide duplicate-name handling. Until approved, these behaviors are PO-GATED, not implementation requirements.
 
 ### 4.3 Screen O-03 — Invoice composer
 
@@ -173,13 +238,13 @@ Do not represent the proposed field requirements or validation rules as PO-appro
 **Initial state:**
 - Header: “নতুন বিল”.
 - Search field: “খাবারের নাম লিখে খুঁজুন”.
-- Active menu list only.
+- Catalogue entries eligible under the PO-approved PO-06 rule only; do not infer active/inactive filtering while PO-06 is pending.
 - Each menu row shows food name and selling price; unit only if approved.
 - Empty bill summary: “এখনও কোনো খাবার যোগ করা হয়নি”.
 - Sticky bottom summary: current total and “বিল পর্যালোচনা” action, disabled until at least one valid line exists.
 
 **Add item interaction:**
-- Tap a menu row to add one line.
+- Select an eligible catalogue row to add one line, once PO-06 defines eligibility.
 - Quantity control has decrement, editable quantity and increment actions with touch-friendly targets.
 - Default quantity of 1 is a proposed usability default, not an approved business rule.
 - Show the current menu price. If price is editable in the composer, label it clearly as a draft-specific override and obtain PO approval first; until then, price override is not part of the approved UX.
@@ -248,13 +313,17 @@ After success:
 
 The standard invoice is a compact, clean, single-column portrait document designed for small food shops. It should remain legible on a phone preview and on a printed page.
 
-1. Shop identity block.
-2. Mandatory Bangla heading.
-3. Bill metadata.
-4. Item table.
-5. Total amount, visually emphasized.
-6. Individual bill QR and verification/details caption.
-7. Mandatory Bangla footer.
+1. Shop header: resolved logo (Generated, Uploaded or Blank) with shop name.
+2. Address, mobile and Google Maps location.
+3. Optional owner-entered tagline if non-blank.
+4. Mandatory Bangla heading.
+5. Bill metadata.
+6. Item table.
+7. Total amount, visually emphasized.
+8. Individual bill QR and verification/details caption.
+9. Mandatory Bangla footer.
+
+Generated shows a mark based on name/type; Uploaded shows the asset without stretching; Blank shows no image or placeholder and lets text reflow. Mobile header stacks as needed without horizontal overflow. Print/PDF uses the same resolved mode and asset. Tagline is separate text below shop details and above the mandatory heading.
 
 Use high-contrast dark text on a white background, restrained separators, consistent numeric alignment and generous enough spacing for Bangla shaping. Avoid decorative graphics that reduce printable area.
 
@@ -269,7 +338,9 @@ Do not translate, paraphrase, replace, omit or render these as image-only text.
 
 | PO-confirmed field | Invoice location | Source / behavior |
 |---|---|---|
-| Shop name | Top shop identity block | Snapshot from shop profile at invoice issue |
+| Shop name | Top shop identity block, beside/below logo by viewport | Snapshot from shop profile at issue |
+| Invoice logo | Header logo area before/next to shop name | PM-directed: Uploaded takes priority over Generated; explicit Blank suppresses all logos; historical snapshot policy PO/PM-gated. |
+| Optional tagline | Below shop contact/map block and above “খাবারের বিল” | PM-directed owner text; blank omits line; proposed 80 grapheme-cluster limit awaits approval.
 | Shop address | Directly below shop name | Snapshot; wrap to additional line if needed |
 | Mobile number | Shop identity block, labelled “মোবাইল:” | Snapshot; tap-to-call link in digital view |
 | Google Maps shop location | Shop identity block as “Google Maps Location” / map link | Snapshot URL; tap opens external Maps location |
@@ -479,8 +550,8 @@ No shop QR may substitute for the individual bill QR. No unapproved discount/tax
 
 ## 11. PR #28 — independent UX review
 
-**Review target:** PR #28 HEAD `ec67f403a625acea195c7913d23e7a69254c5ecc`.  
-**Reviewed document:** `docs/design/INVOICE_FIRST_WEB_MVP_TECHNICAL_DESIGN_v0.1.md`, blob `10f795ddfc24b0d3eab204b8006379616ab2ec13`.  
+**Technical review target referenced by CH-1 Issue #31:** PR #28 v0.2 HEAD `2b1e0be89e2487bedf841dbc8247d646529ae7cc`, blob `348ec933a2798ba2c790707397d723e8377a8442`.  
+**Technical review reference:** PR #28 current live state must be checked at CH-1/CH-4 review time; Issue #31 identifies the v0.2 source above.  
 **Review method:** static document review only. No implementation/runtime testing was performed.
 
 ### 11.1 Severity-ranked UX gaps and conditions
@@ -500,8 +571,27 @@ No shop QR may substitute for the individual bill QR. No unapproved discount/tax
 | **P2 — Medium** | §7.1 print | Bengali font/print strategy is a recommendation, not rendering evidence; one-page behavior cannot be accepted without font shaping and overflow criteria. | Keep as design direction only; later proof must cover Bangla shaping, print and multi-page overflow. |
 | **P3 — Low** | §4.1 dashboard | Legacy memo/stock modules may remain visible beside invoice-first flow, creating navigation confusion for target micro-shops. | CH-1/PO should decide whether to hide, de-emphasize or retain legacy links; do not delete existing modules in this UX task. |
 | **P3 — Low** | §8 share | Device-native share and WhatsApp behavior vary by browser/platform. | Provide Copy link/message and Print fallbacks; test target browsers only after separate QA authorization. |
+| **P2 — Medium** | §4.2 and UX-06–UX-11 | v0.1 stated menu lifecycle actions as requirements without approved PO source. | v0.2 removes unsupported assertions and marks PO-06/PO-07 behavior PO-GATED; see §11.2. |
 
-### 11.2 Positive technical alignment
+### 11.2 Existing PR #30 inline P2 finding — response
+
+**Finding:** inline comment database ID `4523203685`, thread `PRRT_kwDOVhBFWs61okrS`, “Keep unpinned menu lifecycle rules provisional”.
+
+| Disputed v0.1 wording | Evidence | v0.2 correction |
+|---|---|---|
+| Active/inactive status, tabs and filters | Not approved; PO-06 PENDING | Removed as firm requirements; lifecycle PO-GATED |
+| Deactivate/Activate actions | Not approved | Removed from required UX; only if PO-06 approves |
+| Inactive entries available for reactivation | Unsupported | Removed; PO-GATED |
+| Permanent deletion excluded from normal UX | Unsupported lifecycle assumption | Removed as requirement; PO-GATED |
+| New item active by default | Unsupported | Removed; initial state PO-GATED |
+
+**Evidence:** pinned `PROJECT_SOURCE_OF_TRUTH.md` §3.3 classifies PO-B01–PO-B07 as NOT ESTABLISHED AS GITHUB BASELINE. Issue #31 shows PO-06 and PO-07 as PENDING; recommendations are proposals, not approvals.
+
+**Resolution:** retain only the confirmed exclusion of inventory/stock controls. Menu fields, create/edit scope, lifecycle, invoice selection eligibility and duplicate behavior are PO-GATED. UX-06–UX-11 are rewritten so unsupported lifecycle behavior is not a requirement. The finding is addressed by accurate classification, not guessed policy.
+
+**Reviewer request:** re-review this head and resolve the thread only if the correction is sufficient. CH-2 does not self-resolve the thread.
+
+### 11.3 Positive technical alignment
 
 The following PR #28 directions are UX-compatible, subject to the listed conditions:
 - Separate invoice domain/RPC rather than reusing memo RPC with stock/ledger side effects.
@@ -515,15 +605,15 @@ The following PR #28 directions are UX-compatible, subject to the listed conditi
 
 These are design-review observations, not approval of the technical architecture, schema or security implementation.
 
-### 11.3 Explicit UX disposition
+### 11.4 Explicit UX disposition
 
 **PR #28 UX disposition: ACCEPT WITH CONDITIONS.**
 
 Conditions:
-1. CH-1/PO resolve the P1 decisions in Section 12.
-2. CH-3 incorporates the screen/state behavior and recovery constraints in this UX specification into a revised technical/design baseline before implementation.
-3. The menu UX does not rely on PO-B01–PO-B07 until their exact canonical decision record is recovered and accepted.
-4. Offline capability is not advertised unless the PO decision and technical design support it.
+1. CH-1/PO disposition decisions in Section 12, including menu lifecycle, shop-type taxonomy, upload constraints and historical header policy.
+2. CH-3 incorporates logo-mode representation, asset handling, tagline persistence, immutable header snapshots and shared preview/print rendering into technical design before implementation.
+3. Menu UX does not rely on PO-B01–PO-B07 until canonical evidence is recovered or PO-06/PO-07 are explicitly approved.
+4. Offline capability is not advertised unless PO and technical design support it.
 5. CH-1/PM separately authorizes implementation, QA execution, merge and deployment as applicable.
 
 This is a CH-2 UX disposition only. It is not CH-1 acceptance, architecture approval, PM implementation authorization or QA acceptance.
@@ -553,6 +643,18 @@ No item below is silently decided by this UX specification.
 | PO-UX-17 | Maximum expected bill lines and pagination threshold | UX preserves all lines and paginates rather than truncating; no business maximum is imposed. |
 | PO-UX-18 | Shop mobile validation and accepted Google Maps URL formats | Required fields are confirmed; exact validation policy is not. |
 
+### Additional PO/PM decisions — Logo, Shop Type and Tagline
+
+| ID | Decision | Status |
+|---|---|---|
+| PO-UX-19 | Confirm whether existing `shops.shop_type` choices (grocery, pharmacy, food, salon, general) are the approved Invoice-First taxonomy and whether owner may edit shop type. | Field verified in source; taxonomy/edit policy PO-GATED. |
+| PO-UX-20 | Confirm generated-logo method: deterministic local rendering or generated image asset. | PM requires generation; mechanism CH-3 design gate. |
+| PO-UX-21 | Confirm supported image formats, max bytes/pixels, aspect ratio and transparency policy. | PM requires upload validation; exact limits require CH-3 recommendation and PO/PM disposition. |
+| PO-UX-22 | Confirm persistence of default Generated mode and explicit Blank selection. | PM-directed UX; persistence details PO/PM-gated. |
+| PO-UX-23 | Confirm proposed tagline maximum of 80 Unicode grapheme clusters. | CH-2 proposal, not approved. |
+| PO-UX-24 | Confirm historical header policy: original logo/tagline snapshot or latest profile. | CH-2 recommends original snapshot; PO/PM decision required. |
+| PO-UX-25 | Confirm owner editability and missing/legacy behavior of shop type. | Field exists; owner-facing policy pending. |
+
 ## 13. Testable UX acceptance criteria
 
 The following criteria are intended for a future authorized UX/QA review. They are not evidence that implementation or testing has occurred.
@@ -566,14 +668,14 @@ The following criteria are intended for a future authorized UX/QA review. They a
 
 ### Food menu
 - **UX-06:** Owner can open a menu-only screen without seeing stock quantity, purchase price or stock adjustment controls.
-- **UX-07:** Owner can add and edit a menu item using only fields approved by the canonical PO decision.
-- **UX-08:** Active and inactive entries are distinguishable; inactive entries cannot be selected for a new bill.
-- **UX-09:** Deactivation requires confirmation and does not imply deletion of historical invoice lines.
-- **UX-10:** Empty menu, empty search and inactive-list states each provide an appropriate next action.
-- **UX-11:** A failed menu save preserves entered values and offers retry.
+- **UX-07:** Owner can view/use only fields approved by PO-06; create/edit actions remain gated until approval.
+- **UX-08:** Active/inactive states, tabs and filters are not exposed unless PO-06 explicitly approves them.
+- **UX-09:** Deactivate/reactivate/delete/archive/restore controls remain absent/disabled until PO-06 approves each operation and its effect on invoice selection/history.
+- **UX-10:** Empty catalogue/search states are accurate; lifecycle-specific states appear only if PO-06 approves them.
+- **UX-11:** If a PO-approved menu write fails, entered values are preserved and retry is available.
 
 ### Invoice composer and issue
-- **UX-12:** Owner can create a bill using active menu items and see item name, quantity, price and running total.
+- **UX-12:** Owner can create a bill using only catalogue entries eligible under PO-06 and see item name, quantity, price and running total.
 - **UX-13:** The review screen exposes every line and the total before issue.
 - **UX-14:** No unapproved discount, tax, paid, due, customer or inventory fields appear.
 - **UX-15:** Double-tapping issue does not create multiple bills.
@@ -610,9 +712,67 @@ The following criteria are intended for a future authorized UX/QA review. They a
 - **UX-38:** Status is not conveyed by color alone; Bangla text remains readable under browser zoom/text scaling.
 - **UX-39:** Loading, empty, failure and retry states are present for every network-dependent screen listed in Section 8.3.
 
+### New Logo and Tagline acceptance criteria
+
+Classification: **PM-DIRECTED** = explicit PM assignment; **PROPOSED** = CH-2 recommendation; **PO-GATED** = requires PO/PM decision; **TECH-GATED** = requires CH-3 design evidence.
+
+| ID | Testable criterion | Journey | Technical trace | Classification |
+|---|---|---|---|---|
+| **UX-40** | No uploaded logo and no explicit Blank choice resolves to Generated by default. | O-01 / invoice header | Logo mode resolution | PM-DIRECTED; TECH-GATED |
+| **UX-41** | Generated logo uses current shop name and shop type; Regenerate updates preview after either changes. | O-01 | shops.shop_name/shop_type | PM-DIRECTED; TECH-GATED |
+| **UX-42** | Owner previews generated logo before invoice use. | O-01 | Generated preview | PM-DIRECTED |
+| **UX-43** | Uploaded logo takes priority over Generated. | O-01 / preview | Existing shops.logo_url; upload state | PM-DIRECTED; TECH-GATED |
+| **UX-44** | Owner replaces uploaded logo; old logo remains selected until replacement succeeds. | O-01 | Upload lifecycle | PM-DIRECTED; TECH-GATED |
+| **UX-45** | Owner removes uploaded logo and explicitly chooses Generated or Blank. | O-01 | Tri-state mode | PM-DIRECTED; TECH-GATED |
+| **UX-46** | Blank shows no logo, mark, icon or placeholder in preview/customer/PDF/print. | O-01 / invoice | Blank override | PM-DIRECTED |
+| **UX-47** | Owner switches Blank back to Generated and previews current name/type mark. | O-01 | Mode transition | PM-DIRECTED |
+| **UX-48** | Regenerate refreshes Generated without overwriting Uploaded. | O-01 | Separate mode/asset | PM-DIRECTED; TECH-GATED |
+| **UX-49** | Shop-type choices use only an accepted taxonomy; no new/renamed values without approval. | O-01 | Existing legacy shop_type constraint | PO-GATED; TECH-GATED |
+| **UX-50** | Generated logo uses selected shop type; missing type prompts from accepted choices. | O-01 | shop_type + taxonomy | PM-DIRECTED; PO-GATED |
+| **UX-51** | Unsupported image format is rejected without replacing current logo. | O-01 | Format validation | PM-DIRECTED; TECH-GATED |
+| **UX-52** | File above approved size/dimension limit is rejected without replacing current logo. | O-01 | Approved upload limits | PM-DIRECTED; TECH-GATED |
+| **UX-53** | Upload failure/timeout preserves old logo and tagline; retry is available. | O-01 | Upload recovery | PM-DIRECTED; TECH-GATED |
+| **UX-54** | Tagline accepts owner-entered Bangla, English and mixed script without generation or rewriting. | O-01B | Unicode persistence/font | PM-DIRECTED |
+| **UX-55** | Blank tagline is valid and renders no text or placeholder separator. | O-01B / invoice | Conditional rendering | PM-DIRECTED |
+| **UX-56** | Owner edits/clears tagline independently of logo operations. | O-01B | Separate state | PM-DIRECTED; TECH-GATED |
+| **UX-57** | Proposed 80 grapheme-cluster limit applies only after PO/PM approval; otherwise labelled proposed. | O-01B | Grapheme-aware validation | PROPOSED; PO-GATED; TECH-GATED |
+| **UX-58** | Bangla/English/mixed tagline renders without clipping in mobile preview, customer page, PDF and print. | O-01B / invoice | Local font/renderer | PM-DIRECTED; TECH-GATED |
+| **UX-59** | Logo changes never modify tagline; tagline changes never modify logo mode/asset. | O-01 | Independent state | PM-DIRECTED |
+| **UX-60** | Owner previews full header with shop identity, resolved logo and optional tagline before issue. | O-01 / review | Shared header renderer | PM-DIRECTED |
+| **UX-61** | Same issued invoice renders identical logo mode/tagline in preview/customer/PDF/print. | Issue/customer/print | Immutable header projection | PROPOSED; TECH-GATED; history decision |
+| **UX-62** | Later profile edits follow approved historical header policy and never silently mutate issued output. | O-05 / profile | Immutable header/asset snapshot | PO-GATED; TECH-GATED |
+| **UX-63** | Logo preserves aspect ratio; Blank reflows identity block without empty gap. | Mobile/print | Responsive image sizing | PROPOSED; TECH-GATED |
+| **UX-64** | Corrupt/missing asset yields warning/retry; Blank never falls back to placeholder/generated mark. | O-01 / print | Asset readiness | PM-DIRECTED; TECH-GATED |
+
+### Requirement-to-acceptance-criteria crosswalk
+
+| Requirement | Specification | Criteria | Technical trace | Classification |
+|---|---|---|---|---|
+| Confirmed shop profile | §4.1 | UX-01–UX-05 | Existing profile fields | PO-APPROVED |
+| Menu-only/no inventory controls | §4.2 | UX-06 | item_catalog separate from stock UI | PO-APPROVED scope exclusion |
+| Menu fields/lifecycle | §4.2 | UX-07–UX-11 | Issue #31 PO-06 PENDING | PO-GATED |
+| Duplicate policy | §§4.2, 12 | UX-07–UX-10 | Issue #31 PO-07 PENDING | PO-GATED |
+| Composer/issue | §§4.3–4.4 | UX-12–UX-18 | PR #28 proposal | PROPOSED / technical review |
+| PO-confirmed invoice content | §5 | UX-19–UX-25 | PO mockup blob efe0d261... | PO-APPROVED |
+| Sharing | §6 | UX-26–UX-28 | Issue #31 PO-13 message copy pending | PROPOSED / PO-GATED copy |
+| Customer verification | §7 | UX-29–UX-34 | Issue #31 PO-11/12 PENDING | PO-GATED + TECH-GATED |
+| Mobile/accessibility/states | §§8–9 | UX-35–UX-39 | UX screen/state spec | PROPOSED |
+| Logo modes/precedence | §§4.1 O-01A, 5 | UX-40, UX-42–UX-48, UX-59–UX-64 | Existing logo_url; tri-state mode | PM-DIRECTED + TECH-GATED |
+| Shop-type generation | §4.1 O-01A | UX-41, UX-49–UX-50 | Existing shop_type legacy values | PM-DIRECTED; taxonomy PO-GATED |
+| Upload/replace/remove | §4.1 O-01A | UX-43–UX-45, UX-51–UX-53 | logo_url; storage policy open | PM-DIRECTED + TECH-GATED |
+| Optional tagline | §4.1 O-01B | UX-54–UX-59 | No tagline field found in inspected schema | PM-DIRECTED + TECH-GATED |
+| Proposed 80-character limit | §4.1 O-01B | UX-57 | Grapheme-aware validation | PROPOSED; PO/PM-GATED |
+| Preview/print consistency | §§4.1, 5 | UX-60–UX-64 | Shared renderer/header snapshot | PROPOSED + TECH-GATED |
+| Historical header | §4.1 O-01B | UX-61–UX-62 | Logo/tagline snapshot | PO/PM-GATED + TECH-GATED |
+
+All UX-01–UX-39 IDs are preserved. New criteria are UX-40–UX-64; no ID is reused or renumbered.
+
 ## 14. Evidence and verification boundary
 
-**Verified by static GitHub source review for this deliverable:**
+**Verified by static GitHub source review for this revision:**
+- PR #30 head, unresolved inline P2 thread and exact finding were re-read before editing.
+- Issue #31 decision request and response-request comment were reviewed; PO-06 and PO-07 remain PENDING.
+- Pinned schema confirms shop_type and logo_url; no tagline field was found in inspected schema/dashboard source.
 - Exact source commit SHA and the three required source document blob SHAs are recorded above.
 - Issue #25 task and its review comment were read.
 - PR #28 metadata and technical design document at its specified HEAD were read.
@@ -638,7 +798,7 @@ All acceptance criteria above are proposed future test cases, not test results.
 3. Confirm the CH-2 disposition of PR #28 as **ACCEPT WITH CONDITIONS** or provide contrary direction.
 4. Keep implementation, database/schema, builds, QA execution, deployment and pilot as separate authorization gates.
 
-**CH-2 recommendation:** accept this UX specification as the review baseline only after CH-1/PO confirms the unresolved business decisions that affect implementation. Do not treat this PR or the UX disposition as permission to start implementation.
+**CH-2 recommendation:** accept this revised document as a design-review candidate. P2 menu finding is addressed by removing unsupported lifecycle requirements and making PO-06/PO-07 PO-GATED. Logo/tagline UX is specified from PM direction; taxonomy, upload constraints, persistence and historical-header behavior remain gated. Do not treat this PR or the UX disposition as permission to start implementation.
 
 **Implementation authorization: NOT GRANTED.**  
 **QA execution authorization: NOT GRANTED.**  
@@ -647,5 +807,5 @@ All acceptance criteria above are proposed future test cases, not test results.
 
 ---
 
-**Submitted by:** CH-2 — Product & UX Lead  
+**Revision 0.2 submitted by:** CH-2 — Product & UX Lead  
 **Submitted to:** CH-1 — Project Lead & Chief Reviewer
