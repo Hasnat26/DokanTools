@@ -21,6 +21,10 @@ All workers MUST read the repository-root `WORKER_SINGLE_SOURCE_OF_TRUTH.md` fir
 
 Every task must pin its exact source commit and source document/blob SHA. Workers must not rely on the moving branch name alone.
 
+## 1.1 Existing workstream-local instruction file
+
+PR #20 contains `docs/slice-a/browser-harness/v3/WORKER_SINGLE_SOURCE_OF_TRUTH.md` on its separate, unmerged submission branch. It was created before this project-wide governance proposal and is scoped to the v3 artifact package. This creates a potential competing entry-point instruction if interpreted globally. PR #20 is intentionally left unchanged. On approval/merge of this governance PR, the repository-root `WORKER_SINGLE_SOURCE_OF_TRUTH.md` and `PROJECT_SOURCE_OF_TRUTH.md` become the global authority; the nested v3 file is subordinate and may only identify v3 package artifacts. It cannot override project-wide precedence, roles, authorization gates or branch/PR rules.
+
 ## 2. Repository audit — verified snapshot
 
 ### 2.1 Repository and main
