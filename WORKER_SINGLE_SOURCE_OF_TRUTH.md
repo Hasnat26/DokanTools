@@ -20,6 +20,9 @@ Every worker, including CH-1, CH-2, CH-3, CH-4 and any external/AI support worke
 
 ## 2. Single source and precedence
 
+A workstream-local instruction file already exists on the unmerged PR #20 branch at `docs/slice-a/browser-harness/v3/WORKER_SINGLE_SOURCE_OF_TRUTH.md`. It is limited to the Slice A Browser Harness v3 artifact package. It is not a second project-wide authority. Once this root governance baseline is approved and merged, this root file and `PROJECT_SOURCE_OF_TRUTH.md` take precedence; the nested v3 file may be used only as a subordinate v3 artifact index. PR #20 must remain unchanged by this governance task.
+
+
 `PROJECT_SOURCE_OF_TRUTH.md` is the project-level authority index. It identifies exact workstream sources and their governance status. The linked source document at its stated commit is authoritative only within the scope and status explicitly recorded.
 
 Precedence:
