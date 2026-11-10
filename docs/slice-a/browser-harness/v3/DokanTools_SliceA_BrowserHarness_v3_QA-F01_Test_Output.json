@@ -1,0 +1,15 @@
+{
+  "passed": 9,
+  "total": 9,
+  "tests": [
+    "T01 valid-profile Retry: separate conflict view; no write",
+    "T02 Review is read-only; explicit confirmation alone updates saved profile",
+    "T03 explicit Discard Draft returns to saved profile without modifying storage",
+    "T04 empty-storage Retry restores draft; explicit save creates it",
+    "T05 repeated read failures and Retry attempts preserve draft",
+    "T06 review-time read failure captures latest edits through Retry",
+    "T07 confirmation read failure preserves saved profile and draft",
+    "T08 taking neither recovery action preserves both versions",
+    "T09 stale saved-profile snapshot blocks update confirmation"
+  ]
+}
