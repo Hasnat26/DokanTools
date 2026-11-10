@@ -279,11 +279,13 @@ Serialization contract:
 
 Item order is meaningful and preserved. Reordering lines changes the request hash. Menu duplicate equivalence is separate from idempotency canonicalization and remains PO-gated.
 
-### 6.3 Server idempotency contract — globally unique request UUID
+### 6.3 Server idempotency contract — namespaced globally unique request UUID
 
-The prior shop-scoped uniqueness proposal is superseded because it cannot detect reuse of the same UUID for another shop or operation. The UUID is the namespaced global idempotency identity; shop and operation are immutable attributes checked against that global record.
+The prior shop-scoped uniqueness proposal is superseded because it cannot detect reuse of the same UUID for another shop or operation. CH-1 review comment 6766053949 requires an explicit namespace. The UUID is globally unique within namespace `invoice-create/v1`; shop and operation are immutable comparison attributes, not uniqueness-key components.
 
 **Proposed logical model (design only):** use a dedicated `invoice_idempotency_requests` registry, or redesign `transaction_requests` to provide the same global namespace:
+
+For this API, persist `idempotency_namespace = invoice-create/v1`. Enforce database uniqueness on `(idempotency_namespace, request_id)` alone; do not include `shop_id` or `operation_type` in that unique key.
 - `request_id UUID PRIMARY KEY` — globally unique across shops and operation types.
 - `owner_user_id UUID NOT NULL` — authenticated actor who first claimed the UUID.
 - `shop_id UUID NOT NULL` and `operation_type TEXT NOT NULL` — original immutable scope.
@@ -955,7 +957,7 @@ No estimate is treated as a commitment; no work package is authorized by this se
 **Performed for v0.2 design preparation:**
 - Read the complete CH-4 finding report at PR #28 comment `6763798273`.
 - Read CH-4 Issue #29 disposition and findings summary.
-- Read CH-2 UX PR #30 at exact HEAD `ca8324005048148b8d82c5151528ea41a2aa8a5a`, including the owner/customer journey, PO field mapping, P1/P2 review conditions, acceptance criteria and unresolved decision register.
+- Read CH-2 UX PR #30 revision 0.2 at exact HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`, including UX-01..UX-64, logo/tagline behavior and PO-gated category decisions.
 - Re-read the pinned PO mockup at exact baseline; blob `efe0d261c50a4cfc706e82c832a6f052c676127c`.
 - Prepared design contracts and acceptance specifications only.
 
@@ -1620,3 +1622,8 @@ Source: PR #30 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b907
 | UX-63–64 | Aspect ratio/Blank reflow; corrupt/missing assets report safely | §§D.5, H.2 | LG-14–17, PDF-R02 |
 
 All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01..UX-39 and include UX-40..UX-64 in its criterion-level QA mapping.
+
+
+## R.10 CH-1 P2 correction traceability
+
+CH-1 review comment 6766053949 requires namespace-defined uniqueness and authorization before disclosure. This revision pins `invoice-create/v1` as the namespace and requires database uniqueness on `(idempotency_namespace, request_id)` only; shop and operation are comparison attributes. The caller must be authorized for the requested shop before any prior result is disclosed. A caller without access to the requested shop receives ordinary authorization denial without any UUID-existence signal. A caller authorized for that requested shop but reusing the same namespace/UUID against a different owned shop or operation receives generic `IDEMPOTENCY_CONFLICT`, with no previous invoice disclosure or new side effect. CH-1 review remains reviewer-controlled until re-review of this exact commit.
