@@ -126,9 +126,9 @@ R2.8/R2.9/R2.10 do not restore the 63-row manifest. R2.9 §16 and its boundary s
 
 ### 3.4 Workstream A disposition
 
-<badge label="NOT LOCATED" color="warning"/> **Authoritative current T01–T63 source manifest**
+**NOT LOCATED** **Authoritative current T01–T63 source manifest**
 
-<badge label="HISTORICAL / NON-AUTHORITATIVE" color="secondary"/> R2.5 §11.2 and R2.6 §7.2 are the best located historical row-level candidates.
+**HISTORICAL / NON-AUTHORITATIVE** R2.5 §11.2 and R2.6 §7.2 are the best located historical row-level candidates.
 
 **Next owner/action:** CH-1 must identify the authoritative source artifact and exact revision (or confirm that no separate source exists and direct PO to provide the controlled source). CH-3 must then audit the actual 63 rows against the R2.9/R2.10 closure fields without reconstructing missing content. CH-4 should independently review the audited manifest after CH-1 review. DBA must supply physical facts/query definitions where row outcomes depend on actual PostgreSQL behavior.
 
@@ -165,7 +165,7 @@ Special conditions preserved by R2.8–R2.10:
 
 ### 4.3 Workstream B disposition
 
-<badge label="PARTIALLY AVAILABLE" color="warning"/> Historical descriptions and current blocked enumeration are located.
+**PARTIALLY AVAILABLE** Historical descriptions and current blocked enumeration are located.
 
 <badge label="NOT LOCATED" color="warning"/> Authoritative executable-contract package, actual query definitions/IDs and per-case cleanup requirements.
 
@@ -223,7 +223,7 @@ A read-only source scan found no `approval_operation` identifier in these four f
 
 ### 5.4 DBA workstream disposition
 
-<badge label="REQUIRES DBA" color="warning"/> DBA-01 through DBA-11 all require actual DBA-supplied physical evidence. No item is physically verified by the reviewed documentation.
+**REQUIRES DBA** DBA-01 through DBA-11 all require actual DBA-supplied physical evidence. No item is physically verified by the reviewed documentation.
 
 **Next action:** assign an accountable DBA (individual or formally named team), establish the target database identity/schema revision and evidence authorization boundary, then produce one traceable evidence artifact per DBA requirement. CH-3 maintains the register; CH-1 reviews completeness and deviations; CH-4 independently assesses evidence where assigned. Do not update any DBA status to VERIFIED from design text or source SQL alone.
 
