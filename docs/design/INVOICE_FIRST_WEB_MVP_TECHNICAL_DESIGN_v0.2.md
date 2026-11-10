@@ -280,7 +280,7 @@ Item order is meaningful and preserved. Reordering lines changes the request has
 
 ### 6.3 Server idempotency contract — globally unique request UUID
 
-The prior shop-scoped uniqueness proposal is superseded because it cannot detect reuse of the same UUID for another shop or operation. The UUID is the global idempotency identity; shop and operation are immutable attributes checked against that global record.
+The prior shop-scoped uniqueness proposal is superseded because it cannot detect reuse of the same UUID for another shop or operation. The UUID is the namespaced global idempotency identity; shop and operation are immutable attributes checked against that global record.
 
 **Proposed logical model (design only):** use a dedicated `invoice_idempotency_requests` registry, or redesign `transaction_requests` to provide the same global namespace:
 - `request_id UUID PRIMARY KEY` — globally unique across shops and operation types.
@@ -301,7 +301,7 @@ Do not rely solely on composite uniqueness `(shop_id, operation_type, request_id
 6. If every field matches and the record is complete, verify the referenced invoice belongs to the same authenticated owner/shop; return the same invoice ID, number and canonical response with `replayed=true`.
 7. If owner, shop, operation, canonicalization version or payload differs, return generic `IDEMPOTENCY_CONFLICT`. Do not reveal invoice ID, bill number, shop identity, payload or which field differed. Do not query another tenant's invoice. Allocate no number and create no invoice.
 8. If the registry row is incomplete or inconsistent, return `REQUEST_STATE_REQUIRES_RECONCILIATION`; fail closed and never create a replacement invoice.
-9. Concurrent duplicate inserts serialize on the global unique constraint. If the first commits, identical contenders replay the result and mismatched contenders conflict. If the first rolls back, a waiting request may acquire the UUID and become the sole creator.
+9. Concurrent duplicate inserts serialize on the namespace+UUID unique constraint. If the first commits, identical contenders replay the result and mismatched contenders conflict. If the first rolls back, a waiting request may acquire the UUID and become the sole creator.
 10. Registry claim, invoice, lines, counter, audit and registry completion commit atomically. A rollback removes all claim/invoice effects.
 
 **Response matrix:**
@@ -1540,17 +1540,25 @@ No live schema or database statement is made. No SQL, migration, code, storage b
 
 A request UUID R commits for shop A and operation `invoice_create`. A later request reuses R with shop B or a different operation. Under the old composite key `(shop_id, operation_type, request_id)`, no uniqueness collision occurs; lookup may report “No existing key”, allowing a second number allocation and invoice/operation. This contradicts the earlier conflict guarantee.
 
-## R.2 Corrected global idempotency identity
+## R.2 Corrected namespaced global idempotency identity
 
-The UUID is globally unique. Preferred logical storage is `invoice_idempotency_requests` with `request_id UUID PRIMARY KEY` and immutable `owner_user_id`, `shop_id`, `operation_type`, canonicalization version, payload hash, result reference and state. Alternatively redesign `transaction_requests` to enforce the same global uniqueness. Composite-only uniqueness is insufficient.
+CH-1's integrated review requires the global identity to state its namespace explicitly. Define the idempotency namespace as `invoice-create/v1` for this invoice-creation API contract. The database uniqueness key is **(`idempotency_namespace`, `request_id`)**, where the namespace identifies the API/domain contract and is independent of shop and operation. If another operation is later deliberately placed in the same namespace, `operation_type` remains a compared attribute and cannot evade collision detection. A different independently versioned API namespace may use the same UUID without collision only when that namespace boundary is explicitly defined and its side effects are independent.
 
-Authenticate first, derive owner from the session, and insert/find the global UUID claim before counter access. Matching retries require exact owner + shop + operation + canonicalization version + payload hash equality, complete committed state and tenant-scoped confirmation that the referenced invoice belongs to the same owner/shop. Only then return the original result with `replayed=true`.
+Preferred logical storage is `invoice_idempotency_requests` with:
+- `idempotency_namespace TEXT NOT NULL`;
+- `request_id UUID NOT NULL`;
+- database UNIQUE/PRIMARY KEY on (`idempotency_namespace`, `request_id`) — no `shop_id` or `operation_type` in the uniqueness key;
+- immutable `owner_user_id`, `shop_id`, `operation_type`, canonicalization version, payload hash, result reference and completion state.
 
-Any mismatched owner, shop, operation, canonicalization version or payload returns generic `IDEMPOTENCY_CONFLICT`; disclose no existing invoice ID, bill number, shop identity, payload or mismatch detail. Do not query another tenant's invoice. No new invoice/number is allocated. Incomplete/inconsistent rows return `REQUEST_STATE_REQUIRES_RECONCILIATION`.
+Alternatively redesign `transaction_requests` to enforce the same namespace+UUID uniqueness. Composite-only uniqueness on shop/operation/request is insufficient.
 
-Concurrent identical requests serialize on the global unique constraint and replay one result. Conflicting requests race for a single claim; at most one creates. Claim, invoice, lines, counter, audit and registry completion commit together; rollback removes all. Committed UUIDs are never recycled; retain a minimal tombstone after result data retention ends.
+**Authorization and collision lookup order:** authenticate first and derive owner from the verified session. For a newly claimed UUID, authorize the requested shop before any invoice counter access; ownership failure rolls back the claim. For an existing UUID, first authorize the current caller for the requested shop. If the caller does not own the requested shop, return the normal authorization denial without revealing whether a matching or conflicting UUID exists. If authorized for the requested shop, load the unique registry row through the narrow server/RPC boundary and compare namespace, authenticated owner, shop, operation, canonicalization version and payload hash. Return the original result only if every comparison matches and the referenced invoice is confirmed to belong to the same owner/shop. A different shop that the same owner owns is still a mismatch and returns generic `IDEMPOTENCY_CONFLICT`; no prior invoice metadata is disclosed. A cross-tenant caller who does not own the requested shop receives only authorization denial, not a global registry result. Never query another tenant's invoice to resolve a mismatch.
 
-**Database proposal only:** global unique/primary key on request_id, duplicate-UUID preflight across existing rows, owner/shop/operation/hash attributes, dedicated registry or redesign of `transaction_requests`, narrow service/RPC access and atomic transaction. No SQL or migration is authored/executed.
+Any authorized-scope mismatch (different owner, different owned shop, operation, canonicalization version or payload) returns generic `IDEMPOTENCY_CONFLICT`; disclose no existing invoice ID, bill number, shop identity, canonical payload or mismatch field. Allocate no number and create no invoice. Incomplete/inconsistent records return `REQUEST_STATE_REQUIRES_RECONCILIATION`.
+
+Concurrent identical requests serialize on the namespace+UUID unique constraint and replay one result. Concurrent requests with different shops or operations but the same namespace+UUID serialize on that same key; at most one can create, the other receives conflict after the winning transaction resolves. Claim, invoice, lines, counter, audit and registry completion commit together; rollback removes all. Committed namespace+UUID pairs are never recycled; retain a minimal tombstone after result data retention ends.
+
+**Database proposal only:** namespace+UUID unique key; duplicate-pair preflight across existing request rows; owner/shop/operation/hash attributes; dedicated registry or redesign of `transaction_requests`; narrow server/RPC access and atomic transaction. Do not add a global unique constraint without migration preflight. No SQL or migration is authored/executed.
 
 ## R.3 Logo resolution aligned to current UX
 
@@ -1578,3 +1586,7 @@ AT-IDEM-13..18 cover cross-shop, cross-operation, cross-owner, identical concurr
 ## R.7 Verification boundary
 
 No application code, SQL, migration, database operation, build, automated test, browser/PDF QA, merge, deployment or pilot was performed. Runtime/security behaviour remains UNVERIFIED pending separate authorization.
+
+## R.8 CH-1 integrated review alignment
+
+CH-1 review comment `6766053949` requires a namespace-defined identity and authorisation before disclosing any prior record/result. This revision adopts namespace `invoice-create/v1` and database uniqueness on namespace+request UUID only; shop and operation are comparison attributes, not unique-key components. Existing-shop authorization is checked before returning or distinguishing any prior result. If the requested shop is not owned by the caller, return authorization denial without a registry-existence signal. All conflict results are generic and disclose no invoice data. This is a technical design correction; CH-1 review finding remains reviewer-controlled until re-review.
