@@ -167,7 +167,7 @@ Special conditions preserved by R2.8–R2.10:
 
 **PARTIALLY AVAILABLE** Historical descriptions and current blocked enumeration are located.
 
-<badge label="NOT LOCATED" color="warning"/> Authoritative executable-contract package, actual query definitions/IDs and per-case cleanup requirements.
+**NOT LOCATED** Authoritative executable-contract package, actual query definitions/IDs and per-case cleanup requirements.
 
 **Next owners/actions:**
 - **CH-1:** identify/provide the controlled source package and confirm whether R2.5 descriptions remain the intended source of scope.
