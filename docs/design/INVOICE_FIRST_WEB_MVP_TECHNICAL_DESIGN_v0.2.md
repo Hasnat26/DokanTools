@@ -6,9 +6,10 @@
 **Source baseline:** `main` at `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`  
 **Technical PR:** #28  
 **Prior design:** v0.1 at `ec67f403a625acea195c7913d23e7a69254c5ecc` (preserved unchanged)  
-**UX input:** PR #30, HEAD `ca8324005048148b8d82c5151528ea41a2aa8a5a`  
+**UX input:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
 **Independent assurance input:** CH-4 Issue #29; PR #28 comment `6763798273`; reviewed v0.1 HEAD above  
-**Version:** 0.2  
+**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1  
+**Current cross-document UX:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
 **Status:** REVISED TECHNICAL DESIGN — CH-1 / PO disposition required  
 **Scope:** Design documentation only  
 **Implementation authorization:** NOT GRANTED  
@@ -1350,13 +1351,13 @@ New requirement IDs for this addendum:
 
 | Requirement | Design sections | Data/service effect | Proposed acceptance evidence (NOT EXECUTED) |
 |---|---|---|---|
-| PM-LOGO-01/02 | B, C | GENERATED default; valid upload priority; explicit BLANK override | LG-01..LG-12 |
-| PM-LOGO-03 | B | Explicit BLANK suppresses every fallback | LG-04..LG-09 |
+| PM-LOGO-01/02 | B, C | Generated default / upload priority / explicit Blank | UX-40/43/45/46/47; LG-01..LG-12 |
+| PM-LOGO-03 | B | Explicit BLANK suppresses every fallback | UX-45/46/47; LG-04..LG-09 |
 | PM-LOGO-04 | B, D, F, H | Snapshot-based renderer across surfaces | LG-06/07/14 |
-| PM-LOGO-05/06 | C | Deterministic renderer with approved category or approved neutral fallback | LG-10..LG-12 |
+| PM-LOGO-05/06 | C | Deterministic renderer; approved category or neutral-name fallback gated | UX-41/49/50; LG-10..LG-12 |
 | PM-LOGO-07 | D, G | Private object store, safe raster pipeline and asset registry | LG-10..13 |
 | PM-TAG-01..04 | E, F, H | Nullable text snapshot and safe rendering | TG-01..06 |
-| PM-HDR-01/02 | F | Immutable header snapshot / asset retention | HDR-01..06 |
+| PM-HDR-01/02 | F | Immutable header snapshot / asset retention | UX-60..64; HDR-01..06 |
 | Existing v0.2 controls | §§4–10, 14–20 | Invoice/token/financial contracts retained; idempotency global UUID fixed in §6.3 | AT-IDEM-13..18 plus existing AT-* suites |
 
 ### I.1 Proposed logo/tagline acceptance scenarios
@@ -1503,7 +1504,7 @@ This addendum does not weaken or replace:
 ## P. Updated technical release gates
 
 Before logo/tagline can ship:
-1. CH-2 must publish the exact revised UX specification with logo states, owner workflows, defaults, failures, 80-grapheme interpretation, preview and accessibility criteria.
+1. CH-2 current UX revision 0.2 is pinned at HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`; map its UX-40..UX-64 individually before CH-4 test-plan freeze.
 2. CH-1 must accept the revised technical design at the exact commit/blob.
 3. PM/PO must decide logo default, shop-type taxonomy use, historical header promise and public/revoked display treatment.
 4. Physical migration/storage architecture must be reviewed separately; never infer the checked-in `logo_url` field is sufficient.
@@ -1516,7 +1517,7 @@ Before logo/tagline can ship:
 
 ## Q. Final CH-3 disposition
 
-The proposed approach is technically feasible without an external AI/logo service and without introducing a new shop-type field in the current checked-in schema snapshot. It does require explicit persisted logo state, immutable asset identity/storage, an optional nullable tagline field and invoice-header snapshot expansion. The existing `logo_url` is insufficient to express explicit BLANK and reliable historical asset identity. SVG upload is rejected for the initial MVP; raster upload must be decoded, normalized and re-encoded on a trusted server boundary. Generated logo must be deterministic, versioned and explicitly selected by the owner. Tagline is plain optional text, never generated, normalized to NFC and escaped at rendering. Issued invoices must retain the exact header snapshot and asset bytes/version; profile changes affect future invoices only.
+The proposed approach is technically feasible without an external AI/logo service and without introducing a new shop-type field in the current checked-in schema snapshot. It does require explicit persisted logo state, immutable asset identity/storage, an optional nullable tagline field and invoice-header snapshot expansion. The existing `logo_url` is insufficient to express explicit BLANK and reliable historical asset identity. SVG upload is rejected for the initial MVP; raster upload must be decoded, normalized and re-encoded on a trusted server boundary. Generated logo must be deterministic/versioned and is the default unless a valid upload or explicit BLANK exists; owner preview is not an opt-in gate. Tagline is plain optional text, never generated, normalized to NFC and escaped at rendering. Issued invoices must retain the exact header snapshot and asset bytes/version; profile changes affect future invoices only.
 
 No live schema or database statement is made. No SQL, migration, code, storage bucket, API, dependency, build, test, PDF render or QA was executed.
 
@@ -1590,3 +1591,32 @@ No application code, SQL, migration, database operation, build, automated test, 
 ## R.8 CH-1 integrated review alignment
 
 CH-1 review comment `6766053949` requires a namespace-defined identity and authorisation before disclosing any prior record/result. This revision adopts namespace `invoice-create/v1` and database uniqueness on namespace+request UUID only; shop and operation are comparison attributes, not unique-key components. Existing-shop authorization is checked before returning or distinguishing any prior result. If the requested shop is not owned by the caller, return authorization denial without a registry-existence signal. All conflict results are generic and disclose no invoice data. This is a technical design correction; CH-1 review finding remains reviewer-controlled until re-review.
+
+
+## R.9 PR #30 UX-40..UX-64 technical crosswalk (exact revision 0.2)
+
+Source: PR #30 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`. No UX criterion is replaced or renumbered.
+
+| UX IDs | UX intent | Technical design mapping | Proposed CH-4 evidence |
+|---|---|---|---|
+| UX-40 | Generated default when no upload/explicit Blank | §§B.1–B.3, C.4, R.3 | LG-08, HDR-01 |
+| UX-41 | Generated uses current name/category; preview regenerates on changes | §§C.1–C.4, R.4 | LG-10–12 |
+| UX-42 | Generated preview before invoice use | §§C.4, R.3; preview not an opt-in gate | LG-08, LG-12 |
+| UX-43 | Uploaded priority | §§B.1–B.3, R.3 | LG-01–03, LG-09 |
+| UX-44 | Replacement retains current logo until successful | §§B.2, D.3 | LG-03, LG-07 |
+| UX-45 | Owner removes upload and chooses Generated or Blank | §§B.2, R.3 | LG-05, LG-06, LG-09 |
+| UX-46 | Blank suppresses all logo/placeholder in all renderers | §§B.1–B.3, H.1–H.2 | LG-04, LG-05 |
+| UX-47 | Blank can return to Generated | §§B.2, C.4, R.3 | LG-05 |
+| UX-48 | Regenerate Generated without overwriting Uploaded | §§B.2, C.4 | LG-06, LG-12 |
+| UX-49 | Only accepted taxonomy choices | §§C.3, R.4 | LG-11 |
+| UX-50 | Missing category prompts from accepted choices | §§C.3, R.4 | LG-11 |
+| UX-51–53 | Unsupported/oversized file rejection; failed upload preserves previous logo/tagline | §§D.1–D.4 | LG-07, LG-13–15 |
+| UX-54–56 | Owner-only Bangla/English tagline; blank valid; independent edit | §E and G.1–G.2 | TG-01, TG-02, TG-06 |
+| UX-57 | 80 grapheme limit remains proposed until approval | §E.1; PO/PM gate register | TG-03 |
+| UX-58 | Bangla/English tagline renders without clipping | §§H.1–H.3 | TG-02, TG-04, PDF-R01/02 |
+| UX-59 | Logo and tagline state independent | §§B, E | LG-06, TG-06 |
+| UX-60 | Owner previews complete invoice header | §§H.1–H.2 | HDR-01, PDF-R01 |
+| UX-61–62 | Same issued header across surfaces; profile edit follows historical policy | §§F, H; PM-HDR-01/02 remains PO/PM gate | HDR-01–06 |
+| UX-63–64 | Aspect ratio/Blank reflow; corrupt/missing assets report safely | §§D.5, H.2 | LG-14–17, PDF-R02 |
+
+All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01..UX-39 and include UX-40..UX-64 in its criterion-level QA mapping.
