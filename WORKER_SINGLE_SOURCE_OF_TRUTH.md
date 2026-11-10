@@ -3,7 +3,7 @@
 **Repository:** `Hasnat26/DokanTools`  
 **First-read file:** `WORKER_SINGLE_SOURCE_OF_TRUTH.md` (this file)  
 **Authority register:** `PROJECT_SOURCE_OF_TRUTH.md`  
-**Governance status:** SUBMITTED — NOT ACTIVE UNTIL MERGED INTO `main` WITH PM APPROVAL
+**Governance status:** ACTIVE ON MAIN — PR #21 MERGED WITH PM APPROVAL
 
 ## 1. Mandatory start-of-work protocol
 
@@ -24,7 +24,7 @@ Every worker, including CH-1, CH-2, CH-3, CH-4 and any external/AI support worke
 
 Historical chat messages, meeting notes, approval messages, prior governance discussions and conversation summaries may be retained or cited as traceability evidence to explain history, context or why an unresolved status was recorded. They do **not** independently establish, recreate, amend or activate a repository-controlled baseline when the exact approved artifact or decision record is missing. A known historical approval without an exact canonical GitHub source remains `NOT ESTABLISHED AS GITHUB BASELINE` until recovered or dispositioned through a controlled, explicit process. A worker must not transform traceability evidence into a new PO decision or technical approval.
 
-A workstream-local instruction file exists on the unmerged PR #20 branch at `docs/slice-a/browser-harness/v3/WORKER_SINGLE_SOURCE_OF_TRUTH.md`. It is limited to the Slice A Browser Harness v3 artifact package. It is not a second project-wide authority. If this root governance baseline is approved and merged, the root file and `PROJECT_SOURCE_OF_TRUTH.md` take precedence; the nested v3 file may be used only as a subordinate v3 artifact index. PR #20 must remain unchanged unless separately authorized.
+A workstream-local instruction file exists on the unmerged PR #20 branch at `docs/slice-a/browser-harness/v3/WORKER_SINGLE_SOURCE_OF_TRUTH.md`. It is limited to the Slice A Browser Harness v3 artifact package. It is not a second project-wide authority. The root file and `PROJECT_SOURCE_OF_TRUTH.md` are the active project-wide authority on `main`; the nested v3 file is subordinate and may be used only as a v3 artifact index. PR #20 must remain unchanged unless separately authorized.
 
 `PROJECT_SOURCE_OF_TRUTH.md` is the project-level authority index. It identifies exact workstream sources and their governance status. A linked source document at its stated commit is authoritative only within the scope and status explicitly recorded.
 
@@ -75,4 +75,4 @@ Business/PO approval, CH-1 document review, architecture approval, implementatio
 
 Read `PROJECT_SOURCE_OF_TRUTH.md` for the audited repository state, current workstream map, exact refs and unresolved gaps. This worker instruction is mandatory but is not itself approval of any project design, implementation or test.
 
-**If the required project authority documents are not present on `main`, this governance baseline remains SUBMITTED and must not be represented as globally active until PM approval and merge.**
+**Governance activation record:** PR #21 was approved and merged into `main`. Merge commit / main HEAD at activation: `3abd0455a7755208049da310f85aab930e9f4200`. The active governance documents at that merge commit were `/WORKER_SINGLE_SOURCE_OF_TRUTH.md` (blob `ee6588a85af954128c0b1d0ce2ddd7417ce0b6e9`) and `/PROJECT_SOURCE_OF_TRUTH.md` (blob `d94b368a42ebe87e6787c7fd62c1256294e611e4`). This activation record does not authorize implementation, QA execution, database operations, builds, deployment, APK distribution or pilot activity.

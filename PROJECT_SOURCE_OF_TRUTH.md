@@ -3,12 +3,16 @@
 **Repository:** `Hasnat26/DokanTools` (private)  
 **Default branch:** `main`  
 **Document:** `PROJECT_SOURCE_OF_TRUTH.md`  
-**Status:** SUBMITTED FOR PM RE-REVIEW — NOT ACTIVE UNTIL APPROVED AND MERGED INTO `main`  
+**Status:** ACTIVE ON MAIN  
 **Audit snapshot (historical):** 2026-11-10; time of original audit not captured in the audit record; timezone therefore unavailable  
 **Audit main/base commit:** `1b872ef2eb3bdb2fc8556b328933cd6dba03dfe4`  
 **Governance branch at initial audit:** `governance/global-github-ssot`  
 **Initial governance branch head:** `46376e96c8b325143440eb7114b026487210ddbb`  
-**Revision task:** `DT-GOV-001-R1`
+**Revision task:** `DT-GOV-001-R1`  
+**PR #21:** APPROVED AND MERGED  
+**PR #21 reviewed head:** `10bf1fb4c7687d2223e17c7303902df281deb4c5`  
+**PR #21 merge commit / main HEAD at activation:** `3abd0455a7755208049da310f85aab930e9f4200`  
+**Governance document identities at activation:** `WORKER_SINGLE_SOURCE_OF_TRUTH.md` (path `/WORKER_SINGLE_SOURCE_OF_TRUTH.md`) — blob `ee6588a85af954128c0b1d0ce2ddd7417ce0b6e9`; `PROJECT_SOURCE_OF_TRUTH.md` (path `/PROJECT_SOURCE_OF_TRUTH.md`) — blob `d94b368a42ebe87e6787c7fd62c1256294e611e4`
 
 > This register is a controlled authority index, not a declaration that all workstreams are approved or implementation-ready. Exact status is stated per artifact. Where the repository lacks the exact approved source document or decision record, status is NOT ESTABLISHED AS GITHUB BASELINE. A PR branch is not equivalent to a merged/approved main-branch baseline. The repository audit below is a historical snapshot, not a claim of current live inventory.
 
@@ -18,14 +22,15 @@ All workers MUST read the repository-root `WORKER_SINGLE_SOURCE_OF_TRUTH.md` fir
 
 - Worker instruction: `WORKER_SINGLE_SOURCE_OF_TRUTH.md`
 - Project authority register: `PROJECT_SOURCE_OF_TRUTH.md`
-- Current project source of truth becomes effective only after PM approval and merge into `main`.
-- Until then, existing PM restrictions and accepted decisions remain in force; this PR is a governance proposal.
+- The project-wide governance baseline is ACTIVE ON MAIN following PM approval and merge of PR #21.
+- PR #21 reviewed head: `10bf1fb4c7687d2223e17c7303902df281deb4c5`; merge commit / main HEAD at activation: `3abd0455a7755208049da310f85aab930e9f4200`.
+- Exact governance file paths and activation blob identities are recorded in the document metadata above. All existing workstream-specific restrictions and authorization gates remain in force.
 
 Every task must pin its exact source commit and source document/blob SHA. Workers must not rely on a moving branch name alone.
 
 ## 1.1 Existing workstream-local instruction file
 
-PR #20 contains `docs/slice-a/browser-harness/v3/WORKER_SINGLE_SOURCE_OF_TRUTH.md` on its separate, unmerged submission branch. It was created before this project-wide governance proposal and is scoped to the v3 artifact package. This creates a potential competing entry-point instruction if interpreted globally. PR #20 is intentionally left unchanged. If this governance PR is approved and merged, the repository-root `WORKER_SINGLE_SOURCE_OF_TRUTH.md` and `PROJECT_SOURCE_OF_TRUTH.md` become the global authority; the nested v3 file is subordinate and may only identify v3 package artifacts. It cannot override project-wide precedence, roles, authorization gates or branch/PR rules.
+PR #20 contains `docs/slice-a/browser-harness/v3/WORKER_SINGLE_SOURCE_OF_TRUTH.md` on its separate, unmerged submission branch. It was created before this project-wide governance proposal and is scoped to the v3 artifact package. This creates a potential competing entry-point instruction if interpreted globally. PR #20 is intentionally left unchanged. The repository-root `WORKER_SINGLE_SOURCE_OF_TRUTH.md` and `PROJECT_SOURCE_OF_TRUTH.md` are the active global authority on `main`; the nested v3 file is subordinate and may only identify v3 package artifacts. It cannot override project-wide precedence, roles, authorization gates or branch/PR rules.
 
 ## 2. Repository audit — historical verified snapshot
 
@@ -204,21 +209,20 @@ These are recommendations only, not active controls.
 
 ## 9. Unresolved decisions / evidence gaps requiring PM or CH-1 disposition
 
-1. **Governance activation:** PM approval and merge of this PR are required before this becomes the global main-branch authority.
-2. **Slice A canonical requirements:** recover/commit the exact approved UX v0.4, architecture decision, and QA Plan v1.2 sources with exact hashes. Until then they remain NOT ESTABLISHED AS GITHUB BASELINES; workers must stop before acting on them and request CH-1/PM disposition.
-3. **Slice A v3:** CH-1 final source review remains pending; PR #20 stays unchanged. CH-4 retest requires separate PM authorization.
-4. **Slice B:** recover/commit the exact PO-B01–PO-B07 decision record and submit CH-2 UX specification through controlled review. Until the exact PO record is established, workers must not rely on chat history to create/expand policy; stop and request CH-1/PM disposition. No implementation.
-5. **DT-002:** CH-4/CH-1 documentation review conditions and R2.10 technical dependencies remain distinct from design closure. PRs #17–#19 are drafts and unmerged.
-6. **M0-01 source recovery:** authoritative T01–T63 manifest and executable 28-case contracts not located; DBA-01–DBA-11 physical evidence not located.
-7. **Branch protection:** GitHub integration denied the branch-protection endpoint (403); PM/admin must inspect and configure rules in GitHub settings.
-8. **PR backlog:** PR #1–#19 include historical/stacked draft candidates. The initial inventory was a bounded snapshot; do not merge or delete them as bulk cleanup. PM/CH-1 should decide a controlled consolidation/closure plan after source reconciliation.
+1. **Slice A canonical requirements:** recover/commit the exact approved UX v0.4, architecture decision, and QA Plan v1.2 sources with exact hashes. Until then they remain NOT ESTABLISHED AS GITHUB BASELINES; workers must stop before acting on them and request CH-1/PM disposition.
+2. **Slice A v3:** CH-1 final source review remains pending; PR #20 stays unchanged. CH-4 retest requires separate PM authorization.
+3. **Slice B:** recover/commit the exact PO-B01–PO-B07 decision record and submit CH-2 UX specification through controlled review. Until the exact PO record is established, workers must not rely on chat history to create/expand policy; stop and request CH-1/PM disposition. No implementation.
+4. **DT-002:** CH-4/CH-1 documentation review conditions and R2.10 technical dependencies remain distinct from design closure. PRs #17–#19 are drafts and unmerged.
+5. **M0-01 source recovery:** authoritative T01–T63 manifest and executable 28-case contracts not located; DBA-01–DBA-11 physical evidence not located.
+6. **Branch protection:** GitHub integration denied the branch-protection endpoint (403); PM/admin must inspect and configure rules in GitHub settings.
+7. **PR backlog:** PR #1–#19 include historical/stacked draft candidates. The initial inventory was a bounded snapshot; do not merge or delete them as bulk cleanup. PM/CH-1 should decide a controlled consolidation/closure plan after source reconciliation.
 
 ## 10. Current authorization matrix
 
 | Activity | Status |
 |---|---|
-| Governance documentation on dedicated branch — DT-GOV-001-R1 | AUTHORIZED |
-| PR update and submission for PM re-review | AUTHORIZED |
+| Governance documentation on dedicated branch — DT-GOV-002 | AUTHORIZED FOR DOCUMENTATION ONLY |
+| PR submission for DT-GOV-002 consistency update | AUTHORIZED |
 | PR #20 modification or merge | NOT AUTHORIZED |
 | Slice A v3 CH-1 final acceptance | PENDING |
 | Slice A v3 CH-4 retest | NOT AUTHORIZED |
@@ -227,10 +231,11 @@ These are recommendations only, not active controls.
 | M0-01 design closure / implementation | NOT GRANTED / NOT AUTHORIZED |
 | SQL/database operations | NOT AUTHORIZED |
 | Deployment / APK distribution / financial pilot | NOT AUTHORIZED / NO-GO |
-| Governance PR merge into main | PENDING PM APPROVAL |
+| PR #21 merge into `main` | COMPLETED — MERGED AT `3abd0455a7755208049da310f85aab930e9f4200` |
+| DT-GOV-002 consistency-update PR merge into `main` | PENDING PM APPROVAL |
 
 ## 11. Acceptance condition
 
-Global GitHub SSOT is **not yet established** by creating or revising this PR. It becomes the effective project-wide authority only after PM reviews and approves the exact revised governance PR, the PR is merged into `main`, and the resulting main commit SHA is recorded through a subsequent controlled update if necessary.
+Global GitHub SSOT is **ACTIVE ON MAIN**. PM approved PR #21, whose reviewed head was `10bf1fb4c7687d2223e17c7303902df281deb4c5`; it was merged at commit `3abd0455a7755208049da310f85aab930e9f4200`. The exact paths and blob SHAs of both governance documents at activation are recorded in this document's metadata. This DT-GOV-002 consistency-update PR proposes only to correct the post-merge status record; it does not deactivate or replace the active governance baseline until any approved follow-up merge takes effect.
 
-Until then, this is the proposed governance baseline. All existing task-specific PM instructions and restrictions remain in force.
+All existing task-specific PM instructions, missing-baseline hard stops, approval gates and execution restrictions remain in force. Governance activation does not grant implementation, QA execution, SQL/database, build, deployment, APK distribution or pilot authorization.
