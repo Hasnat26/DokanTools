@@ -6,7 +6,7 @@
 **Decision date:** 2026-11-10  
 **Canonical decision baseline:** R2.5 `docs/M0-01_Remediation_Design_R2.5.md`, commit `daeeb7ae8e1df9b51c1f474b3d34f215f83c8512`  
 **Earlier CH-1-reviewed R2.10 technical candidate:** `docs/M0-01_Remediation_Design_R2.10.md`, commit `8c0cf59a7dcba7b4d353207c42c99a9800434542` (earlier technical review baseline; not the same Git object as the PR-head companion file)  
-**Exact R2.10 companion file in PR #17 at reviewed head `4935c104cec90ddd4bb069126a6d0c235e00d7a4`:** `docs/M0-01_Remediation_Design_R2.10.md`, blob `1d3aa3ad480d4c5071a19c9f6d1ff1abfdfc9d17`
+**Current PR #17 head companion file (`bf5e19e290bef697c86287686e8a9002e5744dbd`):** `docs/M0-01_Remediation_Design_R2.10.md`, blob `1d3aa3ad480d4c5071a19c9f6d1ff1abfdfc9d17`. **Historical CH-1 technical-review baseline:** commit `4935c104cec90ddd4bb069126a6d0c235e00d7a4`; this remains a distinct historical reference and is not the current PR-head reference.
 
 ---
 
@@ -216,7 +216,8 @@ Status carried forward:
 **Canonical design source**
 - R2.5: `docs/M0-01_Remediation_Design_R2.5.md`, commit `daeeb7ae8e1df9b51c1f474b3d34f215f83c8512`.
 - Earlier CH-1-reviewed R2.10 technical candidate: `docs/M0-01_Remediation_Design_R2.10.md`, commit `8c0cf59a7dcba7b4d353207c42c99a9800434542`. This is the earlier technical review baseline and is not the same Git object as the PR-head companion file below.
-- Exact R2.10 companion document included in PR #17 at reviewed head `4935c104cec90ddd4bb069126a6d0c235e00d7a4`: `docs/M0-01_Remediation_Design_R2.10.md`, blob SHA `1d3aa3ad480d4c5071a19c9f6d1ff1abfdfc9d17`. Commit context: `4935c104cec90ddd4bb069126a6d0c235e00d7a4`.
+- Current PR #17 head companion document at commit `bf5e19e290bef697c86287686e8a9002e5744dbd`: `docs/M0-01_Remediation_Design_R2.10.md`, blob SHA `1d3aa3ad480d4c5071a19c9f6d1ff1abfdfc9d17`. The file remains present at this current PR head with this unchanged blob.
+- Historical CH-1 technical-review baseline: commit `4935c104cec90ddd4bb069126a6d0c235e00d7a4`. This is retained as a distinct historical reference and must not be substituted for or conflated with the current PR-head reference above.
 
 **PR #17 decision evidence**
 - PO-01: submission #6758644399; reconciliation #6758914733; formal acceptance #6758930635.
