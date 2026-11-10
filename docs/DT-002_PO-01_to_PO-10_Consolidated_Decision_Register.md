@@ -5,7 +5,8 @@
 **Pull request context:** PR #17 — R2.10 documentation candidate  
 **Decision date:** 2026-11-10  
 **Canonical decision baseline:** R2.5 `docs/M0-01_Remediation_Design_R2.5.md`, commit `daeeb7ae8e1df9b51c1f474b3d34f215f83c8512`  
-**R2.10 inherited governance context:** `docs/M0-01_Remediation_Design_R2.10.md`, commit `8c0cf59a7dcba7b4d353207c42c99a9800434542`
+**Earlier CH-1-reviewed R2.10 technical candidate:** `docs/M0-01_Remediation_Design_R2.10.md`, commit `8c0cf59a7dcba7b4d353207c42c99a9800434542` (earlier technical review baseline; not the same Git object as the PR-head companion file)  
+**Exact R2.10 companion file in PR #17 at reviewed head `4935c104cec90ddd4bb069126a6d0c235e00d7a4`:** `docs/M0-01_Remediation_Design_R2.10.md`, blob `1d3aa3ad480d4c5071a19c9f6d1ff1abfdfc9d17`
 
 ---
 
@@ -46,8 +47,8 @@ Comment IDs are recorded as GitHub PR #17 issue comments. The canonical R2.5 sou
 
 - The current owner must be identified through trusted server-side authentication and authoritative shop-ownership state.
 - The operation creator and approver must be different authenticated actors; self-approval is prohibited.
-- If the current owner created the operation, that owner cannot approve it. No manager, member, inherited role, fallback approver, or automatic exception is authorized.
-- The operation remains unposted and follows the approved pending/expiry/rejection lifecycle. Any alternative resolution requires a separate PO decision.
+- If the current owner created the operation, that owner cannot approve it. No manager, member, inherited role, fallback approver, or automatic exception is authorized. Self-approval remains prohibited; no fallback approver or automatic exception is authorized.
+- This policy does not itself authorize a new rejection, cancellation or automatic terminal transition. The precise pending/expiry/rejection/cancellation handling must remain within the already-approved operation lifecycle; any new transition or alternative resolution requires a separate PO decision.
 - Client-supplied owner IDs, approver IDs, or role claims are not authoritative.
 - Current ownership and authorization must be revalidated inside the approval transaction.
 
@@ -162,13 +163,13 @@ Comment IDs are recorded as GitHub PR #17 issue comments. The canonical R2.5 sou
 
 | ID | Dependency | Related decisions | Required evidence before implementation |
 |---|---|---|---|
-| DEP-01 | Trusted auth subject, authoritative owner lookup, transaction-time authorization | PO-01, PO-08 | Auth-chain review; owner source; function/grant/search_path review |
+| DEP-01 | Trusted authentication subject and authoritative owner-source contract | PO-01, PO-08 | Document authoritative ownership-source provenance and exact relation/service; shop-owner uniqueness invariant; owner and membership status semantics; revocation representation; trusted mapping from authenticated subject to the authoritative owner record. Define fail-closed behavior for missing, multiple, ambiguous, stale or unavailable ownership state. Prohibit stale-cache decisions and client-asserted identity/role/owner claims. Supply evidence for SECURITY DEFINER ownership, fixed `search_path`, EXECUTE grants/callable surface and transaction-context integrity/binding to the authenticated invocation. This is a required evidence contract, not selection of an implementation. |
 | DEP-02 | Creator ≠ approver; owner-is-creator lifecycle | PO-01, PO-08 | Explicit state/UX/error contract; no fallback authority |
-| DEP-03 | Ownership transfer/revocation vs approval serialization | PO-01, PO-08 | DBA lock/FK/trigger inventory; concurrency design and later test evidence |
-| DEP-04 | Server-controlled 24h UTC expiry and approval/expiry race | PO-02 | Timestamp source, immutable fields, operation-lock contract |
+| DEP-03 | Ownership transfer/revocation versus approval race and authorization serialization | PO-01, PO-08 | Require evidence identifying the approval authorization linearization point inside the transaction; exact logical shop/ownership/operation lock order (without prescribing an unverified physical mechanism); transfer-first, approval-first and revocation-first concurrency schedules; proof that approval cannot use stale owner state. Cover missing/multiple owner records and ownership-source failure with fail-closed outcomes. For unauthorized/stale-owner approval require rollback/no-post assertions and B0/B1 proof where applicable, including unchanged operation/ledger/event/balance state. Physical lock mapping and concurrency proof require DBA evidence and separately authorized execution; no mechanism is selected here. |
+| DEP-04 | Server-controlled 24-hour UTC expiry, expiry actor and approval/expiry race | PO-02 | Define required evidence for the expiry worker/system actor identity and its privilege/callable boundary; trusted UTC clock source and immutable `submitted_at`/`expires_at` semantics; scheduling responsibility, retry behavior and idempotency; approval-versus-expiry concurrency schedules and the exact serialization/linearization behavior. Evidence must show terminal requests cannot be revived and retries cannot create duplicate expiry or competing terminal transitions. These are design/DBA evidence requirements only: no worker implementation, schedule, system identity or privilege is selected or granted by this register. |
 | DEP-05 | Reference normalization and uniqueness | PO-03 | Versioned normalization specification; empty-input policy; index feasibility |
 | DEP-06 | Aggregate balance read/write and payment serialization | PO-04 | Authoritative ledger query, customer mutex design, rollback semantics |
-| DEP-07 | Legacy unknown representation and accounting display/netting | PO-05 | Migration provenance model; separate due/paid presentation; accounting approval |
+| DEP-07 | Legacy unknown provenance, source-to-target reconciliation and accounting disposition | PO-05 | Require a source-to-target migration reconciliation artifact with source/target counts, completeness checks, exception totals and digest/reconciliation evidence sufficient to account for every migrated/in-scope record. Define unknown actor/provenance treatment without fabricated attribution. Preserve separate due and paid reporting and exclude unclassified amounts from verified-balance calculations unless separately approved. Obtain explicit accounting-owner disposition for unclassified legacy amounts, including unresolved due/paid classification and recognition/netting treatment. These requirements do not decide accounting treatment or authorize migration. |
 | DEP-08 | Catalog name/variant normalization and uniqueness | PO-06 | Versioned field/normalization contract; collision matrix; DBA unique-index design |
 | DEP-09 | Customer phone normalization and collision handling | PO-07 | Versioned phone contract; cross-shop/missing/shared-phone cases; DBA uniqueness |
 | DEP-10 | Reason text/code storage and meaningful-justification validation | PO-09 | Controlled field contract; server-side validation; no unapproved taxonomy |
@@ -214,7 +215,8 @@ Status carried forward:
 
 **Canonical design source**
 - R2.5: `docs/M0-01_Remediation_Design_R2.5.md`, commit `daeeb7ae8e1df9b51c1f474b3d34f215f83c8512`.
-- R2.10: `docs/M0-01_Remediation_Design_R2.10.md`, commit `8c0cf59a7dcba7b4d353207c42c99a9800434542`.
+- Earlier CH-1-reviewed R2.10 technical candidate: `docs/M0-01_Remediation_Design_R2.10.md`, commit `8c0cf59a7dcba7b4d353207c42c99a9800434542`. This is the earlier technical review baseline and is not the same Git object as the PR-head companion file below.
+- Exact R2.10 companion document included in PR #17 at reviewed head `4935c104cec90ddd4bb069126a6d0c235e00d7a4`: `docs/M0-01_Remediation_Design_R2.10.md`, blob SHA `1d3aa3ad480d4c5071a19c9f6d1ff1abfdfc9d17`. Commit context: `4935c104cec90ddd4bb069126a6d0c235e00d7a4`.
 
 **PR #17 decision evidence**
 - PO-01: submission #6758644399; reconciliation #6758914733; formal acceptance #6758930635.
