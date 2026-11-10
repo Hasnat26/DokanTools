@@ -7,8 +7,8 @@
 **Technical PR:** #33 (successor candidate; PR #28 preserved as historical)  
 **Prior design:** v0.1 at `ec67f403a625acea195c7913d23e7a69254c5ecc` (preserved unchanged)  
 **UX input:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
-**Independent assurance input:** CH-4 preliminary staging register, Issue #27 comment `6765953207`; frozen manifest DT-MVP-CH4-FROZEN-2026-11-10-01, Issue #27 comment `6766702882`; CH-4 final signed report remains pending  
-**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2 / v0.4.0  
+**Independent assurance input:** CH-4 final report PR #34 HEAD `de39c00432ac1267e37601c01b2d9b83eda2f670`, blob `1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7`, report ID `DT-MVP-CH4-STATIC-ASSURANCE-2026-11-10-01`; frozen manifest ID `DT-MVP-CH4-FROZEN-2026-11-10-01`, content SHA-256 `f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561  
+**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2 / v0.4.0 / v0.4.1  
 **Current cross-document UX:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
 **Status:** CONSOLIDATED TECHNICAL DESIGN CANDIDATE v0.4.0 — CH-1 re-freeze and final review required  
 **Scope:** Design documentation only  
@@ -19,9 +19,9 @@
 
 ## 1. Executive disposition
 
-The preserved v0.2 design and controlled addenda define append-only invoice facts, transactional numbering/idempotency, financial precision, HMAC bill-link lifecycle, public DTO/privacy controls, online-only issue boundary, Bengali rendering and logo/tagline/header handling. Addendum v0.4.0 consolidates CH-4 preliminary technical/security findings, tightens release gates and adds a capability-specific implementation-readiness package.
+The preserved v0.2 design and controlled addenda define append-only invoice facts, transactional numbering/idempotency, financial precision, HMAC bill-link lifecycle, public DTO/privacy controls, online-only issue boundary, Bengali rendering and logo/tagline/header handling. Addendum v0.4.0 consolidated the preliminary CH-4 register; v0.4.1 reconciles the final CH-4 independent report and closes the remaining CH-3-owned design gaps.
 
-The document contains design responses to CH4-01 through CH4-11 and later CH-4 preliminary findings in Issue #27 comment 6765953207. These responses are not CH-4 final acceptance, PO approval, implementation evidence or runtime proof. CH-4's final signed report remains outstanding.
+The document contains design responses to the preliminary CH-4 register and the final independent report PR #34 / report ID DT-MVP-CH4-STATIC-ASSURANCE-2026-11-10-01. CH-4 final overall disposition is NEEDS REVISION; PR #33's frozen candidate specifically received NEEDS REVISION. This revision addresses CH3-owned DES-01/02/03/04/05 and OBS-01 at design level; it does not claim CH-4 acceptance, PO approval, implementation evidence or runtime proof.
 
 **Design decision classes used throughout:**
 - **PO-CONFIRMED:** explicitly present in `docs/decisions/PO_CONFIRMED_INVOICE_MOCKUP.md` at the pinned baseline. Binding.
@@ -229,9 +229,11 @@ For invoice creation, use one order everywhere:
 5. Only the transaction inserting the new claim locks the per-shop counter, allocates a bill number, and inserts invoice, lines, issued event and audit.
 6. Update result reference/completion and commit claim, counter, invoice, lines, audit and completion atomically. Roll back every write on error; a losing contender never reaches number allocation.
 
-**Global lock order:** requested-shop ownership row → composite identity arbitration/registry row → per-shop counter → invoice/lines → lifecycle/audit → registry completion. All invoice-create paths use this order. Deadlock/serialization retries are bounded and retain the same namespace, UUID and canonical payload; ambiguous outcomes retry that same authorized identity. Uniqueness performs arbitration only; authentication, authorization and response non-disclosure are separate controls.
+**Canonical lock order:** shop ownership/profile row → composite identity arbitration/registry row → referenced shop-asset metadata rows (sorted by asset_id) → per-shop counter → invoice/lines → lifecycle/audit rows → registry completion. Authenticate first; inside the transaction lock the requested shop/profile row FOR SHARE, verify owner and hold the lock through commit. Only then arbitrate the idempotency key. On a new claim, lock each referenced immutable asset metadata row FOR SHARE in deterministic order; verify owner, READY state, immutable object version/digest and durable object existence; read all header fields/references from the one locked profile_revision. Then lock the counter and insert invoice/header snapshot/lines/events/audit and complete the registry. A replay returns the original stored invoice/snapshot and never rebuilds a header from the current profile. A conflict allocates no number and writes no side effects.
 
-No path may acquire these in reverse order. Revocation uses invoice lifecycle lock → invoice/link event insert → audit insert. It must not acquire the counter or idempotency locks.
+Profile/logo/tagline updates acquire the same shop row FOR UPDATE first, compare expected_profile_revision, then lock referenced asset rows in deterministic order, validate references, update profile fields and increment revision atomically. Upload finalization writes the normalized object durably before opening this transaction; it then locks shop row FOR UPDATE followed by asset metadata and changes the pointer only after validation. Garbage collection locks only the asset metadata row FOR UPDATE, checks profile/invoice/PDF references and marks DELETE_PENDING before object deletion; it must never lock shop or invoice rows. No external object-storage deletion occurs inside a DB transaction. If issue holds asset FOR SHARE, GC waits and then sees the invoice reference; if GC marks DELETE_PENDING first, issue/profile update waits and fails closed. This avoids asset/profile lock inversion.
+
+Concurrent profile update and invoice issue serialize: if issue obtains the shop share lock first, it snapshots revision N and commits before the update to N+1; if update obtains the exclusive lock first, issue waits and snapshots all fields from N+1. Mixed revisions are impossible under this protocol. No application sequence of unrelated reads is sufficient. Deadlock/serialization retries are bounded and retain the same namespace, UUID and canonical payload. Revocation uses invoice lifecycle lock → invoice/link event → audit and must not acquire profile, asset, counter or idempotency locks. Uniqueness is arbitration only; authorization and non-disclosure remain separate controls.
 
 ### 5.3 Atomicity and number-gap policy
 
@@ -334,16 +336,17 @@ Requested-shop authorization precedes claim arbitration; unauthorized attempts c
 
 - Client timeout/connection loss: retain the same request ID/payload; retry status/replay with the same identity. Never automatically mint a replacement ID.
 
-### 6.4 Client outbox state machine
+### 6.4 Client outbox state machine and privacy lifecycle
 
-`draft` → `persisted` → `submitted` → one of:
-- `confirmed`: canonical invoice response stored; pending request may be cleared.
-- `known_not_committed`: server explicitly confirms no transaction; retry same request ID/payload.
-- `unknown`: timeout, connection reset or ambiguous server failure; preserve outbox, query/replay same request ID.
-- `conflict`: same key different payload; stop and show recovery error; do not overwrite payload.
-- `local_persistence_failed`: do not send request; preserve visible draft in memory only with explicit warning that it is not safely saved.
+`draft` → `persisted` → `submitted` → `confirmed | known_not_committed | unknown | conflict | local_persistence_failed` as defined above. IndexedDB is request-recovery storage, not an offline invoice ledger. It does not assign bill numbers or create a verified invoice.
 
-IndexedDB is request-recovery storage, not an offline invoice ledger. It does not assign bill numbers or create a verified invoice.
+Each record is bound to authenticated owner ID, requested shop ID, namespace, request UUID, canonicalization version, payload hash, timestamps and state. Store only the canonical invoice payload required for exact same-key retry; never store HMAC keys, public bill URLs, MACs, session tokens or credentials. Owner ID is a binding label, not authorization: every replay/reconciliation re-authenticates and server-authorizes the requested shop before registry comparison.
+
+On session expiry, pause retry/reconciliation and require fresh authentication. On logout or owner switch, remove the full canonical payload from active UI/storage and retain only a minimal attempt marker (owner/shop/request ID/namespace/hash/timestamp/state). A different owner must never view or replay another owner's marker. IndexedDB is origin-scoped browser storage, not a confidential vault against another person using the same OS/browser profile; shared-device deployment requires separate OS/browser profiles and a sign-out warning. No bearer token or secret is stored locally.
+
+After server-confirmed terminal state, clear canonical payload immediately; retain only a minimal non-secret marker for at most 30 days, then purge. For unresolved/unknown state, retain canonical payload for at most 7 days from last attempt; after that purge payload and keep only the minimal marker until owner reconciliation. The unresolved marker is not auto-replayed. Before a new invoice is created from that draft, the same authenticated owner must use a private, narrowly scoped reconciliation action that first authorizes the requested shop and then returns only that owner's committed result/state. This is not a public or general registry lookup endpoint. If the marker is unavailable, owner must reconcile through authenticated invoice history/support before treating the draft as a new logical invoice. Do not silently mint a new UUID after unknown outcome.
+
+Resolved markers are purged within 30 days. Unresolved markers remain until reconciliation; the 7-day limit applies to sensitive payload retention, not the minimal recovery identity. Browser storage deletion can still destroy local recovery evidence; server-side idempotency/tombstone and authenticated invoice history remain authoritative.
 
 ## 7. Financial precision, bounds and deterministic calculations
 
@@ -1025,7 +1028,7 @@ Use an explicit persisted `logo_mode` with exactly three values:
 
 | State | Meaning | Active render source |
 |---|---|---|
-| `GENERATED` | Owner chooses the deterministic generated mark | Generated SVG/immutable generated artifact derived from the snapshotted generation inputs |
+| `GENERATED` | Resolver supplies the deterministic generated mark by default when no valid UPLOADED asset or explicit BLANK exists | Generated SVG/immutable generated artifact derived from snapshotted inputs |
 | `UPLOADED` | Owner chooses an uploaded, validated logo asset | Immutable raster asset version in private object storage |
 | `BLANK` | Owner explicitly chooses no logo | No image and no logo placeholder |
 
@@ -1275,15 +1278,16 @@ Alternative storage design: put immutable header JSON snapshot on invoice row, p
 ### G.2 Services and API boundaries
 
 Proposed authenticated owner operations:
-- `update_shop_logo_selection(shop_id, mode, asset_id?, expected_profile_revision)`: validates owner, state/asset consistency and profile revision; creates an audit event; never accepts arbitrary URL.
+- `update_shop_logo_selection(shop_id, mode, asset_id?, expected_profile_revision)`: supports explicit BLANK and valid UPLOADED selection only; validates owner, state/asset consistency and profile revision; creates audit event; never accepts arbitrary URL. Clearing BLANK resolves to GENERATED without a separate Generated opt-in.
 - `create_logo_upload_intent(shop_id, file_metadata)`: reserves one short-lived upload attempt and returns restricted upload authorization only after owner check.
-- `finalize_logo_upload(shop_id, upload_id)`: server-side inspect/decode/re-encode/hash, write immutable object, then atomically set UPLOADED pointer after validation.
-- `select_generated_logo(shop_id, expected_profile_revision)`: generates deterministic candidate and requires owner-confirmed selection. No external AI/API.
-- `regenerate_logo(shop_id, expected_profile_revision, template_version)`: preview then explicit selection; immutable new version.
-- `update_shop_tagline(shop_id, tagline, expected_profile_revision)`: normalize NFC, validate grapheme/byte/control limits, set NULL for blank; independent of logo selection.
-- `get_invoice_header_snapshot(shop_id)`: internal owner-only projection for invoice creation; public clients never call private asset registry directly.
+- `finalize_logo_upload(shop_id, upload_id)`: server-side inspect/decode/re-encode/hash and durable private object write; then locks the shop profile and atomically sets UPLOADED pointer after revision/asset checks.
+- `preview_generated_logo(shop_id)`: optional read-only preview of deterministic output for the current profile revision; no state mutation and no confirmation requirement.
+- `materialize_default_generated_logo(shop_id, profile_revision, template_version)`: internal resolver/materializer. When no valid upload and no explicit BLANK exists, GENERATED is the effective default; it is not selected by an owner confirmation action.
+- `refresh_generated_logo(shop_id, expected_profile_revision, template_version)`: deterministic regeneration for a shop already in GENERATED mode; persist a new immutable version for future invoices only after successful generation and revision check. Never overwrite UPLOADED or BLANK and never alter issued snapshots.
+- `update_shop_tagline(shop_id, tagline, expected_profile_revision)`: normalize NFC, validate grapheme/byte/control rules, set NULL for blank; independent of logo selection.
+- `get_invoice_header_snapshot(shop_id)`: internal owner-only projection for issue transaction; public clients never call private asset registry directly.
 
-These are logical service contracts only. They must not be implemented as broad client-side table writes. A single profile update transaction should compare expected profile revision, validate logo state/reference, persist tagline and other allowed profile changes, and update profile revision atomically. Asset upload occurs before this transaction; failed transaction leaves prior active selection intact and the new asset as an orphan candidate for safe cleanup.
+These are logical service contracts only, not implementation. They must not be broad client-side table writes. Profile updates lock the shop row, compare expected revision, validate logo state/reference, persist tagline/other allowed fields and increment profile revision atomically. Upload bytes are decoded and durably written to private staging before the profile transaction; failed transaction leaves the prior active selection intact and the new object as an orphan candidate for safe cleanup.
 
 ### G.3 Migration and compatibility
 
@@ -1369,7 +1373,7 @@ All tests below are proposed for future CH-4 review. No tests were executed.
 - **LG-02:** UPLOADED takes priority over any generated candidate; no generated logo overlays/replaces it.
 - **LG-03:** A successfully replaced upload changes future invoices only; old issued invoices retain old asset digest/bytes.
 - **LG-04:** BLANK selection persists across reload and all renderers emit no logo and no fallback placeholder.
-- **LG-05:** BLANK→GENERATED requires explicit owner action/preview; a blank selection never automatically regenerates.
+- **LG-05:** clearing explicit BLANK is a deliberate owner action; after clearing, GENERATED resolves by default; preview is optional and not a gate.
 - **LG-06:** GENERATED→UPLOADED and UPLOADED→GENERATED follow the explicit state transition and preserve old asset references for history.
 - **LG-07:** failed upload, decode or save leaves previous state/asset active.
 - **LG-08:** absent upload and absent explicit BLANK resolves automatically to GENERATED; no separate opt-in is required.
@@ -1534,9 +1538,9 @@ No live schema or database statement is made. No SQL, migration, code, storage b
 **Parent candidate:** `275e133bf4b889f9f86f062575e42ab22f9e7842`, blob `8e16f1775defdfd6422cf771e2ace3a35b9cd338`  
 **Exact UX source:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
 **Codex finding:** PR #33 comment `4524063634`, P2  
-**Status:** Corrective v0.3.2 candidate — CH-1 independent re-review required; CH-4 freeze remains blocked pending CH-1 acceptance  
+**Historical status at v0.3.2:** awaiting CH-1 re-review when authored; superseded by CH-1 acceptance of HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 for CH-4 static design review.  
 **Implementation / DB / QA authorization:** NOT GRANTED
-**CH-1 acceptance:** NOT GRANTED / NOT YET RE-REVIEWED
+**Historical status at v0.3.2 authoring:** CH-1 acceptance had not yet been granted; later superseded by CH-1 acceptance of exact HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14.
 
 ## R.1 P2 failure scenario (historical defect; superseded)
 
@@ -1591,7 +1595,7 @@ No application code, SQL, migration, database operation, build, automated test, 
 
 ## R.8 CH-1 integrated review alignment
 
-CH-1 review comment `6766053949` requires a namespace-defined identity and authorisation before disclosing any prior record/result. This revision adopts namespace `invoice-create/v1` and database uniqueness on namespace+request UUID only; shop and operation are comparison attributes, not unique-key components. Existing-shop authorization is checked before returning or distinguishing any prior result. If the requested shop is not owned by the caller, return authorization denial without a registry-existence signal. All conflict results are generic and disclose no invoice data. This is a technical design correction; CH-1 review finding remains reviewer-controlled until re-review.
+The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14 was ACCEPTED by CH-1 for CH-4 static design review under manifest DT-MVP-CH4-FROZEN-2026-11-10-01. That acceptance applies only to that exact artifact and is not implementation, QA, merge, deployment or pilot authorization. This v0.4.1 revision changes the pinned technical artifact and therefore requires CH-1 re-freeze; prior acceptance does not automatically extend to the new HEAD/blob.
 
 
 ## R.9 PR #30 UX-40..UX-64 technical crosswalk (exact revision 0.2)
@@ -1625,7 +1629,7 @@ All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01.
 
 ## R.10 CH-1 P2 correction traceability
 
-CH-1 final review requires composite-key consistency, one authorization/arbitration sequence, deterministic response precedence and tombstone/disaster-recovery guarantees. This revision uses only PRIMARY KEY (`idempotency_namespace`, `request_id`); request_id is not independently primary/unique. Sequence: authenticate → validate/canonicalize → authorize requested shop → atomic composite-key arbitration → compare identity attributes → allocate only for new claim → insert invoice/lines/audit → complete/commit. Unauthorized requested shops receive ordinary authorization denial before registry comparison; authorized mismatches receive uniform generic conflict. Tombstone/DR requirements are in §R.2. CH-1 review remains reviewer-controlled; this is not acceptance or P2 closure.
+The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14 was accepted by CH-1 for CH-4 static design review under the frozen manifest. The composite-key, authorization-order, response-precedence and tombstone corrections remain accepted design history. This v0.4.1 revision adds profile/asset lock ordering, outbox privacy, generated-logo service semantics and final CH-4 finding responses; it is a new artifact and must be re-frozen by CH-1. No implementation or QA authorization follows from the prior review acceptance.
 
 
 ## R.11 v0.3.2 controlled correction summary
@@ -1635,27 +1639,28 @@ CH-1 final review requires composite-key consistency, one authorization/arbitrat
 - Precedence: authenticate → validate/canonicalize → authorize requested shop → composite-key arbitration → compare identity → allocate only for new claim → insert invoice/lines/audit → complete/commit.
 - Unauthorized requested shop: ordinary authorization denial without UUID-existence disclosure. Authorized mismatch: generic `IDEMPOTENCY_CONFLICT`. Incomplete identity: reconciliation. Matching tombstone without result: `IDEMPOTENCY_RESULT_EXPIRED`.
 - Tombstones permanently reserve committed identities; cleanup never releases keys. Backup/restore preserves acknowledged identities; disable issuance if registry completeness cannot be proven.
-- Acceptance scenarios remain PROPOSED / NOT EXECUTED. No CH-1 acceptance or CH-4 freeze is claimed.
+- Acceptance scenarios remain PROPOSED / NOT EXECUTED. CH-1 accepted the prior exact v0.3.2 candidate for CH-4 static review; this v0.4.1 candidate requires a new CH-1 freeze/review.
 
 
 ---
 
 # Controlled Addendum v0.4.0 — CH-4 Technical Closure and Capability Readiness
 
-**CH-4 source:** preliminary findings register, Issue #27 comment 6765953207  
+**CH-4 final report:** PR #34 HEAD de39c00432ac1267e37601c01b2d9b83eda2f670, report blob 1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7, report ID DT-MVP-CH4-STATIC-ASSURANCE-2026-11-10-01, Issue #27 comment 6766878075  
+**CH-4 preliminary register:** Issue #27 comment 6765953207  
 **Prior frozen manifest:** DT-MVP-CH4-FROZEN-2026-11-10-01, Issue #27 comment 6766702882  
 **Prior technical candidate:** PR #33 HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30, blob 9a1753d3bcba680961b39b91e320d1f59d70cd14  
 **UX source:** PR #30 HEAD c7b0d8bddad3afcdf48b0b8fba8331ad46dda309, blob 3b34e6b9075b65ee027ac368fb964a5f9e98ae8f  
 **Governance source:** PR #32 HEAD 38068e159939aa963807b4cbdfc3fc26cbd3abee, blob 1782e4eb3816f5ce03d900aebbbafd1e0a427a78  
-**CH-4 final signed report:** NOT YET POSTED in available Issue #27 history  
+**CH-4 final report disposition:** NEEDS REVISION; PR #33 NEEDS REVISION, PR #30 ACCEPT WITH CONDITIONS, PR #32 NEEDS REVISION.  
 **Status:** documentation remediation submitted for CH-1 re-freeze/final review  
 **Implementation, DB, build, test, QA, merge, deployment and pilot:** NOT AUTHORIZED
 
 ## S. Source and authority qualification
 
-The frozen manifest was valid before this edit. This revision changes a pinned technical artifact, so the old manifest is now invalid for the changed artifact. CH-1 must publish a replacement manifest before further CH-4 review.
+The prior manifest was valid for pre-edit HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14. Its exact text is 8,742 UTF-8 bytes with SHA-256 f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561. This v0.4.1 edit changes the pinned technical artifact; CH-1 must issue a replacement freeze and include the manifest content digest before further CH-4 review.
 
-CH-4 comment 6765953207 is explicitly a preliminary/BLOCKED staging register. CH-1 commissioned the final report in comment 6766795530, but no final signed CH-4 report was found in the available Issue #27 comments. This addendum responds to the evidence-backed preliminary findings; it does not claim final CH-4 disposition.
+The final report is published in PR #34 at HEAD de39c00432ac1267e37601c01b2d9b83eda2f670 / blob 1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7. Its overall disposition is NEEDS REVISION. The original manifest content digest is SHA-256 f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561 (8,742 UTF-8 bytes). The current PR #33 edit invalidates the prior freeze for this changed artifact; CH-1 must publish a replacement freeze.
 
 PR #30 is the UX baseline, not PO approval. PR #32 is a governance/Phase A1 candidate, not active main authority, and is not modified here. The PO-confirmed mockup remains authoritative for confirmed invoice fields, exact Bangla heading/footer and individual bill QR.
 
@@ -1801,7 +1806,7 @@ This maps the available preliminary register, not the missing final CH-4 report 
 | CH4-R2-03 PDF artifacts unpinned | MAJOR | Y defines font/license/renderer manifest; no fabricated hashes | Runtime gated | Vendor font, record hashes/digest, authorized PDF evidence |
 | CH4-R2-04 active-only menu | MINOR | §§3/12/Z make lifecycle conditional on PO-06 | PO gated | PO-06/B01–B07 |
 | CH4-R2-05 infrastructure unverified | OBSERVATION | T/U classify KMS, RLS/grants, CDN, redaction, rate limits and DR as gates | Runtime/operational gated | Separate authorization/environment evidence |
-| CH4-UX-01 generated preview confirmation | MAJOR | Frozen UX-42/CH-1 baseline says preview informational, not opt-in | Superseded by authority | CH-4 final reviewer to confirm; no UX change |
+| CH4-UX-01 UX-42 preview wording | P2 | Technical resolver follows CH-1: preview informational/not opt-in; UX-42 wording still ambiguous | CH-2 ACTION OPEN | CH-2 to clarify UX-42 in PR #30; PR #30 not modified |
 | CH4-UX-02 adversarial upload | MAJOR | V specifies sniff/decode/polyglot/animation/size/pixel/resource controls | Design corrected—re-review | Platform review, PO-L03, hostile corpus tests |
 | CH4-UX-03 logo precedence | MINOR | B.1/V define Explicit BLANK > UPLOADED > GENERATED | Design corrected—re-review | State transition tests |
 | CH4-UX-04 tagline Unicode/XSS | MAJOR | W defines NFC, grapheme/byte limits, bidi/control rules and escaping | Design corrected—re-review | PO-L04 and Unicode/XSS tests |
@@ -1837,3 +1842,60 @@ Documentation only. This addendum defines proposed constraints, transaction/API 
 **NOT AUTHORIZED:** implementation, SQL/schema/migrations, live DB, builds/tests/QA, KMS/secret configuration, merge, deployment, release and pilot.
 
 CH-4's final signed report remains pending. This is CH-3's consolidated response to the preliminary CH-4 register, not CH-4 acceptance or CH-1 closure. The edit changes a manifest-pinned artifact; CH-1 must re-freeze the new exact HEAD/blob.
+
+
+## AE. Final CH-4 report reconciliation — report PR #34
+
+Authoritative report: PR #34 HEAD de39c00432ac1267e37601c01b2d9b83eda2f670, blob 1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7; report ID DT-MVP-CH4-STATIC-ASSURANCE-2026-11-10-01; Issue #27 comment 6766878075. Overall disposition NEEDS REVISION. Separate dispositions: PR #30 ACCEPT WITH CONDITIONS; PR #33 NEEDS REVISION; PR #32 NEEDS REVISION. This is CH-3's response to CH-3-owned findings only.
+
+| Final CH-4 finding | Owner | CH-3 response | Status / remaining action |
+|---|---|---|---|
+| CH4-DES-01 generated default/confirmation contradiction (P1) | CH-3, CH-2 cross-check | G.2 separates default resolver/materializer from optional read-only preview and explicit BLANK/UPLOADED actions; no confirmation for GENERATED default | DESIGN CORRECTED—RE-REVIEW; LG/UX tests NOT EXECUTED |
+| CH4-DES-02 profile/header snapshot concurrency (P1) | CH-3 | §§5.2/F/G define shop-row share/update locks, deterministic asset lock order, issue snapshot, upload finalization, GC and deadlock/retry behavior | DESIGN CORRECTED—RE-REVIEW; physical transaction and concurrency tests not implemented |
+| CH4-DES-03 public QR bearer policy (P1) | PO/CH-3/PM | U blocks production links until PO-12/I06A/I11, KMS, revocation, cache, redaction, rate-limit and incident-response gates | PO-/RUNTIME-GATED; no production token issuance |
+| CH4-DES-04 PDF reproducibility artifacts (P1) | CH-3 | Y requires exact TTF/OFL hashes, immutable renderer digest, fixed corpus and evidence; no hashes fabricated | RUNTIME-GATED; PDF release blocked pending artifacts and authorized tests |
+| CH4-UX-01 UX-42 preview wording (P2) | CH-2 | Technical behavior follows CH-1: preview available/informational, not a Generated opt-in. UX-42 still needs CH-2 wording clarification to remove mandatory-preview ambiguity | CH-2 ACTION OPEN; PR #30 unchanged; not claimed closed by CH-3 |
+| CH4-DES-05 stale CH-1 acceptance text (P2) | CH-3 | R.8/R.10/R.11 and v0.3.2 historical header distinguish prior acceptance of exact 898c834... candidate from this new unreviewed artifact | DESIGN CORRECTED—RE-REVIEW; CH-1 re-freeze required |
+| CH4-OBS-01 IndexedDB outbox privacy lifecycle | CH-3 | §6.4 defines owner/shop binding, re-authentication, logout/owner-switch behavior, payload/marker retention, no bearer secrets and private reconciliation | DESIGN CORRECTED—RE-REVIEW; client runtime privacy tests not run |
+| CH4-GOV-01 stale PR #32 authority references (P2) | CH-1 | No PR #32 edits; recorded as a separate governance action | OUTSIDE PR #33; CH-1 must update PR #32 |
+| CH4-A1-01 format-only mobile values (P2) | CH-3 / CH-1 approval | Separate A1 proposal: after stripping allowed formatting, require at least one ASCII digit; no national prefix/length assumption | OUTSIDE PR #33; separate PR #32 governance work |
+| CH4-A1-02 profile field-level test traceability (P2) | CH-2 / CH-3 | Separate A1 requirement for per-field empty/whitespace/malformed/valid/boundary/save-failure/retry/reload/edit-preservation matrix | OUTSIDE PR #33; separate PR #32 work |
+| CH4-UX-02..06 preliminary UX findings | CH-2/CH-3/PO | Preliminary responses retained in AA and detailed V–X contracts; final report's specific UX finding is UX-42 | CH-2/PO/runtime gates remain |
+| CH4-R2-01..05 preliminary findings | CH-3/PO/PM | Historical preliminary matrix AA retained; final DES-01..05/OBS-01 take precedence where different | Final dispositions above |
+
+The final report's UX criterion matrix also identifies UX-01..05 profile field validation/failure gaps, UX-13 stale-price review and other PARTIAL/GAP items. CH-2 retains UX ownership. CH-3 supplies API/transaction oracles where applicable. Stale menu price must never be silently accepted: server revalidates current price at issue review; if changed, require explicit owner review/acceptance of revised amount or removal of the line, with exact PO policy recorded.
+
+## AF. Frozen manifest content pin
+
+The exact text of manifest DT-MVP-CH4-FROZEN-2026-11-10-01 (Issue #27 comment 6766702882) was retrieved and hashed as UTF-8:
+- Byte length: 8,742.
+- SHA-256: f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561.
+
+This digest pins the manifest text used to verify the prior CH-4 baseline. CH-1 should include the manifest text/digest in the replacement freeze; an issue-comment ID alone is mutable and insufficient as immutable content identity. This responds to Codex P2 comment 4524677009 on PR #34 at the documentation/evidence level; CH-1 remains the freeze authority.
+
+## AG. Profile/header snapshot concurrency acceptance criteria
+
+- AT-HDR-08: issue obtains shop profile FOR SHARE before update; invoice contains all fields/assets/tagline from revision N; profile update commits N+1 only after issue commit.
+- AT-HDR-09: profile update obtains FOR UPDATE first; issue waits and snapshots only N+1; no mixed revision.
+- AT-HDR-10: issue/upload finalization race resolves to prior durable asset or new fully durable asset; no half-written pointer/object.
+- AT-HDR-11: GC wins asset-row lock and marks DELETE_PENDING; issue/profile update cannot reference it and fails/retries safely.
+- AT-HDR-12: issue wins asset FOR SHARE; GC waits, then sees invoice reference and retains object.
+- AT-HDR-13: multiple asset references lock in deterministic asset_id order.
+- AT-HDR-14: deadlock/serialization abort retries same request UUID/payload and creates at most one invoice.
+All PROPOSED / NOT EXECUTED.
+
+## AH. Outbox privacy acceptance criteria
+
+- AT-OUTBOX-01: record binds owner/shop/namespace/request ID/payload hash; client owner ID is never trusted.
+- AT-OUTBOX-02: expired session pauses retry; same-owner reauthentication required.
+- AT-OUTBOX-03: logout removes full payload from active UI/storage and leaves only minimal recovery marker; different owner cannot view/replay it.
+- AT-OUTBOX-04: same owner reauthenticates and performs private authorized reconciliation before retry/new logical invoice.
+- AT-OUTBOX-05: confirmed/known-not-committed clears payload immediately; resolved marker purged within 30 days.
+- AT-OUTBOX-06: unresolved payload expires after 7 days; minimal marker remains until reconciliation; no automatic replacement UUID.
+- AT-OUTBOX-07: no HMAC key, bearer URL, MAC, session token or credential is persisted in IndexedDB.
+- AT-OUTBOX-08: shared-browser-profile limitations are disclosed and owner switching is tested.
+All PROPOSED / NOT EXECUTED.
+
+## AI. Final CH-3 disposition after CH-4 report
+
+CH-3-owned final-report findings DES-01, DES-02, DES-03, DES-04, DES-05 and OBS-01 have explicit corrective design text and acceptance criteria in this candidate. This is a submission for independent re-review, not self-acceptance. CH4-UX-01 remains CH-2-owned; CH4-GOV-01 remains CH-1-owned; CH4-A1-01/02 remain separate PR #32 work. PO and runtime gates remain open. The exact new HEAD/blob must be re-frozen by CH-1 before CH-4 review.
