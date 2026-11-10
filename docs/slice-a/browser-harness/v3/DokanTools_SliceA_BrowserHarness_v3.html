@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DokanTools — Slice A Browser Harness v3</title>
+<style>
+  :root { color-scheme: light; --ink:#14213d; --muted:#64748b; --line:#dbe3ee; --brand:#155eef; --bg:#f4f7fb; --ok:#087443; --err:#b42318; --warn:#9a6700; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:Inter,Segoe UI,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:760px; margin:0 auto; padding:28px 16px 44px; }
+  header { margin-bottom:22px; }
+  .eyebrow { color:var(--brand); font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+  h1 { margin:7px 0 8px; font-size:clamp(24px,5vw,34px); }
+  .sub { color:var(--muted); line-height:1.5; margin:0; }
+  .banner { margin:16px 0; border:1px solid #f2d38a; background:#fff8e6; padding:11px 14px; border-radius:12px; font-size:13px; line-height:1.45; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:0 8px 24px rgba(20,33,61,.04); }
+  .card h2 { margin:0 0 6px; font-size:20px; }
+  .muted { color:var(--muted); font-size:14px; line-height:1.5; }
+  .field { margin-top:18px; }
+  label { display:block; font-weight:650; margin-bottom:7px; }
+  .req { color:var(--err); }
+  input, textarea { display:block; width:100%; font:inherit; padding:12px 13px; border:1px solid #cbd5e1; border-radius:10px; color:var(--ink); background:white; }
+  input:focus, textarea:focus { outline:3px solid #dbeafe; border-color:var(--brand); }
+  textarea { resize:vertical; min-height:90px; }
+  .hint { color:var(--muted); font-size:12px; margin-top:5px; }
+  .actions { display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
+  button { border:0; border-radius:10px; padding:12px 18px; font:inherit; font-weight:700; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  .primary { color:white; background:var(--brand); }
+  .secondary { color:var(--ink); background:#eef2f7; }
+  .message { margin-top:14px; font-size:14px; line-height:1.4; }
+  .message.error { color:var(--err); }
+  .message.success { color:var(--ok); }
+  .message.warning { color:var(--warn); }
+  .summary { display:grid; gap:14px; margin-top:18px; }
+  .row { border-bottom:1px solid var(--line); padding-bottom:12px; }
+  .row:last-child { border-bottom:0; padding-bottom:0; }
+  .row .label { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700; }
+  .row .value { margin-top:4px; font-size:16px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  footer { margin-top:18px; text-align:center; color:var(--muted); font-size:12px; }
+  [hidden] { display:none !important; }
+  .dialog-backdrop { position:fixed; inset:0; z-index:10; display:grid; place-items:center; padding:18px; background:rgba(15,23,42,.48); }
+  .dialog { width:min(100%,440px); background:#fff; border-radius:14px; padding:22px; box-shadow:0 18px 48px rgba(15,23,42,.24); }
+  .dialog h2 { margin:0 0 8px; font-size:20px; }
+  .dialog p { margin:0; color:var(--muted); line-height:1.5; }
+  .dialog .actions { justify-content:flex-end; }
+  @media(max-width:480px) { .card{padding:17px;} .actions button{flex:1;} .dialog .actions button{flex:1;} }
+
+  .recovery-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
+  .recovery-panel { border:1px solid var(--line); border-radius:12px; padding:14px; min-width:0; }
+  .recovery-panel h3 { margin:0 0 10px; font-size:15px; }
+  .recovery-value { margin:0 0 9px; font-size:14px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .recovery-value:last-child { margin-bottom:0; }
+  @media(max-width:560px) { .recovery-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">DokanTools · Slice A · Browser Test Harness</div>
+    <h1>Shop Profile</h1>
+    <p class="sub">Create and maintain one local Shop Profile for this browser context.</p>
+  </header>
+  <div class="banner" role="note">
+    <strong>Test harness only.</strong> Data is stored in this browser’s localStorage. This is not the native Android app and does not test Room/SQLite persistence.
+  </div>
+
+  <section id="loadFailureState" class="card" aria-labelledby="loadFailureTitle" hidden>
+    <h2 id="loadFailureTitle">Unable to load Shop Profile</h2>
+    <p id="loadFailureMessage" class="message error" role="alert">The saved profile could not be read. Existing browser data has not been changed.</p>
+    <div class="actions">
+      <button id="retryLoadButton" class="primary" type="button">Retry</button>
+    </div>
+  </section>
+
+
+  <section id="recoveryConflictState" class="card" aria-labelledby="recoveryConflictTitle" style="margin-top:16px" hidden>
+    <h2 id="recoveryConflictTitle">Saved Profile Found — Draft Preserved</h2>
+    <p class="message warning" role="alert">A saved profile and an unsaved draft both exist. Neither has been changed. Choose Review Draft to inspect it, or Discard Draft to return to the saved profile.</p>
+    <div class="recovery-grid">
+      <div class="recovery-panel">
+        <h3>Existing saved profile</h3>
+        <p class="recovery-value"><strong>Shop Name:</strong> <span id="conflictSavedShopName"></span></p>
+        <p class="recovery-value"><strong>Address:</strong> <span id="conflictSavedAddress"></span></p>
+        <p class="recovery-value"><strong>Mobile:</strong> <span id="conflictSavedMobile"></span></p>
+      </div>
+      <div class="recovery-panel">
+        <h3>Preserved unsaved draft</h3>
+        <p class="recovery-value"><strong>Shop Name:</strong> <span id="conflictDraftShopName"></span></p>
+        <p class="recovery-value"><strong>Address:</strong> <span id="conflictDraftAddress"></span></p>
+        <p class="recovery-value"><strong>Mobile:</strong> <span id="conflictDraftMobile"></span></p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="discardPendingDraftButton" class="secondary" type="button">Discard Draft</button>
+      <button id="reviewPendingDraftButton" class="primary" type="button">Review Draft</button>
+    </div>
+  </section>
+
+  <section id="emptyState" class="card" aria-labelledby="emptyTitle">
+    <h2 id="emptyTitle">Create your Shop Profile</h2>
+    <p class="muted">No profile has been saved in this browser yet. Enter the required information below.</p>
+    <div class="actions">
+      <button id="createProfileButton" class="primary" type="button" hidden>Create Shop Profile</button>
+    </div>
+  </section>
+
+  <section id="formCard" class="card" aria-labelledby="formTitle" style="margin-top:16px">
+    <h2 id="formTitle">Shop Profile details</h2>
+    <p class="muted">All fields are required.</p>
+    <form id="profileForm" novalidate>
+      <div class="field">
+        <label for="shopName">Shop Name <span class="req">*</span></label>
+        <input id="shopName" name="shopName" autocomplete="organization" required>
+      </div>
+      <div class="field">
+        <label for="address">Address <span class="req">*</span></label>
+        <textarea id="address" name="address" autocomplete="street-address" required></textarea>
+      </div>
+      <div class="field">
+        <label for="mobileNumber">Mobile Number <span class="req">*</span></label>
+        <input id="mobileNumber" name="mobileNumber" type="tel" autocomplete="tel" required>
+        <div class="hint">Use 7–20 ASCII digits. Only +, ordinary spaces, hyphens and parentheses may be used as formatting characters. No country-specific pattern is enforced.</div>
+      </div>
+      <div class="actions">
+        <button id="saveButton" class="primary" type="submit">Save Shop Profile</button>
+        <button id="cancelFormButton" class="secondary" type="button">Cancel</button>
+      </div>
+      <p id="formMessage" class="message" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section id="profileCard" class="card" aria-labelledby="profileTitle" style="margin-top:16px" hidden>
+    <h2 id="profileTitle">Saved Shop Profile</h2>
+    <p class="muted">One profile is stored for this browser context.</p>
+    <div class="summary">
+      <div class="row"><div class="label">Shop Name</div><div id="savedShopName" class="value"></div></div>
+      <div class="row"><div class="label">Address</div><div id="savedAddress" class="value"></div></div>
+      <div class="row"><div class="label">Mobile Number</div><div id="savedMobile" class="value"></div></div>
+    </div>
+    <div class="actions">
+      <button id="editButton" class="primary" type="button">Edit Shop Profile</button>
+    </div>
+    <p id="readMessage" class="message success" role="status" aria-live="polite"></p>
+  </section>
+
+  <div id="discardDialogBackdrop" class="dialog-backdrop" hidden>
+    <section id="discardDialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="discardDialogTitle" aria-describedby="discardDialogMessage">
+      <h2 id="discardDialogTitle">Discard changes?</h2>
+      <p id="discardDialogMessage">Your unsaved changes will be lost.</p>
+      <div class="actions">
+        <button id="keepEditingButton" class="secondary" type="button">Keep Editing</button>
+        <button id="discardButton" class="primary" type="button">Discard</button>
+      </div>
+    </section>
+  </div>
+
+
+  <div id="updateConfirmBackdrop" class="dialog-backdrop" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="updateConfirmTitle" aria-describedby="updateConfirmMessage">
+      <h2 id="updateConfirmTitle">Confirm profile update?</h2>
+      <p id="updateConfirmMessage">This action will replace the existing saved profile with the reviewed draft. The update will occur only after you select Confirm Update.</p>
+      <div class="actions">
+        <button id="keepDraftButton" class="secondary" type="button">Keep Draft — Do Not Save</button>
+        <button id="confirmUpdateButton" class="primary" type="button">Confirm Update</button>
+      </div>
+    </section>
+  </div>
+
+  <footer>Browser Harness build 3.0 · Synthetic data only · No network requests</footer>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const STORAGE_KEY = "dokantools.sliceA.browserHarness.shopProfile.v1";
+  const form = document.getElementById("profileForm");
+  const fields = {
+    shopName: document.getElementById("shopName"),
+    address: document.getElementById("address"),
+    mobileNumber: document.getElementById("mobileNumber")
+  };
+  const emptyState = document.getElementById("emptyState");
+  const loadFailureState = document.getElementById("loadFailureState");
+  const loadFailureMessage = document.getElementById("loadFailureMessage");
+  const formCard = document.getElementById("formCard");
+  const profileCard = document.getElementById("profileCard");
+  const formTitle = document.getElementById("formTitle");
+  const saveButton = document.getElementById("saveButton");
+  const cancelButton = document.getElementById("cancelFormButton");
+  const createButton = document.getElementById("createProfileButton");
+  const formMessage = document.getElementById("formMessage");
+  const dialogBackdrop = document.getElementById("discardDialogBackdrop");
+  const dialogTitle = document.getElementById("discardDialogTitle");
+  const dialogMessage = document.getElementById("discardDialogMessage");
+  const keepEditingButton = document.getElementById("keepEditingButton");
+  const discardButton = document.getElementById("discardButton");
+  const recoveryConflictState = document.getElementById("recoveryConflictState");
+  const discardPendingDraftButton = document.getElementById("discardPendingDraftButton");
+  const reviewPendingDraftButton = document.getElementById("reviewPendingDraftButton");
+  const updateConfirmBackdrop = document.getElementById("updateConfirmBackdrop");
+  const keepDraftButton = document.getElementById("keepDraftButton");
+  const confirmUpdateButton = document.getElementById("confirmUpdateButton");
+
+  let savedProfile = null;
+  let savedProfileRawSnapshot = null;
+  let formMode = "create";
+  let discardTarget = null;
+  let lastDialogTrigger = null;
+  let pendingDraftAfterReadFailure = null;
+  let recoveryReviewActive = false;
+  let pendingUpdateValues = null;
+
+  function readProfile() {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw === null) return { status: "empty" };
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch (error) { return { status: "failure", reason: "Stored Shop Profile data is malformed and could not be parsed." }; }
+      const validObject = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+      const validIdentity = validObject && parsed.id === "primary";
+      const validFields = validIdentity &&
+        typeof parsed.shopName === "string" && parsed.shopName.trim().length > 0 &&
+        typeof parsed.address === "string" && parsed.address.trim().length > 0 &&
+        typeof parsed.mobileNumber === "string" && parsed.mobileNumber.trim().length > 0;
+      if (!validFields) return { status: "failure", reason: "Stored Shop Profile data has an invalid structure or missing required values." };
+      return { status: "profile", profile: parsed, raw };
+    } catch (error) {
+      return { status: "failure", reason: "Browser storage could not be accessed. Existing data has not been changed." };
+    }
+  }
+
+  function readFormValues() {
+    return Object.fromEntries(Object.entries(fields).map(([key, element]) => [key, element.value]));
+  }
+
+  function captureCurrentDraft() {
+    pendingDraftAfterReadFailure = readFormValues();
+  }
+
+  function clearForm() {
+    Object.values(fields).forEach((element) => { element.value = ""; });
+    formMessage.textContent = "";
+    formMessage.className = "message";
+  }
+
+  function showLoadFailure(reason) {
+    savedProfile = null;
+    savedProfileRawSnapshot = null;
+    recoveryReviewActive = false;
+    pendingUpdateValues = null;
+    updateConfirmBackdrop.hidden = true;
+    recoveryConflictState.hidden = true;
+    loadFailureMessage.textContent = reason + " No stored data has been overwritten or deleted. Any preserved draft remains in memory. Select Retry to attempt the read again.";
+    loadFailureState.hidden = false;
+    emptyState.hidden = true;
+    formCard.hidden = true;
+    profileCard.hidden = true;
+  }
+
+  function renderEmptyState(openCreateForm) {
+    savedProfile = null;
+    savedProfileRawSnapshot = null;
+    recoveryReviewActive = false;
+    recoveryConflictState.hidden = true;
+    loadFailureState.hidden = true;
+    emptyState.hidden = false;
+    profileCard.hidden = true;
+    formCard.hidden = !openCreateForm;
+    createButton.hidden = !!openCreateForm;
+    formTitle.textContent = "Shop Profile details";
+    saveButton.textContent = "Save Shop Profile";
+    formMode = "create";
+    cancelButton.textContent = "Cancel";
+    cancelButton.hidden = false;
+    if (openCreateForm) fields.shopName.focus();
+  }
+
+  function renderSavedProfile(profile, rawSnapshot) {
+    savedProfile = profile;
+    savedProfileRawSnapshot = rawSnapshot === undefined ? JSON.stringify(profile) : rawSnapshot;
+    recoveryReviewActive = false;
+    recoveryConflictState.hidden = true;
+    loadFailureState.hidden = true;
+    emptyState.hidden = true;
+    createButton.hidden = true;
+    profileCard.hidden = false;
+    formCard.hidden = true;
+    document.getElementById("savedShopName").textContent = profile.shopName;
+    document.getElementById("savedAddress").textContent = profile.address;
+    document.getElementById("savedMobile").textContent = profile.mobileNumber;
+    document.getElementById("readMessage").textContent = "Profile loaded from browser storage.";
+  }
+
+  function renderRecoveryConflict(profile, rawSnapshot) {
+    savedProfile = profile;
+    savedProfileRawSnapshot = rawSnapshot === undefined ? JSON.stringify(profile) : rawSnapshot;
+    recoveryReviewActive = false;
+    pendingUpdateValues = null;
+    updateConfirmBackdrop.hidden = true;
+    document.getElementById("conflictSavedShopName").textContent = profile.shopName;
+    document.getElementById("conflictSavedAddress").textContent = profile.address;
+    document.getElementById("conflictSavedMobile").textContent = profile.mobileNumber;
+    document.getElementById("conflictDraftShopName").textContent = pendingDraftAfterReadFailure.shopName;
+    document.getElementById("conflictDraftAddress").textContent = pendingDraftAfterReadFailure.address;
+    document.getElementById("conflictDraftMobile").textContent = pendingDraftAfterReadFailure.mobileNumber;
+    loadFailureState.hidden = true;
+    emptyState.hidden = true;
+    formCard.hidden = true;
+    profileCard.hidden = true;
+    recoveryConflictState.hidden = false;
+  }
+
+  function renderPendingDraftInEmptyStore() {
+    const draft = pendingDraftAfterReadFailure;
+    renderEmptyState(true);
+    Object.entries(fields).forEach(([key, element]) => { element.value = draft[key]; });
+    showMessage("Storage is readable and no saved profile exists. Your draft has been restored for review; it is not saved. Select Save Shop Profile only when you explicitly want to create the profile.", "warning");
+  }
+
+  function reviewPendingDraft() {
+    if (!pendingDraftAfterReadFailure || !savedProfile) return;
+    Object.entries(fields).forEach(([key, element]) => { element.value = pendingDraftAfterReadFailure[key]; });
+    recoveryReviewActive = true;
+    formMode = "edit";
+    recoveryConflictState.hidden = true;
+    loadFailureState.hidden = true;
+    emptyState.hidden = true;
+    profileCard.hidden = true;
+    formCard.hidden = false;
+    formTitle.textContent = "Review Preserved Draft";
+    saveButton.textContent = "Continue to Update Confirmation";
+    cancelButton.textContent = "Back to Recovery Choices";
+    cancelButton.hidden = false;
+    showMessage("Review only: no data has been saved. Submit this form to request a separate update confirmation.", "warning");
+    fields.shopName.focus();
+  }
+
+  function discardPendingDraft() {
+    if (!pendingDraftAfterReadFailure || !savedProfile) return;
+    pendingDraftAfterReadFailure = null;
+    pendingUpdateValues = null;
+    updateConfirmBackdrop.hidden = true;
+    clearForm();
+    renderSavedProfile(savedProfile, savedProfileRawSnapshot);
+  }
+
+  function returnToRecoveryChoices() {
+    if (!pendingDraftAfterReadFailure || !savedProfile) return;
+    captureCurrentDraft();
+    pendingUpdateValues = null;
+    updateConfirmBackdrop.hidden = true;
+    renderRecoveryConflict(savedProfile, savedProfileRawSnapshot);
+  }
+
+  function keepPendingDraft() {
+    if (recoveryReviewActive) captureCurrentDraft();
+    pendingUpdateValues = null;
+    updateConfirmBackdrop.hidden = true;
+    if (recoveryReviewActive) {
+      showMessage("Draft retained for review. No profile update was made.", "warning");
+      fields.shopName.focus();
+    }
+  }
+
+  function confirmPendingDraftUpdate() {
+    if (!recoveryReviewActive || !pendingDraftAfterReadFailure || !pendingUpdateValues || !savedProfile) return;
+    const current = readProfile();
+    if (current.status === "failure") {
+      captureCurrentDraft();
+      showLoadFailure(current.reason);
+      return;
+    }
+    if (current.status === "empty") {
+      captureCurrentDraft();
+      updateConfirmBackdrop.hidden = true;
+      pendingUpdateValues = null;
+      renderPendingDraftInEmptyStore();
+      showMessage("The previous saved profile is no longer present. Your draft remains preserved. Saving now would create a new profile, not update the former one.", "warning");
+      return;
+    }
+    if (current.raw !== savedProfileRawSnapshot) {
+      captureCurrentDraft();
+      renderRecoveryConflict(current.profile, current.raw);
+      return;
+    }
+    const updatedProfile = {
+      id: current.profile.id,
+      ...pendingUpdateValues,
+      updatedAt: new Date().toISOString()
+    };
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile));
+      pendingDraftAfterReadFailure = null;
+      pendingUpdateValues = null;
+      updateConfirmBackdrop.hidden = true;
+      recoveryReviewActive = false;
+      clearForm();
+      renderSavedProfile(updatedProfile, JSON.stringify(updatedProfile));
+      document.getElementById("readMessage").textContent = "The reviewed draft was explicitly confirmed and saved as the updated profile.";
+    } catch (error) {
+      captureCurrentDraft();
+      pendingUpdateValues = null;
+      updateConfirmBackdrop.hidden = true;
+      showMessage("Unable to update browser storage. The existing saved profile was not confirmed as changed; your draft remains preserved. Retry after storage becomes writable.", "error");
+    }
+  }
+
+  function loadApplicationState(openCreateFormForEmpty) {
+    const result = readProfile();
+    if (result.status === "failure") { showLoadFailure(result.reason); return; }
+    if (result.status === "empty") { clearForm(); renderEmptyState(!!openCreateFormForEmpty); return; }
+    renderSavedProfile(result.profile, result.raw);
+  }
+
+  function retryLoad() {
+    const result = readProfile();
+    if (result.status === "failure") { showLoadFailure(result.reason); return; }
+    if (result.status === "profile") {
+      if (pendingDraftAfterReadFailure) renderRecoveryConflict(result.profile, result.raw);
+      else renderSavedProfile(result.profile, result.raw);
+      return;
+    }
+    if (pendingDraftAfterReadFailure) { renderPendingDraftInEmptyStore(); return; }
+    clearForm();
+    renderEmptyState(false);
+  }
+
+  function showMessage(text, type) {
+    formMessage.textContent = text;
+    formMessage.className = "message " + type;
+  }
+
+  function validate() {
+    const values = {
+      shopName: fields.shopName.value.trim(),
+      address: fields.address.value.trim(),
+      mobileNumber: fields.mobileNumber.value
+    };
+    const missing = ["shopName", "address", "mobileNumber"].filter((key) => values[key].trim().length === 0);
+    if (missing.length) {
+      showMessage("Please complete all required fields: Shop Name, Address, and Mobile Number.", "error");
+      fields[missing[0]].focus();
+      return null;
+    }
+    const mobileCharsOk = /^[0-9+() \-]+$/.test(values.mobileNumber);
+    const digitCount = (values.mobileNumber.match(/[0-9]/g) || []).length;
+    if (!mobileCharsOk || digitCount < 7 || digitCount > 20) {
+      showMessage("Enter a mobile number containing 7–20 ASCII digits. Only +, ordinary spaces, hyphens and parentheses are permitted as formatting characters.", "error");
+      fields.mobileNumber.focus();
+      return null;
+    }
+    return values;
+  }
+
+  function startCreate() {
+    clearForm();
+    formMode = "create";
+    renderEmptyState(true);
+  }
+
+  function startEdit() {
+    if (!savedProfile) return;
+    Object.entries(fields).forEach(([key, element]) => { element.value = savedProfile[key]; });
+    formMode = "edit";
+    emptyState.hidden = true;
+    createButton.hidden = true;
+    profileCard.hidden = true;
+    formCard.hidden = false;
+    formTitle.textContent = "Edit Shop Profile";
+    saveButton.textContent = "Save Changes";
+    cancelButton.textContent = "Cancel";
+    cancelButton.hidden = false;
+    formMessage.textContent = "";
+    fields.shopName.focus();
+  }
+
+  function hasCreateInput() { return Object.values(fields).some((element) => element.value.length > 0); }
+  function hasEditChanges() {
+    if (!savedProfile) return false;
+    return Object.entries(fields).some(([key, element]) => element.value !== savedProfile[key]);
+  }
+
+  function openDiscardDialog(target, trigger) {
+    discardTarget = target;
+    lastDialogTrigger = trigger;
+    if (target === "create") {
+      dialogTitle.textContent = "Discard new Shop Profile?";
+      dialogMessage.textContent = "Your unsaved Shop Profile information will be lost.";
+    } else {
+      dialogTitle.textContent = "Discard changes?";
+      dialogMessage.textContent = "Your unsaved changes will be lost.";
+    }
+    dialogBackdrop.hidden = false;
+    keepEditingButton.focus();
+  }
+
+  function closeDiscardDialog() {
+    dialogBackdrop.hidden = true;
+    discardTarget = null;
+    if (lastDialogTrigger && document.contains(lastDialogTrigger)) lastDialogTrigger.focus();
+  }
+
+  function cancelForm() {
+    if (recoveryReviewActive) { returnToRecoveryChoices(); return; }
+    if (formMode === "edit") {
+      if (!hasEditChanges()) { clearForm(); renderSavedProfile(savedProfile, savedProfileRawSnapshot); return; }
+      openDiscardDialog("edit", cancelButton);
+      return;
+    }
+    if (!hasCreateInput()) { clearForm(); renderEmptyState(false); return; }
+    openDiscardDialog("create", cancelButton);
+  }
+
+  function discardUnsavedWork() {
+    const target = discardTarget;
+    closeDiscardDialog();
+    clearForm();
+    if (target === "edit") {
+      renderSavedProfile(savedProfile, savedProfileRawSnapshot);
+    } else {
+      if (pendingDraftAfterReadFailure) pendingDraftAfterReadFailure = null;
+      renderEmptyState(false);
+    }
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const values = validate();
+    if (!values) return;
+    const current = readProfile();
+    if (current.status === "failure") {
+      captureCurrentDraft();
+      showLoadFailure(current.reason);
+      return;
+    }
+    if (recoveryReviewActive) {
+      if (current.status === "empty") {
+        captureCurrentDraft();
+        renderPendingDraftInEmptyStore();
+        showMessage("The saved profile no longer exists. Your draft remains preserved; saving would create a new profile.", "warning");
+        return;
+      }
+      if (current.raw !== savedProfileRawSnapshot) {
+        captureCurrentDraft();
+        renderRecoveryConflict(current.profile, current.raw);
+        return;
+      }
+      captureCurrentDraft();
+      pendingUpdateValues = { ...values };
+      updateConfirmBackdrop.hidden = false;
+      keepDraftButton.focus();
+      return;
+    }
+    if (formMode === "create" && current.status === "profile") {
+      if (pendingDraftAfterReadFailure) renderRecoveryConflict(current.profile, current.raw);
+      else renderSavedProfile(current.profile, current.raw);
+      return;
+    }
+    if (formMode === "edit" && (current.status !== "profile" || !savedProfile || current.raw !== savedProfileRawSnapshot)) {
+      showMessage("The saved profile is no longer in the expected state. No data was changed. Reload and review the profile before retrying.", "error");
+      return;
+    }
+    const profile = { id: "primary", ...values, updatedAt: new Date().toISOString() };
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+      pendingDraftAfterReadFailure = null;
+      clearForm();
+      renderSavedProfile(profile, JSON.stringify(profile));
+    } catch (error) {
+      if (pendingDraftAfterReadFailure) captureCurrentDraft();
+      showMessage("Unable to save in browser storage. Your entered values remain in the form; please retry.", "error");
+    }
+  });
+
+  createButton.addEventListener("click", startCreate);
+  document.getElementById("editButton").addEventListener("click", startEdit);
+  cancelButton.addEventListener("click", cancelForm);
+  document.getElementById("retryLoadButton").addEventListener("click", retryLoad);
+  keepEditingButton.addEventListener("click", closeDiscardDialog);
+  discardButton.addEventListener("click", discardUnsavedWork);
+  discardPendingDraftButton.addEventListener("click", discardPendingDraft);
+  reviewPendingDraftButton.addEventListener("click", reviewPendingDraft);
+  keepDraftButton.addEventListener("click", keepPendingDraft);
+  confirmUpdateButton.addEventListener("click", confirmPendingDraftUpdate);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !dialogBackdrop.hidden) closeDiscardDialog();
+    if (event.key === "Escape" && !updateConfirmBackdrop.hidden) keepPendingDraft();
+  });
+  loadApplicationState(true);
+})();
+</script>
+</body>
+</html>
