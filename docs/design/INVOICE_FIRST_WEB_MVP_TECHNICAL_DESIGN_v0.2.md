@@ -4,13 +4,13 @@
 **Role:** CH-3 — Technical Design  
 **Repository:** Hasnat26/DokanTools  
 **Source baseline:** `main` at `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`  
-**Technical PR:** #28  
+**Technical PR:** #33 (successor candidate; PR #28 preserved as historical)  
 **Prior design:** v0.1 at `ec67f403a625acea195c7913d23e7a69254c5ecc` (preserved unchanged)  
 **UX input:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
-**Independent assurance input:** CH-4 Issue #29; PR #28 comment `6763798273`; reviewed v0.1 HEAD above  
-**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2  
+**Independent assurance input:** CH-4 preliminary staging register, Issue #27 comment `6765953207`; frozen manifest DT-MVP-CH4-FROZEN-2026-11-10-01, Issue #27 comment `6766702882`; CH-4 final signed report remains pending  
+**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2 / v0.4.0  
 **Current cross-document UX:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
-**Status:** REVISED TECHNICAL DESIGN — CH-1 / PO disposition required  
+**Status:** CONSOLIDATED TECHNICAL DESIGN CANDIDATE v0.4.0 — CH-1 re-freeze and final review required  
 **Scope:** Design documentation only  
 **Implementation authorization:** NOT GRANTED  
 **Runtime verification:** NOT PERFORMED
@@ -19,9 +19,9 @@
 
 ## 1. Executive disposition
 
-Version 0.2 preserves the separate invoice-domain direction from v0.1 and makes the previously conceptual controls explicit: a versioned HMAC bill-link contract; per-link and invoice-level revocation; append-only invoice and lifecycle records; transactionally serialized numbering and idempotency; decimal input and rounding rules; an online-only issuance boundary; an explicit public response DTO and cache/logging controls; a reproducible Bengali font/rendering pipeline; and a testable traceability/acceptance matrix.
+The preserved v0.2 design and controlled addenda define append-only invoice facts, transactional numbering/idempotency, financial precision, HMAC bill-link lifecycle, public DTO/privacy controls, online-only issue boundary, Bengali rendering and logo/tagline/header handling. Addendum v0.4.0 consolidates CH-4 preliminary technical/security findings, tightens release gates and adds a capability-specific implementation-readiness package.
 
-This document resolves CH-4 design findings CH4-01 through CH4-11 at the **design-specification level** and incorporates CH-2 PR #30 P1/P2 UX conditions. It does not claim implementation, runtime proof, PO approval or release readiness.
+The document contains design responses to CH4-01 through CH4-11 and later CH-4 preliminary findings in Issue #27 comment 6765953207. These responses are not CH-4 final acceptance, PO approval, implementation evidence or runtime proof. CH-4's final signed report remains outstanding.
 
 **Design decision classes used throughout:**
 - **PO-CONFIRMED:** explicitly present in `docs/decisions/PO_CONFIRMED_INVOICE_MOCKUP.md` at the pinned baseline. Binding.
@@ -38,8 +38,8 @@ The invoice domain must not reuse `create_memo_transaction`: the pinned baseline
 
 ### 1.2 Gate status
 
-- Technical design v0.2: submitted in PR #28 for CH-1/PO review.
-- CH-4 v0.1 disposition: REJECT; findings mapped below.
+- PR #33 is the current technical successor candidate; PR #28 remains preserved OPEN/UNMERGED as historical review material.
+- CH-4 v0.1 disposition: REJECT; v0.2+ findings in Issue #27 comment 6765953207 are preliminary and await CH-4 final report.
 - CH-2 PR #30 disposition of v0.1: ACCEPT WITH CONDITIONS; conditions mapped below.
 - PO business decisions listed in §16 remain pending unless explicitly marked PO-CONFIRMED.
 - Implementation, SQL/migrations, database operations, builds, tests/QA execution, deployment, merge and pilot: **NOT AUTHORIZED by this document**.
@@ -101,7 +101,7 @@ v0.1 is preserved unchanged. v0.2 supersedes it as the current technical design 
 1. Authenticate through existing application authentication.
 2. Complete or review shop profile: shop name, address, mobile and Maps location.
 3. Open the menu-only screen. Menu field rules remain gated by PO-B01–PO-B07.
-4. Start a new bill. Only active, policy-approved menu items may be selected.
+4. Start a new bill. Menu eligibility and any active/inactive status are determined only by PO-approved menu policy; do not assume an active lifecycle while PO-06 / PO-B01–B07 remain pending.
 5. Review item names, quantities, price presentation and total.
 6. Issue online using one durable request ID and exact payload.
 7. On success, show the canonical server-assigned bill number/time and individual bill QR/link.
@@ -440,24 +440,16 @@ Key requirements:
 
 ### 8.2 Expiry policy and safe interim
 
-**PO-PENDING:** public link lifetime is not approved by the PO record or CH-2. To preserve a printed QR's stable reprint/scan behavior, the interim technical proposal is `expiresAt=0` (non-expiring) while the link and invoice remain active. This is a deliberate bearer-link risk, not a claim that links are confidential or safe to forward.
+**PO-PENDING / PUBLIC-VERIFICATION RELEASE BLOCKER:** PO-12 has not selected a link lifetime and PO-I06A has not acknowledged residual signing-key compromise impact. Therefore expiresAt=0 is not an approved interim default and no production public bill link/QR may be minted or exposed until both decisions, technical controls and PM release authorization are recorded.
 
-Mitigations required before any release:
-- per-link revocation;
-- invoice-level revocation;
-- strict no-store/no-referrer/no-third-party/log-redaction controls;
-- rate limits and generic failures;
-- owner ability to revoke a compromised link and issue a replacement;
-- PO decision on whether a finite lifetime is required.
-
-If PO selects finite expiry, store exact UTC expiry in the link row and signed claim; reject when server time is at or beyond expiry. Do not extend expiry by editing an existing link; create a new link record.
+The implementation must support finite UTC expiry; an explicit no-expiry value is permitted only if PO-12 affirmatively selects it. The 90-day option in Issue #31 is a recommendation, not approval. For finite expiry, store exact UTC expiry in the immutable link row and signed claim; reject when authoritative server time is greater than or equal to expiry. Never extend a link by editing it; reissue creates a new link ID. If PO defers, public verification remains disabled. HMAC authenticates but does not encrypt the bearer URL or prevent forwarding/screenshots. Mandatory pre-release controls include per-link/invoice revocation, no-store/no-referrer/no-third-party/log redaction, distributed rate limits, owner reissue/revoke procedures, KMS custody, key rotation and a rehearsed compromise response.
 
 ### 8.3 Link creation and reissue
 
 Authenticated owner link-issue operation:
 1. Verify caller owns invoice's shop and invoice is not revoked.
 2. Select currently active signing key ID.
-3. Create a random link UUID and immutable `invoice_public_links` row with key ID, generation and approved expiry (interim 0).
+3. Confirm the PO-approved expiry policy exists; create a random link UUID and immutable invoice_public_links row with key ID, generation and exact approved expiry. No production link creation while PO-12 / PO-I06A are pending.
 4. Commit link row and audit event atomically.
 5. Generate URL/MAC from the persisted row and return it to the owner. No URL is logged.
 6. QR encodes the exact URL for that invoice/link only.
@@ -478,7 +470,7 @@ Routine rotation:
 1. Provision new key with a new unique key ID; mark it active for new links.
 2. Retain prior keys as verify-only for their outstanding active links.
 3. Track active link rows by key ID.
-4. A prior key may be retired only when no unexpired/unrevoked links refer to it. Under the interim non-expiring policy, a key cannot be retired while any active link signed with it remains.
+4. A prior key may be retired only when no unexpired/unrevoked links refer to it. If PO explicitly approves non-expiring links, a key cannot be retired while any active link signed with it remains; include this retention consequence in the PO risk acknowledgement.
 5. If product requires retirement without invalidating old printed QR, issue new links and reprint/re-share them before revoking old links. No transparent migration can preserve an old HMAC without retaining its key.
 
 Emergency compromise:
@@ -883,7 +875,7 @@ No row below is PO-approved by v0.2 unless it is one of PO-F01–F15 in §14.1. 
 | PO-UX-11 / PO-I03 | PO | Discount, tax, paid, due, payment method/change | Excluded; no fields/calculations |
 | PO-UX-12 / PO-I04 | PO | Customer name/mobile | Not collected; no customer record needed |
 | PO-UX-13 / PO-I05 | PO | Invoice cancellation/correction and revoked details | Immutable issued bill; revoke only; revoked page hides details; correction is new bill |
-| PO-UX-14 / PO-I06 | PO | Link expiry/retention and public-link lifetime | Stable non-expiring link interim with bearer risk, per-link revoke; expiry remains PO decision |
+| PO-UX-14 / PO-I06 / PO-12 | PO | Link expiry/retention and public-link lifetime | No production link/QR issuance until PO selects finite or explicitly non-expiring lifetime; expiresAt=0 is not a default |
 | PO-I06A | PO + Security/CH-1 | Key-retention and compromise response acceptance | Old keys retained while active links exist; compromised-key links revoked/reissued |
 | PO-UX-15 / PO-I message | PO | Exact WhatsApp message wording/footer | Suggested copy provisional; persisted data and fallback fixed |
 | PO-UX-16 | PO | Date/time timezone and display format | Store UTC; display zone/format configurable, no hardcoded final format |
@@ -956,7 +948,7 @@ No estimate is treated as a commitment; no work package is authorized by this se
 | CH4-10 PO→design→test traceability | MAJOR | PO-F01..F15 to CH2 UX, technical fields/routes and acceptance IDs; separate UX P1/P2 and PO decision register | §§14,16 | AT-PO-01..15 plus linked suites | PO pending decisions remain blockers, not falsely closed |
 | CH4-11 complete positive/negative acceptance | MAJOR | Versioned scenario catalogue with preconditions/action/expected state; no-go criteria and evidence separation | §15 | AT-TOK, DB, PUB, IDEM, FIN, PDF, MENU, OFF, UX, SHARE | Tests are specified only; no QA authorization/execution |
 
-**CH4-01 is design-resolved only conditionally:** non-expiring links are an interim technical proposal to preserve printed QR stability. The bearer risk is explicitly accepted as a design risk pending PO expiry decision; per-link/invoice revocation and release security controls are mandatory. If CH-1/PO does not accept this risk, finite expiry or an alternate customer verification model must be decided before implementation.
+**CH4-01 remains PO-/release-gated:** HMAC, key-ID, MAC-before-lookup, revocation, DTO, cache, logging and rate-limit contracts are specified. No PO acceptance of non-expiring bearer access exists. Production public links remain disabled until PO-12 selects a lifetime, PO-I06A acknowledges residual compromise impact, operational controls are evidenced and PM authorizes release.
 
 ## 19. Verification boundary and non-claims
 
@@ -1039,7 +1031,7 @@ Use an explicit persisted `logo_mode` with exactly three values:
 
 Do not derive state from `logo_url IS NULL`. Null can mean legacy/unconfigured or no active asset reference; it cannot express explicit blank selection robustly.
 
-**Default/precedence — aligned with CH-2 PR #30 revision 0.2:** a valid uploaded logo takes priority; otherwise GENERATED is the default unless the owner explicitly selected BLANK. Generated mode does not require separate opt-in. This follows UX-40/UX-42/UX-43 and supersedes the earlier v0.3 wording that made explicit generated selection a prerequisite.
+**Authoritative resolver — aligned with PR #30 UX-40/42/43 and frozen CH-1 baseline:** explicit owner BLANK overrides every other state and suppresses logo/mark/icon/placeholder; otherwise a valid owner-authorized uploaded asset resolves to UPLOADED; otherwise resolve to GENERATED by default. Preview is informational, not an opt-in/confirmation gate. A corrupt/missing UPLOADED snapshot is an integrity failure, never a silent fallback to GENERATED.
 
 For new shops, absent upload and absent explicit BLANK resolves to GENERATED. Preview is informational and is not a precondition to generated mode. Invoice issue must resolve and snapshot the generated asset/version; generation failure fails closed rather than silently behaving as BLANK.
 
@@ -1118,11 +1110,11 @@ However:
 
 **Safe category dependency (aligned with UX-49/UX-50):** generated output may use only a category explicitly stored/selected under the eventually approved taxonomy. Never infer category from shop name, tagline, address or invoice activity.
 
-If category is missing, legacy-only or unsupported: do not coerce it to `food` or another category; do not fabricate a category-specific icon; use a deterministic category-neutral generic template only if CH-1/CH-2 approve that fallback, otherwise block logo-dependent rendering with an actionable category-selection error; prompt the owner to choose from final approved choices, not unapproved legacy values; and record category provenance/template version in the asset manifest.
+**Distinguish database absence from taxonomy incompatibility:** pinned source schema defines shops.shop_type as NOT NULL with CHECK values grocery/pharmacy/food/salon/general. NULL/missing is not an expected business state in that snapshot; it indicates projection/source drift or data-integrity failure, not an ordinary owner prompt. A stored legacy value may satisfy the old CHECK yet be unsupported by the future PO-approved taxonomy. Do not coerce to food, infer from shop name/tagline/address/invoice activity or fabricate a category-specific icon. A category-neutral wordmark is allowed only after CH-1/CH-2/PO approval; otherwise block category-dependent generation and prompt only from approved choices. Record category source/taxonomy version and generator/template version.
 
 The checked-in schema's legacy values (`grocery/pharmacy/food/salon/general`) are source evidence only, not an approved final taxonomy. No new category field is proposed. Taxonomy, owner editability and neutral fallback remain PO/PM gates.
 
-### C.4 Regeneration and user confirmation
+### C.4 Regeneration and owner preview
 
 Generated logo is the effective default whenever no valid owner upload exists and BLANK has not been explicitly selected:
 1. Renderer computes output from current normalized shop name, approved stored category (or approved neutral fallback) and generator/template version.
@@ -1139,7 +1131,7 @@ This avoids silent visual drift and respects explicit BLANK selection.
 
 ### D.1 Initial MVP upload format
 
-**Recommendation: raster-only upload. Reject SVG uploads in the initial MVP.**
+**Technical proposal: raster-only upload. Reject SVG uploads in the initial MVP.**
 
 Allowed input MIME/format proposals:
 - JPEG/JPG;
@@ -1153,7 +1145,7 @@ Rationale: SVG is active document content and can contain script, event handlers
 
 ### D.2 Proposed upload limits
 
-These are technical starting limits for CH-1/CH-2 review, not PO-confirmed business requirements:
+These are technical starting limits for CH-1/CH-2 review, not PO-confirmed business requirements or proven decoder capacity:
 - Maximum compressed upload: **2 MiB**.
 - Maximum decoded dimensions: **2048 × 2048 px**.
 - Maximum total decoded pixels: **4,194,304**.
@@ -1168,12 +1160,12 @@ These are technical starting limits for CH-1/CH-2 review, not PO-confirmed busin
 Perform on trusted server-side processing boundary, never only in the browser:
 1. Authenticate owner and verify the requested shop belongs to `auth.uid()`.
 2. Enforce request body/upload limit before reading full payload.
-3. Treat filename and browser-provided MIME as untrusted hints only.
-4. Inspect magic bytes and decode with a maintained image library in a resource-limited worker/process.
-5. Verify the decoder's actual format and dimensions; reject file polyglots, malformed/truncated content and multi-frame/animated content.
+3. Treat filename, extension and browser MIME as untrusted hints; compare with detected format and reject mismatch/ambiguity.
+4. Inspect magic bytes and decode with a maintained, patched image library in an isolated resource-limited worker with explicit memory and execution-time ceilings.
+5. Verify actual format, frame count, dimensions and pixel count; reject polyglots, malformed/truncated content, animated/multi-frame input, unsupported profiles and partial-recovery warnings.
 6. Apply EXIF orientation, strip metadata, normalize colour space and re-encode to controlled PNG.
 7. Reopen/re-decode the normalized output and verify dimensions, transparency and canonical format.
-8. Compute SHA-256 and persist content digest, dimensions, MIME, byte length, processing version and object version.
+8. Compute SHA-256 over normalized output and persist digest, dimensions, MIME, byte length, processing version, decoder/encoder version and immutable object version.
 9. Write object to a non-public tenant-scoped key; confirm durable write before updating the profile pointer.
 10. Commit metadata/pointer transition atomically using a narrow owner-authorized service/RPC boundary. If DB pointer commit fails, leave the previous profile selection active and garbage-collect the orphan only after an explicit safe retention window.
 
@@ -1344,7 +1336,7 @@ A deterministic renderer should produce the same visual/text content from the sa
 
 New requirement IDs for this addendum:
 - **PM-LOGO-01:** uploaded owner logo wins when mode UPLOADED.
-- **PM-LOGO-02:** when no upload exists, deterministic generated logo is available as fallback, subject to explicit owner selection.
+- **PM-LOGO-02:** when no valid upload exists and BLANK is not explicitly selected, deterministic GENERATED is the default; preview is informational, not an opt-in.
 - **PM-LOGO-03:** owner may explicitly choose BLANK; blank never auto-falls back.
 - **PM-LOGO-04:** logo state/asset consistency across digital invoice, PDF and print.
 - **PM-LOGO-05:** generated output has no external AI/API dependency and is deterministic.
@@ -1445,7 +1437,7 @@ CH-1/CH-4 must decide whether to adopt the JSON snapshot or scalar immutable col
 | LG-R03 | MAJOR | Decompression bomb, malformed image, polyglot or oversized content exhausts decoder | Strict limits, magic-byte sniff, resource-limited decode, canonical re-encode | Upload release |
 | LG-R04 | MAJOR | Mutable `logo_url` or object overwrite changes historical invoice | Immutable asset versions, digest and retention/GC reference checks | Historical invoice/PDF release |
 | LG-R05 | MAJOR | BLANK treated as null/unconfigured and generated placeholder appears | Explicit `logo_mode`; state invariants; blank regression tests | Logo release |
-| LG-R06 | MAJOR | Shop name/type edit silently changes generated logo or type inferred incorrectly | Controlled persisted shop_type; owner preview/confirmation; generator version pin | Generated logo release |
+| LG-R06 | MAJOR | Shop name/type edit silently changes generated logo or type inferred incorrectly | Approved category source; no inference; deterministic generator/template version; preview available but not an opt-in/confirmation gate | Generated logo release |
 | TG-R01 | MAJOR | Tagline interpreted as HTML/script/unsafe markup | Plain text only, context-sensitive escaping, no raw HTML/SVG interpolation | Tagline release |
 | TG-R02 | MINOR | Unicode grapheme counting/truncation corrupts Bangla combining marks | NFC + grapheme segmentation; test corpus; reject rather than truncate | Tagline release |
 | HDR-R01 | BLOCKER | Reprint/public page uses current profile rather than issued header snapshot | Invoice issue captures atomic immutable header revision and asset version; historical reprint tests | Invoice release |
@@ -1458,8 +1450,8 @@ CH-1/CH-4 must decide whether to adopt the JSON snapshot or scalar immutable col
 ## L. CH-4 independent evidence package (future, NOT EXECUTED)
 
 CH-4 should receive:
-1. Exact revised PR #28 HEAD and v0.3 document blob.
-2. Exact CH-2 revised UX commit/blob containing logo/tagline screen and state behavior; do not use an unpinned moving branch.
+1. Exact revised PR #33 HEAD and v0.4.0 document blob; PR #28 is historical only.
+2. Exact CH-2 PR #30 revision-0.2 UX HEAD/blob c7b0d8bddad3afcdf48b0b8fba8331ad46dda309 / 3b34e6b9075b65ee027ac368fb964a5f9e98ae8f.
 3. Schema snapshot identity and proposed logical schema change table; no live DB assertions.
 4. Sanitized positive and hostile raster fixture corpus with test manifest/hashes, created only under later authorized QA scope.
 5. Generated logo fixture vectors: Bengali names, English names, mixed script, blank, missing/unknown shop type and generator-version changes.
@@ -1473,7 +1465,7 @@ CH-4 should receive:
 
 | ID | Owner | Decision / clarification | Current status |
 |---|---|---|---|
-| PM-LOGO-01..07 | PM / CH-1 / CH-2 | Confirm logo states GENERATED/UPLOADED/BLANK, default for new/existing shops, explicit preview/selection, regeneration behavior and blank semantics | PM requirement received; UX and CH-1 confirmation pending |
+| PM-LOGO-01..07 | PM / CH-1 / CH-2 | Preserve resolver Explicit BLANK > valid UPLOADED > GENERATED default; preview informational; decide category taxonomy, legacy handling, upload policy and regeneration controls | Resolver aligned to PR #30 UX-40/42/43; category and upload policy remain PO/PM gates |
 | PM-TAG-01..04 | PM / CH-1 / CH-2 | Confirm optional Bangla/English tagline; max 80 grapheme clusters; blank/null behavior; placement/wrapping | PM requirement received; max 80 remains proposed pending UX confirmation |
 | PM-HDR-01/02 | PM / PO | Confirm issued invoice permanently preserves logo selection/asset and tagline at issue; later profile changes apply to future invoices only | Technically recommended; explicit PO confirmation requested |
 | LOGO-TYPE-01 | PM / CH-2 | Confirm source for shop type and whether current controlled taxonomy is adequate for the Invoice-First food-store experience | Existing checked-in schema has shop_type; UX control and taxonomy not confirmed |
@@ -1644,3 +1636,204 @@ CH-1 final review requires composite-key consistency, one authorization/arbitrat
 - Unauthorized requested shop: ordinary authorization denial without UUID-existence disclosure. Authorized mismatch: generic `IDEMPOTENCY_CONFLICT`. Incomplete identity: reconciliation. Matching tombstone without result: `IDEMPOTENCY_RESULT_EXPIRED`.
 - Tombstones permanently reserve committed identities; cleanup never releases keys. Backup/restore preserves acknowledged identities; disable issuance if registry completeness cannot be proven.
 - Acceptance scenarios remain PROPOSED / NOT EXECUTED. No CH-1 acceptance or CH-4 freeze is claimed.
+
+
+---
+
+# Controlled Addendum v0.4.0 — CH-4 Technical Closure and Capability Readiness
+
+**CH-4 source:** preliminary findings register, Issue #27 comment 6765953207  
+**Prior frozen manifest:** DT-MVP-CH4-FROZEN-2026-11-10-01, Issue #27 comment 6766702882  
+**Prior technical candidate:** PR #33 HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30, blob 9a1753d3bcba680961b39b91e320d1f59d70cd14  
+**UX source:** PR #30 HEAD c7b0d8bddad3afcdf48b0b8fba8331ad46dda309, blob 3b34e6b9075b65ee027ac368fb964a5f9e98ae8f  
+**Governance source:** PR #32 HEAD 38068e159939aa963807b4cbdfc3fc26cbd3abee, blob 1782e4eb3816f5ce03d900aebbbafd1e0a427a78  
+**CH-4 final signed report:** NOT YET POSTED in available Issue #27 history  
+**Status:** documentation remediation submitted for CH-1 re-freeze/final review  
+**Implementation, DB, build, test, QA, merge, deployment and pilot:** NOT AUTHORIZED
+
+## S. Source and authority qualification
+
+The frozen manifest was valid before this edit. This revision changes a pinned technical artifact, so the old manifest is now invalid for the changed artifact. CH-1 must publish a replacement manifest before further CH-4 review.
+
+CH-4 comment 6765953207 is explicitly a preliminary/BLOCKED staging register. CH-1 commissioned the final report in comment 6766795530, but no final signed CH-4 report was found in the available Issue #27 comments. This addendum responds to the evidence-backed preliminary findings; it does not claim final CH-4 disposition.
+
+PR #30 is the UX baseline, not PO approval. PR #32 is a governance/Phase A1 candidate, not active main authority, and is not modified here. The PO-confirmed mockup remains authoritative for confirmed invoice fields, exact Bangla heading/footer and individual bill QR.
+
+Disposition labels: DESIGN CORRECTED—RE-REVIEW; PO-GATED; RUNTIME-GATED; OPERATIONAL-GATED; SUPERSEDED BY AUTHORITY; OUTSIDE THIS PR.
+
+## T. Control assurance: design contract versus proven enforcement
+
+| Control | Proposed enforcement | Guarantee class | Evidence/release condition |
+|---|---|---|---|
+| Idempotency identity | Composite PRIMARY KEY (idempotency_namespace, request_id); no bare request_id key | Proposed DB constraint + transaction/application logic | Physical schema absent; runtime unverified |
+| Authorization order | Authenticate; authorize requested shop; only then private registry comparison | Application logic in private RPC | RLS/grants/RPC and negative tests not implemented/verified |
+| Replay/conflict | Compare namespace, owner, shop, operation, canonicalization version and payload hash; exact complete match only replays | Application logic under DB arbitration | Contract specified; runtime unverified |
+| Bill numbering | Per-shop counter lock, UNIQUE(shop_id,bill_number), counter/invoice writes in one transaction | Proposed DB constraints + transaction logic | No physical transaction/test evidence |
+| Concurrency | Composite uniqueness, row locks, bounded retry with same UUID/payload | DB constraint + transaction/application logic | Concurrency/deadlock tests not run |
+| Tombstone/no reuse | Permanent namespace+UUID identity; result purge never releases key | Data constraint + operational retention | Cleanup/backup/restore unverified |
+| Fail-closed recovery | Reconcile acknowledged identities; disable issuance if completeness uncertain | Operational procedure + application issuance gate | DR drill/RPO/RTO evidence absent |
+| Shop/object isolation | Server-derived owner; per-object owner/shop checks; RLS/grants/private storage | DB + application logic + runtime verification | Live schema/RLS/storage not inspected |
+| Public DTO/bearer URL | HMAC before lookup; allow-list DTO; no-store/no-referrer/log redaction | Application logic + infrastructure config | Public release PO-gated; runtime proof absent |
+| HMAC key custody | KMS/secret manager, 256-bit keys, immutable key IDs, rotation/compromise states | Operational procedure + application logic | No KMS/key drill verified |
+| Revocation/expiry | Append-only revoke events; invoice revoke invalidates all links; server-UTC expiry | Proposed DB + transaction/application logic | PO-11/12 pending; runtime unverified |
+| Image upload | MIME sniff, safe raster decode, size/pixel limits, re-encode and private immutable storage | Application logic + storage policy | Proposed only; no decoder tests |
+| Header snapshot | Atomic issue-time profile/logo/tagline snapshot; asset retention | Proposed DB + transaction + operational retention | PO-L02/HDR-RET pending |
+| Tagline Unicode/XSS | NFC, grapheme segmentation, bounded bytes, control/bidi rejection, text escaping | Application logic | PO-L04 pending; Unicode tests not run |
+| Bengali/PDF | Exact licensed font hash, renderer digest, fixed corpus | Artifact integrity + runtime verification | Binary SHA/container digest absent; PDF release blocked |
+| Logs/rate limits | Token/path redaction, distributed rate limits, no third-party page resources | Infrastructure + operations | Config/multi-instance tests not inspected |
+| Auditability | Append-only events in same transaction; no tokens/secrets in audit | Proposed DB + transaction logic | Physical grants/triggers/audit integrity not verified |
+
+These are proposed controls, not proof of deployment. “Must” and “shall” define target behavior only.
+
+## U. HMAC, bearer-link and public verification closure
+
+A signed QR URL is a bearer capability. HMAC prevents claim tampering; it does not encrypt the URL, identify the scanner, prevent forwarding/screenshots or prove payment/delivery.
+
+- PO-12 link lifetime and PO-I06A compromise-risk acknowledgement are PENDING. The 90-day recommendation in Issue #31 is not approval.
+- The prior expiresAt=0 interim default is withdrawn. No production public bill URL/QR may be minted until PO-12 and PO-I06A are decided, PO-I11 wording is approved, controls are evidenced and PM authorizes release.
+- If PO defers, public verification remains disabled. Removing QR from a customer release requires explicit PO/PM scope change because the mockup requires an individual bill QR.
+
+Token semantics: canonical route/claims; key ID resolved server-side; HMAC-SHA256 constant-time compare; invalid MAC/unknown/disabled key causes no invoice/link lookup; link row must match link ID, invoice ID, key ID and signed expiry; server_now_utc >= expires_at_utc is expired; link expiry cannot be edited/extended; reissue creates a new link ID; invoice revocation invalidates all links; link revocation invalidates only that link; revocation dominates expiry; outage never renders cached verified content.
+
+Key lifecycle: registry states ACTIVE_SIGNING, VERIFY_ONLY, DISABLED_COMPROMISED and RETIRED; key IDs are immutable and never reused. Generate at least 256 random bits. Store only in KMS/secret manager; no source, client bundle, NEXT_PUBLIC variable, browser/local storage, telemetry or logs. Routine rotation provisions a new key ID and keeps old keys verify-only only while approved active links require them. Emergency compromise disables signing and verification for that key, revokes all links signed by it, provisions a clean key, issues replacement links under approved policy, notifies owners and records an incident without raw tokens. Key-A compromise must not invalidate key-B. PO-I06A cannot waive engineering controls.
+
+Public DTO/object authorization: retain PublicBillV1 as the sole allow-list. Never echo internal invoice/link/request IDs, owner IDs, key ID, MAC, storage key, permanent object URL, customer/payment/ledger/stock/audit fields. Do not accept arbitrary shop/customer IDs or select/expand query parameters. Every owner operation (profile, invoice, link, logo, asset, history, revoke) independently checks object-level ownership; IDs and storage paths are not authorization. Derive owner from verified session, never client owner_user_id. Public responses use no-store/CDN bypass/no ETag/no-referrer/noindex/nosniff/frame denial/self-only CSP and no third-party resources. Redact complete bill path, query, MAC, invoice/link IDs at app/proxy/host/telemetry. Distributed rate limits cover valid and invalid requests; generic failures reveal no existence. Live RLS/grants/storage/CDN/KMS are NOT VERIFIED.
+
+Proposed acceptance criteria, all NOT EXECUTED:
+- AT-LINK-15: pending PO-12 or PO-I06A blocks production link/QR issuance.
+- AT-LINK-16: exact expiry boundary now == expires_at is rejected.
+- AT-LINK-17: reissue creates a new link ID; old link follows explicit revoke/expiry.
+- AT-LINK-18: invoice revoke invalidates all links; link revoke affects only one.
+- AT-LINK-19: invalid MAC/unknown/disabled key causes zero invoice/link lookup.
+- AT-LINK-20: compromised key-A fails while key-B remains valid; actions audited.
+- AT-PUB-10..13: allow-list only; two-owner object isolation; no token/path logs; multi-instance rate limit with no existence oracle.
+
+## V. Logo upload security and category-state closure
+
+Resolver for every preview/issue/customer/PDF/print surface: Explicit BLANK > valid owner-authorized UPLOADED > GENERATED default. Preview is informational, not an opt-in gate. Missing/corrupt UPLOADED or GENERATED snapshot is an integrity failure, never silent fallback.
+
+Pinned source schema has shops.shop_type NOT NULL with legacy CHECK values grocery/pharmacy/food/salon/general. NULL is an integrity/source-drift exception, not a normal missing-type prompt. A stored legacy value can satisfy the old constraint but remain outside the PO-approved taxonomy. Never coerce to food or infer category from shop name, tagline, address or invoice activity. Category-neutral wordmark requires CH-1/CH-2/PO approval; otherwise block category-dependent generation.
+
+Initial raster allow-list proposal: JPEG/JPG and PNG. WebP only if decoder and every renderer are verified and PO/PM approves. Reject SVG/XML, animated/multi-frame, PDF, archives, HEIC/HEIF, AVIF, TIFF/BMP, ICO and unknown formats.
+
+Proposed technical limits, not PO approval or measured runtime guarantees: compressed upload <= 2 MiB; width and height each <= 2048 px; decoded pixels <= 4,194,304; isolated worker memory <= 128 MiB per decode job; decode/normalize wall time <= 5 seconds; bounded worker concurrency.
+
+Trusted server pipeline: authenticate/authorize shop; enforce streaming byte cap; distrust filename/extension/browser MIME; sniff magic bytes and compare decoder format; isolated patched decoder; enforce dimensions/pixel/frame/resource limits; reject polyglot/truncated/malformed/animated/partial-recovery files; apply EXIF orientation; normalize sRGB; strip EXIF/XMP/IPTC/GPS/thumbnails/comments; re-encode canonical PNG; reopen/re-decode; SHA-256 normalized output; store immutable metadata/version; write private quarantine object; update profile pointer only after durable write. Failed replacement preserves old logo and tagline. Cleanup requires grace period and reference check against profile and all invoice snapshots.
+
+Storage uses random opaque object IDs, private bucket, per-operation owner/shop authorization; path is not authorization. Public DTO never exposes storage key/permanent URL. Never retain/serve original untrusted bytes. GC cannot remove an asset version referenced by an issued invoice.
+
+Proposed acceptance: AT-IMG-01 valid normalization/hash; AT-IMG-02 fake extension/MIME mismatch rejection; AT-IMG-03 SVG/polyglot/animated/corrupt rejection; AT-IMG-04 byte/dimension/pixel boundary; AT-IMG-05 worker resource ceiling; AT-IMG-06 metadata stripping; AT-IMG-07 failed replacement preserves prior state; AT-IMG-08 cross-tenant denial; AT-IMG-09 private object/no key in DTO; AT-IMG-10 GC preserves invoice references; AT-LOGO-01 resolver matrix; AT-LOGO-02 preview no opt-in; AT-LOGO-03 missing asset fails closed. NOT EXECUTED.
+
+## W. Tagline Unicode, bidi, XSS and state independence
+
+Tagline is optional owner-entered plain text; no generation/translation/rewrite/default. Normalize NFC before persistence/length. The 80 extended-grapheme-cluster maximum remains PO-L04/UX-57 proposed, not approved; if approved, use pinned Unicode segmentation version, not UTF-16 code units. Reject over-limit input; never truncate silently. Proposed independent UTF-8 ceiling is 1024 bytes after NFC.
+
+This UX is single-line: reject CR/LF/TAB, line separator and paragraph separator unless UX later approves multiline. Reject C0/C1 controls, Unicode Bidi_Control characters (ALM, LRM/RLM, embeddings/overrides and isolates), unpaired surrogates and noncharacters. Preserve ordinary Bangla/English text and combining marks; permit ZWNJ/ZWJ only as valid text-shaping joiners and test with Bangla corpus. Render only as text with context-sensitive HTML/PDF escaping. No dangerouslySetInnerHTML, raw SVG interpolation, CSS injection, Markdown interpretation or unsafe PDF concatenation. Owner-only mutation; public tagline appears only in approved invoice header snapshot.
+
+Logo and tagline are independent state dimensions. Logo operations never mutate tagline; tagline operations never change logo mode/asset identity; failure in one preserves the other.
+
+Proposed acceptance: AT-TAG-01 NFC/NFD; AT-TAG-02 80/81 grapheme boundary only after PO-L04; AT-TAG-03 1024-byte ceiling; AT-TAG-04 controls/bidi/line separators/surrogates/noncharacters rejected; AT-TAG-05 valid ZWNJ/ZWJ/Bangla shaping; AT-TAG-06 HTML/script text literal; AT-TAG-07 logo/tagline independence under success/failure; AT-TAG-08 blank affects future invoices only. NOT EXECUTED.
+
+## X. Immutable historical header snapshot and asset lifecycle
+
+Invoice-time immutable header snapshot remains the safe technical proposal; PO-L02 is PENDING and this is not business-policy approval. Do not freeze invoice persistence without recording the PO decision or explicitly blocking the capability.
+
+Issue transaction captures one profile revision and snapshots shop name/address/mobile/Maps URL; logo mode; UPLOADED asset ID/object version/digest/MIME/dimensions; GENERATED generator/template versions/input/output digests and immutable bytes; BLANK explicit mode/null asset; NFC tagline or null; snapshot schema/canonicalization version/digest. Profile revision is checked atomically so concurrent edit/issue cannot produce a mixed header. Snapshot commits with invoice, lines, number, issued event, audit and idempotency completion.
+
+Reprint/history/public projection/PDF/print consume only invoice snapshot, never current profile. Missing/corrupt asset or digest mismatch fails closed; never substitute current profile. Referenced immutable object versions are retained for invoice/legal/PO retention. Replacement marks old asset superseded, not deleted. GC is mark-and-sweep only after proving no profile/draft/invoice/PDF manifest/retention hold references the object. Backup/restore preserves snapshot-to-object version/digest. PO-L02, HDR-RET-01 and HDR-PUBLIC-01 remain pending.
+
+Proposed acceptance: AT-HDR-01 atomic single-revision snapshot; AT-HDR-02 concurrent edit/issue; AT-HDR-03 profile edit leaves old invoice unchanged; AT-HDR-04 asset retention; AT-HDR-05 missing asset/digest mismatch fails closed; AT-HDR-06 restore preserves references; AT-HDR-07 logo/tagline independence. NOT EXECUTED.
+
+## Y. Bengali font and PDF reproducibility
+
+Noto Sans Bengali v3.011, upstream commit 85d80394cbbbb798ca0a41c983902e6cf77be3a3, SIL OFL 1.1 remains source provenance, not proof a specific binary is present or used.
+
+Before reproducible PDF claim/release, record in an immutable artifact manifest: exact font filename/source commit; SHA-256 of vendored TTF bytes; SHA-256/copy of OFL; immutable OCI renderer image digest (not mutable tag); Chromium build/version; Playwright version; relevant OS/runtime/font-rendering dependencies; invoice template/layout/document schema versions; PO-selected locale/timezone; fixed Bengali/English corpus fixture version/hashes; output evidence distinguishing semantic/text/visual reproducibility from byte-identical PDF. Do not fabricate missing hashes. Until font binary hash and renderer digest exist, only target architecture may be claimed; no reproducible/verified PDF claim. Byte-identical output additionally requires normalized metadata/timestamps/object ordering; otherwise claim visual/text reproducibility only. Browser-native print remains fallback, not authoritative reproducible output.
+
+Proposed acceptance: AT-PDF-09 TTF/OFL hashes; AT-PDF-10 immutable renderer digest/version; AT-PDF-11 no-network local font; AT-PDF-12 Bengali corpus shaping; AT-PDF-13 stable semantic/visual output; AT-PDF-14 byte-identical only with normalized metadata proof; AT-PDF-15 QR scan at PO-approved physical size. NOT EXECUTED.
+
+## Z. Capability-specific implementation-readiness package
+
+| # | Capability | Dependencies / sequence | Minimum acceptance criteria | Readiness |
+|---|---|---|---|---|
+| 1 | Shop profile | Authenticated owner; required fields/Maps validation; object-level auth; profile revision; atomic update | Required fields/error preservation; owner A cannot read/update B; stale revision conflict; zero catalog/stock/memo/customer/ledger side effects | Design defined; PO-15 and runtime RLS pending |
+| 2 | Menu | PO-06/B01–B07 and PO-07; define fields/units/duplicates/price/lifecycle; item_catalog-only writes | Approved fields/actions only; no stock_items/stock_movements/memos/customers/baki writes; cross-shop denial; invoice snapshots stable | Blocked by PO-06/07 |
+| 3 | Invoice calculation | PO-04/05/08; canonical decimal strings; server-authoritative arithmetic; per-line rounding then sum | Golden vectors exact to 0.01 BDT; reject negative/exponent/NaN/Infinity/overflow; zero rules only after PO; UI/server equality | Design defined; PO-04/05/08 and runtime tests pending |
+| 4 | Number allocation and issuance | Shop/menu/calculation; idempotency prerequisite; authorize shop; lock per-shop counter; invoice/lines/events/audit in one transaction | UNIQUE(shop_id,bill_number); concurrent uniqueness; rollback counter; replay/conflict no number; online-only PO-02 | Design defined; PO-02/03 and DB/RPC/runtime evidence pending |
+| 5 | Idempotency | Composite namespace+UUID; canonicalization/hash; auth before private compare; atomic claim; tombstone; same-key retry | Exact replay; changed shop/operation/payload generic conflict; unauthorized shop ordinary denial; concurrency; lost-response; restore | Design defined; physical registry/concurrency/DR pending |
+| 6 | QR/public verification | Issue/revocation first; PO-12/I06A/I11; KMS; MAC-before-lookup; DTO allow-list; no-store/log redaction/rate limits | Valid/invalid/expired/revoked/integrity/unavailable; no lookup on bad MAC; no internal IDs/secrets; cross-tenant/key-compromise tests | Blocked by PO-12/I06A/I11 and runtime gates |
+| 7 | Revocation/correction | Immutable facts; PO-11 reason/customer state; append-only revoke + audit; correction is new bill | Owner-only revoke; reason/actor/time; atomic event+audit; idempotent repeat; revoked invoice never reissued; links invalid; no fact mutation | Design defined; PO-11/runtime tests pending |
+| 8 | Logo | Explicit BLANK > valid UPLOADED > GENERATED; category taxonomy; quarantine/decode/re-encode; private immutable assets | Resolver matrix; hostile image rejection; tenant isolation; asset retention; preview not opt-in; no profile substitution | Design defined; PO-L01/L03 and storage/decoder tests pending |
+| 9 | Tagline | Owner plain text; NFC; single-line/control/bidi; grapheme segmentation; independent persistence | Bangla/English/mixed; XSS literal text; 80 grapheme only after PO-L04; state independence; byte ceiling | Design defined; PO-L04/Unicode tests pending |
+| 10 | Historical header | PO-L02; snapshot one profile revision and logo/tagline assets; immutable retention/backup | Profile edit after issue; old preview/reprint unchanged; concurrent issue/edit; missing asset fails closed; restore references | Technical proposal; PO-L02/HDR-RET pending |
+| 11 | WhatsApp | Persisted invoice and approved URL; PO-13 copy; no customer contact; share chooser | Correct persisted data/URL; cancel/failure no mutation; copy/native-share fallback; no customer phone; no token logging | Design defined; PO-13 and link gate pending |
+| 12 | PDF/printing | InvoiceDocument/header snapshot; PO-01 paper, PO-04 price, PO-14 timezone, PO-17 line count; font SHA/renderer digest | Bengali corpus, embedding, pagination, QR scan, surface consistency and artifact manifest | Blocked by PO decisions and font/renderer/runtime evidence |
+
+**Dependency order:** authority/PO and physical security design → shop profile → menu policy/isolation → financial calculation → idempotency → number/issue transaction → immutable invoice/header/audit → revocation → public QR after PO/security gates → logo/tagline/header → PDF/print after PO/artifact pins → WhatsApp after approved copy/link/fallback. Although the matrix numbers issuance before idempotency per requested presentation order, idempotency is a prerequisite to number allocation.
+
+### Z.1 Minimum safe initial release
+
+**Core engineering validation slice — not a customer release or pilot:** shop profile with owner authorization; PO-approved menu subset; server-authoritative calculation; composite idempotency + transactional per-shop numbering + immutable invoice/line facts + audit; authenticated owner-only history; online-only issuance. Public QR, WhatsApp distribution and customer details remain disabled while PO-12/I06A/I11 are pending. PDF/print is not claimed until font/renderer artifacts and runtime evidence exist. Logo/tagline may be feature-gated; any enabled logo uses the exact resolver and safe asset pipeline. This slice requires separate implementation/QA authorization and does not satisfy the full PO-confirmed customer mockup.
+
+**Minimum customer-facing release:** all mandatory PO-confirmed fields/heading/footer; approved menu/price/quantity/calculation semantics; secure online issue, number/idempotency/immutable history and approved revocation; bill-specific QR/public verification after PO-12/I06A/I11 and security evidence; Bengali PDF/print after paper/font/renderer decisions; approved historical header and retained assets. WhatsApp may be optional if safe copy/native-share fallback exists and PO-13 copy remains gated.
+
+**Current disposition:** neither scope is authorized for implementation/release. The engineering slice is a future PM option; customer-facing release remains NO-GO while PO, artifact and runtime gates remain open. Omitting PO-confirmed QR/printed invoice requires explicit PO/PM scope change.
+
+## AA. CH-4 preliminary finding-by-finding closure matrix
+
+This maps the available preliminary register, not the missing final CH-4 report or CH-1 disposition.
+
+| Finding | Severity/source | CH-3 response | Classification | Remaining gate |
+|---|---|---|---|---|
+| CH4-01 bearer URL/HMAC | BLOCKER | §§8–9/U specify HMAC, key lifecycle, DTO/privacy; public links disabled pending PO-12/I06A/I11 | PO + runtime gated | PO choices, KMS, revocation, redaction, rate limits/security evidence |
+| CH4-02 immutability/revoke/audit | MAJOR | §§4/U/Z preserve append-only facts/events and atomic audit | Design corrected—re-review | Physical constraints/grants/RPC and transaction tests |
+| CH4-03 numbering/concurrency | MAJOR | §§5–6/Z define counter lock, unique guard, transaction/no number on conflict | Design corrected—re-review | DB implementation, concurrency/deadlock/rollback evidence |
+| CH4-04 idempotency/recovery | MAJOR | §§5–6/R.2/Z define composite key, auth order, replay/conflict, tombstone/lost-response | Design corrected—re-review | Physical registry and multi-instance/DR evidence |
+| CH4-05 precision/zero | MAJOR | §7/Z preserve decimal, rounding, bounds and zero gate | PO/runtime gated | PO-04/05/08 and golden vectors |
+| CH4-06 Bengali PDF | MAJOR | §11/Y require TTF/OFL hashes, renderer digest, corpus and reproducibility distinction | Runtime gated | Actual font/hash, renderer digest and rendering evidence |
+| CH4-07 menu PO gap | MAJOR | §§3/12/Z prohibit assumed active-only lifecycle; menu blocked until PO policy | PO gated | PO-06/07/B01–B07 |
+| CH4-08 offline ambiguity | MAJOR | §10 online-only; IndexedDB recovery only | PO gated | PO-02; offline requires separate architecture |
+| CH4-09 public privacy/tenant/cache/abuse | MAJOR | §9/U define DTO, MAC-before-lookup, object auth, no-store, redaction/rate limits | Design + runtime gated | RLS/grants/storage/CDN/KMS/rate-limit evidence |
+| CH4-10 traceability | MAJOR | §§14–18/R.9/AA map requirements to design/tests | Design corrected—re-review | CH-4 completeness review; PO decisions remain |
+| CH4-11 acceptance suite | MAJOR | §15 and V–Z add named positive/negative criteria | Design corrected—re-review | All proposed/not executed; future QA authorization |
+| CH4-R2-01 UX logo/tagline gap | MAJOR | B–J/R.9 and V–Y map UX-40..64 | Design corrected—re-review | CH-4 final review; PO-L01..L04; runtime tests |
+| CH4-R2-02 non-expiring bearer link | MAJOR | Withdraws non-expiring default; public link disabled pending PO-12/I06A | PO gated | Explicit PO decision and PM release |
+| CH4-R2-03 PDF artifacts unpinned | MAJOR | Y defines font/license/renderer manifest; no fabricated hashes | Runtime gated | Vendor font, record hashes/digest, authorized PDF evidence |
+| CH4-R2-04 active-only menu | MINOR | §§3/12/Z make lifecycle conditional on PO-06 | PO gated | PO-06/B01–B07 |
+| CH4-R2-05 infrastructure unverified | OBSERVATION | T/U classify KMS, RLS/grants, CDN, redaction, rate limits and DR as gates | Runtime/operational gated | Separate authorization/environment evidence |
+| CH4-UX-01 generated preview confirmation | MAJOR | Frozen UX-42/CH-1 baseline says preview informational, not opt-in | Superseded by authority | CH-4 final reviewer to confirm; no UX change |
+| CH4-UX-02 adversarial upload | MAJOR | V specifies sniff/decode/polyglot/animation/size/pixel/resource controls | Design corrected—re-review | Platform review, PO-L03, hostile corpus tests |
+| CH4-UX-03 logo precedence | MINOR | B.1/V define Explicit BLANK > UPLOADED > GENERATED | Design corrected—re-review | State transition tests |
+| CH4-UX-04 tagline Unicode/XSS | MAJOR | W defines NFC, grapheme/byte limits, bidi/control rules and escaping | Design corrected—re-review | PO-L04 and Unicode/XSS tests |
+| CH4-UX-05 historical header | MAJOR | F/X specify snapshot/retention; PO-L02/HDR-RET pending | PO gated + design corrected | PO-L02, retention, issue/edit/restore tests |
+| CH4-UX-06 missing/legacy type | MINOR | C.3/V distinguish NULL integrity error from unsupported legacy value | Design corrected—re-review | PO-L01 taxonomy/editability and source drift check |
+| Logo/tagline independence | Observation | W/X define independent state and failure preservation | Design corrected—re-review | AT-TAG-07/AT-HDR-07 tests |
+| CH4-A1-01..08 | Separate PR #32 | Not folded into Invoice-First; #32 unchanged; AC-10 correction remains in governance candidate | Outside this PR | CH-1/PM triage in #32; phone/server/RLS/catalog/profile/test gates remain |
+
+## AB. PO/PM gates and release status
+
+No PO-authored answer was found in Issue #31. Pending decisions include PO-01..PO-15 where applicable; PO-I11; PO-I06A; PO-L01..L04; HDR-RET-01; HDR-PUBLIC-01. These cover paper profile, online/offline promise, number format, price columns, quantity/units, menu fields/lifecycle/duplicates, zero/business maximum, custom lines, discount/tax/paid/due/customer scope, revocation/correction, link lifetime, WhatsApp copy, timezone/format, profile validation/Maps URL, verification wording, key-compromise impact, category taxonomy, historical header, upload policy, tagline policy and asset/public-header retention.
+
+Engineering security controls remain mandatory regardless of PO decisions. PO approval cannot waive tenant isolation, key custody, privacy, safe image decoding, integrity or security testing.
+
+## AC. Final gates and non-claims
+
+1. CH-1 must review this exact new HEAD/blob and publish a replacement frozen manifest before any CH-4 re-review.
+2. CH-4 must post its final signed report; the available register is preliminary.
+3. Record PO/PM decisions for each PO-GATED capability.
+4. Review physical schema/RPC/storage design before migrations.
+5. Live schema/RLS/grants/storage/CDN/KMS remain NOT VERIFIED.
+6. Font/OFL hashes and immutable renderer digest must exist before deterministic PDF claims.
+7. Public QR remains disabled until PO-12/I06A/I11 and security controls are satisfied.
+8. Acceptance criteria require separately authorized QA; none is PASS by virtue of this document.
+9. Merge, deployment, customer release and pilot require separate PM authorization; financial pilot remains NO-GO.
+
+## AD. Verification boundary and CH-3 disposition
+
+Documentation only. This addendum defines proposed constraints, transaction/API behavior, operational controls, PO gates and acceptance criteria. It does not prove deployed controls.
+
+**NOT EXECUTED:** source code, SQL, schema, migrations, database access/operations, storage configuration, dependency/environment/secret changes, builds, lint, tests, browser QA, PDF rendering, runtime/security tests, backup/restore drills, merge, deployment, release or pilot.
+
+**NOT AUTHORIZED:** implementation, SQL/schema/migrations, live DB, builds/tests/QA, KMS/secret configuration, merge, deployment, release and pilot.
+
+CH-4's final signed report remains pending. This is CH-3's consolidated response to the preliminary CH-4 register, not CH-4 acceptance or CH-1 closure. The edit changes a manifest-pinned artifact; CH-1 must re-freeze the new exact HEAD/blob.
