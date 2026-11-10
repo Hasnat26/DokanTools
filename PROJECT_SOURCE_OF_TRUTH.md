@@ -9,6 +9,10 @@
 **Governance branch at initial audit:** `governance/global-github-ssot`  
 **Initial governance branch head:** `46376e96c8b325143440eb7114b026487210ddbb`  
 **Revision task:** `DT-GOV-001-R1`  
+**DT-GOV-002:** APPROVED AND MERGED  
+**DT-GOV-002 reviewed PR head:** `a3c5f4057ccb2aec456167101bfc91ef3a5d185b`  
+**DT-GOV-002 merge commit / main HEAD after merge:** `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`  
+**Governance document identities after DT-GOV-002:** `WORKER_SINGLE_SOURCE_OF_TRUTH.md` — blob `5714e127aad7a81d3e26da2ac2d77fe875927fdc`; `PROJECT_SOURCE_OF_TRUTH.md` — blob `0a2534fd67ebf5d1c3094faf147cdfa4b2cb73a5`  
 **PR #21:** APPROVED AND MERGED  
 **PR #21 reviewed head:** `10bf1fb4c7687d2223e17c7303902df281deb4c5`  
 **PR #21 merge commit / main HEAD at activation:** `3abd0455a7755208049da310f85aab930e9f4200`  
@@ -232,11 +236,11 @@ These are recommendations only, not active controls.
 | SQL/database operations | NOT AUTHORIZED |
 | Deployment / APK distribution / financial pilot | NOT AUTHORIZED / NO-GO |
 | PR #21 merge into `main` | COMPLETED — MERGED AT `3abd0455a7755208049da310f85aab930e9f4200` |
-| DT-GOV-002 consistency-update PR merge into `main` | PENDING PM APPROVAL |
+| PR #22 — DT-GOV-002 consistency-update merge into `main` | COMPLETED — MERGED AT `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1` |
 
 ## 11. Acceptance condition
 
-Global GitHub SSOT is **ACTIVE ON MAIN**. PM approved PR #21, whose reviewed head was `10bf1fb4c7687d2223e17c7303902df281deb4c5`; it was merged at commit `3abd0455a7755208049da310f85aab930e9f4200`. The exact paths and blob SHAs of both governance documents at activation are recorded in this document's metadata. This DT-GOV-002 consistency-update PR proposes only to correct the post-merge status record; it does not deactivate or replace the active governance baseline until any approved follow-up merge takes effect.
+Global GitHub SSOT is **ACTIVE ON MAIN**. PM approved PR #21, whose reviewed head was `10bf1fb4c7687d2223e17c7303902df281deb4c5`; it was merged at commit `3abd0455a7755208049da310f85aab930e9f4200`. PR #22 (DT-GOV-002) was approved by PM and merged at `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`; its reviewed head was `a3c5f4057ccb2aec456167101bfc91ef3a5d185b`. The resulting active root governance document blobs are recorded in the metadata above. This update records merge state only and does not expand any workstream authorization.
 
 All existing task-specific PM instructions, missing-baseline hard stops, approval gates and execution restrictions remain in force. Governance activation does not grant implementation, QA execution, SQL/database, build, deployment, APK distribution or pilot authorization.
 
@@ -434,7 +438,7 @@ The CH-2 O-01 UX proposal treats all four fields as required. The PO mockup conf
 - A1-AC-07: A failed save retains the full draft and provides a retry path; duplicate taps do not create duplicate profile rows.
 - A1-AC-08: Two-user negative tests prove that one authenticated user cannot read or update another user's shop, including when the other shop ID is supplied directly.
 - A1-AC-09: The Maps link is HTTPS and matches the approved host/path allow-list; invalid schemes/hosts are rejected.
-- A1-AC-10: A1 contains no menu, invoice, QR, PDF, WhatsApp, payment, accounting, customer, stock or inventory capability.
+- A1-AC-10: Phase A1 must not introduce, extend, refactor, regress, or otherwise change existing non-A1 capabilities, including memo/PDF, WhatsApp, stock, customer-ledger and Master QR flows. These capabilities may remain present and operational exactly as they are at the pinned baseline. Acceptance is based on the A1 diff and regression evidence showing no changes to those flows, not on their absence from the application.
 
 **Proposed test strategy (NOT EXECUTED):**
 - Unit: required-field trimming, Unicode preservation, phone character grammar, Maps URL parsing/allow-list, invalid scheme/host and boundary lengths.
