@@ -932,3 +932,534 @@ The v0.2 technical design now specifies the missing controls and maps every CH-4
 **QA execution authorization: NOT GRANTED.**  
 **Merge authorization: NOT GRANTED.**  
 **Deployment / pilot: NOT AUTHORIZED.**
+
+
+---
+
+# Controlled Addendum v0.3 — Shop Logo, Tagline and Historical Header Integrity
+
+**Task:** DT-CH3-INVOICE-FIRST-WEB-MVP-TECH-DESIGN-002  
+**Role:** CH-3 — Backend & Security Engineering  
+**Parent document:** v0.2, blob `348ec933a2798ba2c790707397d723e8377a8442`  
+**Source baseline:** `main` at `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`  
+**Technical submission branch:** `docs/dt-invoice-first-mvp-tech-design-002`  
+**Status:** PROPOSED — CH-1 integrated review and CH-2 UX alignment required  
+**Scope:** Documentation-only technical design  
+**Implementation authorization:** NOT GRANTED  
+**Database inspection / SQL / migration / build / QA:** NOT AUTHORIZED / NOT PERFORMED
+
+## A. Authority and evidence delta
+
+This addendum preserves v0.2 §§1–20 without rewriting their existing technical contracts. It adds the PM-requested optional shop logo and tagline assessment and clarifies how these values participate in immutable invoice rendering.
+
+### A.1 Exact source evidence
+
+Repository SQL snapshot `supabase/schema.sql` at `main`, blob `e859b6de9660533962eddb6f9f3d17ad8a4c1cca`, defines `public.shops` with:
+- `shop_type TEXT NOT NULL DEFAULT 'grocery' CHECK (shop_type IN ('grocery','pharmacy','food','salon','general'))`;
+- `logo_url TEXT`;
+- current profile fields `shop_name`, `phone`, `address`, `map_link`.
+
+The repository's current shop type is therefore a controlled, non-null enum-like text field in this checked-in schema snapshot. It is not free text and it is not absent. The application/profile UI and live deployed schema were not inspected for this assignment unless separately present in the exact pinned source; no claim is made about live Supabase state. The existing `logo_url` is a single URL-like nullable field and does not encode whether the owner deliberately selected blank, whether a generated logo is active, or which immutable asset revision belongs to a historical invoice.
+
+**Important:** checked-in SQL/schema is source-level design evidence only. It is not evidence of the deployed Supabase schema, migration history, RLS, grants, Storage policies or object existence. No live database or storage service was accessed.
+
+### A.2 Authority separation
+
+- **PO-CONFIRMED:** existing Bangla invoice mockup fields and exact heading/footer; logo and tagline are not included in that pinned mockup.
+- **PM REQUIREMENT — NEW:** upload takes priority; generated logo is fallback; owner can explicitly select blank; logo selection must render consistently on web invoice, PDF and print; optional owner-entered Bangla/English tagline, proposed max 80 characters, no automatic generation.
+- **TECHNICAL DESIGN:** the state, storage, sanitization, snapshot and rendering contracts below are engineering proposals.
+- **PENDING UX/PO/PM:** owner interaction details, shop-type taxonomy changes, tagline length and historical logo/tagline treatment must be reconciled by CH-2/CH-1/PO as applicable.
+- **NOT VERIFIED:** no logo upload, rendering, font shaping, PDF, browser, storage, RLS or deployment test was executed.
+
+## B. Shop logo state architecture
+
+### B.1 Canonical state model
+
+Use an explicit persisted `logo_mode` with exactly three values:
+
+| State | Meaning | Active render source |
+|---|---|---|
+| `GENERATED` | Owner chooses the deterministic generated mark | Generated SVG/immutable generated artifact derived from the snapshotted generation inputs |
+| `UPLOADED` | Owner chooses an uploaded, validated logo asset | Immutable raster asset version in private object storage |
+| `BLANK` | Owner explicitly chooses no logo | No image and no logo placeholder |
+
+Do not derive state from `logo_url IS NULL`. Null can mean legacy/unconfigured or no active asset reference; it cannot express explicit blank selection robustly.
+
+**Default for existing shops:** a migration/backfill must not silently generate or show a new logo to existing customers. Proposed compatibility rule: treat legacy rows with no explicit `logo_mode` as `UNCONFIGURED` during transition, and resolve them to no rendered logo until the owner makes a deliberate choice. `UNCONFIGURED` is a migration/read-compatibility state, not a fourth steady-state UI choice. For new shops created after a future authorized implementation, default `logo_mode = GENERATED` only if the owner has already supplied/confirmed a valid shop type and the product UX confirms this default; otherwise use `BLANK` or require explicit choice. This default is a PO/CH-2 decision, not approved by this design.
+
+### B.2 State transitions
+
+| Current state | Owner action | New state | Required behavior |
+|---|---|---|---|
+| UNCONFIGURED / GENERATED | Upload valid image and save | UPLOADED | Validate, decode/re-encode, store immutable asset version; atomically switch profile pointer only after asset is durable |
+| UPLOADED | Replace upload | UPLOADED | Create a new immutable object version; update active pointer; do not overwrite bytes referenced by issued invoices |
+| UPLOADED | Remove uploaded and choose generated | GENERATED | Resolve deterministic generated logo using current approved inputs |
+| UPLOADED / GENERATED | Explicitly choose no logo | BLANK | Persist BLANK; never auto-fallback to generated or initials |
+| BLANK | Choose generated | GENERATED | Generate/resolve mark from approved shop name/type inputs; show preview and require explicit save/selection |
+| GENERATED | Regenerate | GENERATED | Same normalized inputs + same template version produce byte-identical output; changed inputs/template create a new immutable generated asset/version and future invoices only |
+| GENERATED | Upload | UPLOADED | Upload takes priority after successful validation and atomic pointer update |
+| Any configured state | Edit shop name/type | State remains | Do not silently regenerate an explicitly chosen/generated logo. Show stale-input notice and offer explicit preview/regeneration; state remains unchanged until owner confirms |
+| Any state | Upload fails | Unchanged | Preserve current active logo and state; do not switch to blank or generated |
+| Any state | Persist state update fails | Unchanged | Preserve last committed pointer/state; report retryable failure |
+
+**Priority rule:** the stored explicit state is authoritative. UPLOADED is not automatically demoted because the image is temporarily unavailable; instead display a controlled unavailable/error state and block release rendering if the snapshot cannot be resolved. BLANK always renders blank. GENERATED never falls back to a generic remote/AI service.
+
+### B.3 Data integrity invariants
+
+1. `logo_mode = BLANK` implies active asset reference is null and all invoice renderers omit the logo entirely.
+2. `logo_mode = UPLOADED` implies a verified immutable asset-version reference exists; otherwise save must fail.
+3. `logo_mode = GENERATED` implies a generated artifact reference plus generator/template version and input digest exist, or that an exactly reproducible deterministic artifact can be materialized from snapshotted inputs.
+4. A committed profile update may point to a new asset only after the object is fully uploaded, decoded, sanitized, and stored. Never expose a half-uploaded object.
+5. Asset IDs are opaque random identifiers, not shop-name-derived paths.
+6. Deleting/replacing a profile pointer must not delete an asset still referenced by an issued invoice snapshot.
+7. Invoice renderers resolve only the immutable snapshot asset/version, never the current `shops.logo_url`.
+8. If snapshot integrity fails, fail closed with an explicit document-generation error; never silently substitute a different logo.
+
+## C. Deterministic generated logo
+
+### C.1 Proposed generation strategy
+
+Use a small, versioned local template renderer that emits canonical SVG from a bounded input model. It must have no external AI API, remote image fetch, paid service, analytics call or per-generation service cost.
+
+Inputs:
+- Unicode NFC-normalized `shop_name`;
+- one approved controlled `shop_type` value;
+- fixed `template_id` and `template_version`;
+- fixed palette/geometry constants;
+- optional deterministic initials rule.
+
+Outputs:
+- canonical SVG bytes with explicit viewBox and fixed dimensions;
+- SHA-256 of canonical output;
+- generator version and input digest;
+- optionally a pre-rasterized PNG generated by the trusted server pipeline for PDF/print uniformity.
+
+Determinism contract: identical normalized inputs and identical generator version yield identical canonical SVG bytes, digest and raster output under the pinned renderer. Do not embed current timestamps, random IDs, external URLs, CSS imports, network-loaded fonts or environment-dependent layout.
+
+### C.2 Bengali and Unicode handling
+
+- Preserve and store the owner-entered `shop_name` as NFC for canonical display snapshots, without case folding or destructive transliteration.
+- Do not attempt to generate initials by taking arbitrary UTF-16 code units. Use a Unicode grapheme-cluster-aware implementation and a documented locale rule, which CH-4 must test against Bengali combining marks, conjuncts, Latin names, emoji and mixed scripts.
+- Do not use generated text as a path, HTML fragment or CSS selector.
+- The generated mark may use a simple geometric/shop-type motif plus a bounded textual treatment. If the generator cannot safely fit the text, render a stable icon-only mark rather than clipping or corrupting glyphs.
+- The SVG should reference no remote font. Text must be rendered with the same pinned local font strategy as the invoice, or converted to paths only by a deterministic pinned renderer if text extraction/accessibility trade-offs are accepted. The preferred output keeps the shop name as accessible text in the invoice header independent from the logo artwork.
+
+### C.3 Shop-type source and governance
+
+The checked-in schema currently provides `shops.shop_type` as a controlled set: `grocery`, `pharmacy`, `food`, `salon`, `general`. It is neither missing nor free-form in that source snapshot.
+
+However:
+- The PO-confirmed Invoice-First mockup does not define a shop-type field or taxonomy.
+- The UI may not currently require or expose a shop-type selection; this must be verified by CH-2 against its current UX branch.
+- For food-shop Invoice-First workflow, the current `food` category is a plausible existing value, but auto-changing all shops to `food` based on invoice usage is not approved.
+- Do not infer shop type from shop name or business description.
+- Do not expand the enum or add new category values without explicit PM/PO approval and schema design review.
+
+**Recommendation:** generated-logo template selection reads the already-persisted controlled `shops.shop_type` value. If missing/unrecognized in a legacy or drifted deployment, use a neutral generic template only after explicit design/UX acceptance; do not infer type. Make the source value visible to the owner and require an explicit correction flow if it is wrong.
+
+### C.4 Regeneration and user confirmation
+
+Generated logo is a proposed preview, not an automatic background change:
+1. Renderer computes a candidate from current normalized shop name/type and generator version.
+2. Owner sees preview and selects “Use generated logo”.
+3. Save persists GENERATED plus the immutable generated asset/version identity.
+4. Future shop name/type edits do not mutate the active mark. Show “Generated from previous shop details” and allow owner-triggered regeneration.
+5. Regeneration creates a new artifact version; past invoice snapshots retain the prior version.
+
+This avoids silent visual drift and respects explicit BLANK selection.
+
+## D. Uploaded logo security and storage
+
+### D.1 Initial MVP upload format
+
+**Recommendation: raster-only upload. Reject SVG uploads in the initial MVP.**
+
+Allowed input MIME/format proposals:
+- JPEG/JPG;
+- PNG;
+- WebP only if the trusted image decoder and PDF renderer support it consistently; otherwise omit WebP from initial allow-list.
+
+Reject:
+- SVG/XML, animated GIF/WebP, HEIC/HEIF unless explicitly supported and normalized, AVIF unless explicitly supported end-to-end, BMP/TIFF, PDF, ICO, archives and all unknown formats.
+
+Rationale: SVG is active document content and can contain script, event handlers, foreignObject, external references, CSS imports, data URLs or parser edge cases. Merely checking MIME or sanitizing by regex is insufficient. A future SVG capability would need a dedicated allow-list sanitizer, strict element/attribute policy, no script/event/style/foreignObject/external href, secure parse, rasterization and hostile corpus tests; this is outside the initial design.
+
+### D.2 Proposed upload limits
+
+These are technical starting limits for CH-1/CH-2 review, not PO-confirmed business requirements:
+- Maximum compressed upload: **2 MiB**.
+- Maximum decoded dimensions: **2048 × 2048 px**.
+- Maximum total decoded pixels: **4,194,304**.
+- Reject zero-byte, truncated, decompression-bomb, malformed, unsupported colour-profile or decoder-error files.
+- Enforce dimensions and decode memory/time limits before storage.
+- Apply EXIF orientation before normalization and strip EXIF/XMP/IPTC metadata, GPS coordinates, thumbnails and comments.
+- Normalize output to a controlled PNG (preferred for renderer predictability) or JPEG/WebP only if a single supported encoding policy is chosen. PNG output is lossless, supports transparency and simplifies the renderer contract.
+- Recompute byte size, MIME and dimensions from the normalized output. Store only normalized bytes, not the original untrusted upload.
+
+### D.3 Validation and image processing pipeline
+
+Perform on trusted server-side processing boundary, never only in the browser:
+1. Authenticate owner and verify the requested shop belongs to `auth.uid()`.
+2. Enforce request body/upload limit before reading full payload.
+3. Treat filename and browser-provided MIME as untrusted hints only.
+4. Inspect magic bytes and decode with a maintained image library in a resource-limited worker/process.
+5. Verify the decoder's actual format and dimensions; reject file polyglots, malformed/truncated content and multi-frame/animated content.
+6. Apply EXIF orientation, strip metadata, normalize colour space and re-encode to controlled PNG.
+7. Reopen/re-decode the normalized output and verify dimensions, transparency and canonical format.
+8. Compute SHA-256 and persist content digest, dimensions, MIME, byte length, processing version and object version.
+9. Write object to a non-public tenant-scoped key; confirm durable write before updating the profile pointer.
+10. Commit metadata/pointer transition atomically using a narrow owner-authorized service/RPC boundary. If DB pointer commit fails, leave the previous profile selection active and garbage-collect the orphan only after an explicit safe retention window.
+
+Malware scanning is defense-in-depth where available, but not a substitute for safe decoding/re-encoding. Do not execute, render or proxy the original uploaded bytes.
+
+### D.4 Storage model and access
+
+Preferred logical storage design:
+- Private object bucket/container, not the webroot and not a public-read bucket.
+- Random object key such as `shop-assets/{shop_uuid}/{asset_uuid}/logo.png`; no user filename.
+- Tenant path is not authorization: every upload/read/delete metadata operation must independently verify ownership.
+- Storage policies restrict upload/read/delete to the owning authenticated user or a narrow server-side service with explicit authorization checks.
+- Customer/public invoice rendering should not expose an unrestricted permanent object URL. The server should resolve the immutable asset reference and stream/render it as part of the invoice document or issue a short-lived, audience-limited signed object URL only when necessary.
+- The public invoice DTO should not contain raw Storage keys, bucket names, service credentials or owner profile URLs.
+- Random asset ID prevents easy enumeration but is not a substitute for access policy.
+- Keep object metadata (shop_id, asset_id, digest, media_type, dimensions, processing_version, created_at, retention_state) in a private table/record; avoid using `logo_url` as the sole authority.
+- Replacement marks an old object superseded, not immediately deleted. Garbage collection is allowed only if no profile or issued-invoice snapshot references it and retention policy permits deletion.
+
+### D.5 Browser and document rendering controls
+
+- Render only normalized server-produced PNG assets or deterministic generated SVG/PNG, never a raw uploaded SVG or untrusted HTML.
+- Set explicit `width`, `height`, `object-fit: contain`, max bounding box and transparent/white background policy; maintain aspect ratio; do not crop by default.
+- Use Content-Security-Policy restrictions and same-origin/authorized asset delivery; no arbitrary third-party image host.
+- Escape shop name/tagline as text. Do not inject into inline SVG, CSS, HTML or PDF markup as raw markup.
+- Reject or safely fall back on missing/corrupt logo bytes. Do not show a stale cache version under a new asset identity.
+
+## E. Optional tagline design
+
+### E.1 Persistence and contract
+
+Tagline is independent of logo selection:
+- Proposed field: `shops.tagline TEXT NULL`.
+- Optional and blank is valid. `NULL` and empty/whitespace-only input normalize to `NULL`.
+- Proposed UI maximum: **80 Unicode grapheme clusters**, not 80 UTF-8 bytes or UTF-16 code units. This 80-character limit is inherited from the new PM request as a proposal, not an already PO-confirmed rule.
+- Preserve Bangla and English text. Normalize canonical persisted/display value to Unicode NFC; do not translate, transliterate, title-case or auto-generate.
+- Do not infer tagline from logo, shop name or shop type.
+- No HTML/Markdown is interpreted. Store plain text, escape at the output context and render line breaks only if the UX explicitly supports them.
+- Strip or reject control characters other than allowed whitespace; reject bidi override/isolate controls unless CH-2/CH-4 approve a precise safe policy. Do not silently rewrite visible text.
+- Length check occurs after NFC normalization and grapheme segmentation. Enforce both a grapheme limit and a generous UTF-8 byte ceiling to prevent abuse; exact byte ceiling is an engineering constant to be set and tested, not a PO-visible character limit.
+
+### E.2 Update and historical behavior
+
+- Tagline update affects future invoices only.
+- An issued invoice stores an immutable `tagline_snapshot` (nullable).
+- Setting tagline to blank/NULL removes it from future invoice headers but does not remove it from previously issued invoice snapshots.
+- No automatic tagline generation, translation or suggestions.
+- Tagline does not affect logo state or generated logo inputs.
+- Public display of tagline follows the invoice header allow-list; it is not exposed by shop profile/public shop APIs unless separately approved.
+
+## F. Immutable invoice header snapshot and reproducibility
+
+### F.1 Proposed snapshot model
+
+At invoice issuance, freeze every header input required to reproduce the document:
+- Existing PO-confirmed identity: shop name, address, mobile, Maps URL.
+- Logo: `logo_mode_snapshot`, asset ID, immutable asset version, SHA-256, media type/dimensions, and either immutable normalized bytes or a content-addressed immutable object reference.
+- For GENERATED: `generator_id`, `generator_version`, `template_id`, `template_version`, normalized shop-name/type inputs, input digest and exact generated output digest; retain the generated artifact bytes for reproducibility.
+- For UPLOADED: normalized raster bytes in immutable object storage and digest; never rely on a mutable `logo_url`.
+- For BLANK: explicit state and null asset/digest; do not infer from null asset alone.
+- Tagline: `tagline_snapshot TEXT NULL`, plus a small snapshot schema/version identifier.
+- Existing/PO-confirmed header field snapshots and the same issued invoice timestamp/number as already defined in v0.2.
+
+Do not snapshot a signed temporary URL. Do not snapshot a mutable Storage path without an immutable version/digest and retention guarantee.
+
+### F.2 Asset retention and profile changes
+
+- Profile edit creates a new profile asset pointer/version; it never modifies old asset bytes.
+- Issued invoices point to immutable header snapshot and immutable asset version.
+- Old logo object versions remain retained while referenced by any invoice snapshot, subject to legal/data-retention policy.
+- Shop name/address/mobile/Maps/tagline/logo changes affect only bills issued after the new profile revision commits.
+- Reprint/PDF render resolves the historical snapshot and verifies the asset digest before rendering.
+- If historical asset bytes are unavailable or digest fails, show a controlled “historical invoice asset unavailable/integrity failure” state; do not substitute the current logo or silently omit the historical tagline.
+- A canonical document manifest should include invoice snapshot hash, header snapshot schema version, logo asset digest, tagline digest (or null), font asset digest, renderer image digest and template versions.
+
+### F.3 Public DTO and privacy
+
+Add to the public bill DTO only:
+- `logo_mode` as a display-safe enum if useful;
+- a short-lived same-origin logo media URL or server-rendered document asset reference, not storage internals;
+- `tagline` plain text snapshot if not null.
+
+Do not include `shop_type`, storage key, original filename, private bucket name, owner user ID, object metadata or upload diagnostics in public DTO. Shop type is an internal template input, not a customer-facing profile disclosure.
+
+On revoked/invalid/expired bill states, follow existing PO-approved disclosure boundary; no logo/tagline disclosure in a revoked response unless PO changes that policy.
+
+## G. API/service and logical schema impact
+
+All items below are design proposals; no SQL or migration is supplied.
+
+### G.1 Profile fields and asset registry
+
+Existing checked-in `shops` fields:
+- `shop_type` — already exists as non-null constrained text in the pinned schema snapshot.
+- `logo_url` — exists, but insufficient as a complete state or immutable asset identity.
+
+Proposed additions (physical implementation requires a separately reviewed migration):
+- `shops.logo_mode TEXT` with controlled check set `GENERATED | UPLOADED | BLANK`; temporarily nullable/legacy handling or a carefully planned backfill is required.
+- `shops.logo_asset_id UUID NULL` referencing a new private `shop_assets` registry record, if a registry is adopted.
+- `shops.tagline TEXT NULL`.
+- optional `shops.profile_revision BIGINT` or UUID for optimistic concurrency and snapshot provenance.
+- new private `shop_assets` logical record: `asset_id`, `shop_id`, source_type (`UPLOAD | GENERATED`), immutable object key/version, SHA-256, normalized MIME, dimensions, bytes, processing/generator versions, input digest, creation time, superseded/retention status.
+- invoice immutable header extension: `logo_mode_snapshot`, `logo_asset_id_snapshot`, `logo_object_version_snapshot`, `logo_sha256_snapshot`, `logo_media_type_snapshot`, `logo_width_snapshot`, `logo_height_snapshot`, `logo_generator_version_snapshot`, `logo_template_version_snapshot`, `tagline_snapshot`, `header_snapshot_version`.
+- if existing v0.2 invoice table is not yet implemented, these fields belong in the initial invoice/header snapshot design; if it is implemented later, add them through an additive, reviewed migration. Never mutate existing issued rows to retrofit a current shop logo/tagline as if historically present.
+
+Alternative storage design: put immutable header JSON snapshot on invoice row, plus immutable asset registry/object version. This is preferred to many duplicated scalar columns if the JSON contract is schema-versioned, typed/validated, and protected by immutable invoice-row controls. Store a canonical digest. CH-1/CH-4 should select one physical mapping before migration design.
+
+### G.2 Services and API boundaries
+
+Proposed authenticated owner operations:
+- `update_shop_logo_selection(shop_id, mode, asset_id?, expected_profile_revision)`: validates owner, state/asset consistency and profile revision; creates an audit event; never accepts arbitrary URL.
+- `create_logo_upload_intent(shop_id, file_metadata)`: reserves one short-lived upload attempt and returns restricted upload authorization only after owner check.
+- `finalize_logo_upload(shop_id, upload_id)`: server-side inspect/decode/re-encode/hash, write immutable object, then atomically set UPLOADED pointer after validation.
+- `select_generated_logo(shop_id, expected_profile_revision)`: generates deterministic candidate and requires owner-confirmed selection. No external AI/API.
+- `regenerate_logo(shop_id, expected_profile_revision, template_version)`: preview then explicit selection; immutable new version.
+- `update_shop_tagline(shop_id, tagline, expected_profile_revision)`: normalize NFC, validate grapheme/byte/control limits, set NULL for blank; independent of logo selection.
+- `get_invoice_header_snapshot(shop_id)`: internal owner-only projection for invoice creation; public clients never call private asset registry directly.
+
+These are logical service contracts only. They must not be implemented as broad client-side table writes. A single profile update transaction should compare expected profile revision, validate logo state/reference, persist tagline and other allowed profile changes, and update profile revision atomically. Asset upload occurs before this transaction; failed transaction leaves prior active selection intact and the new asset as an orphan candidate for safe cleanup.
+
+### G.3 Migration and compatibility
+
+- Do not repurpose `logo_url` as the state enum or overwrite it with an object key without a data migration plan.
+- Backfill strategy must classify legacy `logo_url` rows only after source/live data inspection; do not infer that a URL is safe, owned or accessible. Keep `UNCONFIGURED` compatibility until each legacy row is inspected.
+- Add `logo_mode` with nullable legacy phase or explicit legacy enum handling. The steady-state allowed values remain the three owner choices.
+- Keep `shop_type` as-is unless PO/PM approves a taxonomy change. No new shop type field is proposed.
+- `tagline` is additive and nullable; existing rows remain NULL.
+- Invoice header snapshot additions should be included at initial invoice table design if not yet implemented. If invoices already exist when this change is introduced, only new invoices receive new profile snapshot fields; old invoices remain historically blank/unconfigured, never retrofitted from current profile.
+- Storage bucket creation, Storage RLS, object lifecycle and server processing configuration are migration/infra impacts; all need exact authorization and separate security review.
+
+## H. PDF, print and Bengali rendering contract
+
+### H.1 Single semantic document
+
+Invoice preview, PDF and browser print must consume the same immutable semantic `InvoiceDocument` projection, versioned by `document_schema_version`. That projection includes:
+- PO-confirmed shop/header fields and invoice details;
+- logo state and resolved immutable asset bytes;
+- optional tagline snapshot;
+- line snapshots, financial totals, bill QR and mandatory Bangla heading/footer;
+- font, renderer and layout version metadata.
+
+Preview must not fetch current shop logo or tagline after issue. PDF generation and print must not read a different shop profile version than the preview. A reprint of an issued invoice must resolve the same snapshot.
+
+### H.2 Layout and fallback
+
+- Logo is optional and must preserve natural aspect ratio with a bounded max box; no cropping or distortion.
+- BLANK means no logo and no empty placeholder gap larger than the layout's defined normal spacing.
+- Tagline is optional; omit its line/block entirely when NULL. It must wrap on word/grapheme boundaries and must never overlap shop name, address or the mandatory invoice heading.
+- Long Bangla/English taglines must wrap safely; do not scale below readable minimum merely to force a single line.
+- Long bill pagination must preserve every item line and repeat the document context/column heading as defined in v0.2; QR, total and mandatory footer must not be split or clipped.
+- If logo decode/asset digest/font loading fails, generation should stop with a deterministic error. Do not silently swap logo or claim PDF succeeded.
+- The local Bengali font must shape tagline and shop text correctly. A logo SVG must contain no remote font; initial MVP's raster upload path avoids SVG font/external-resource issues.
+- Keep all QR quiet-zone and scan-size requirements from v0.2; logo must not overlap or obscure QR.
+
+### H.3 Reproducibility manifest
+
+For a historical PDF render, record:
+- invoice/header snapshot canonical hash and schema version;
+- logo mode, asset ID/object version, content SHA-256, processing/generator/template version;
+- tagline NFC text digest or explicit null;
+- Noto Sans Bengali font artifact version and SHA-256;
+- Chromium/Playwright/container image digest;
+- invoice document template/layout version;
+- generated PDF SHA-256 and generation timestamp (the timestamp is evidence metadata and must not alter invoice content).
+
+A deterministic renderer should produce the same visual/text content from the same manifest. Binary PDF hashes can still vary if nondeterministic PDF metadata/creation time is included; either normalize metadata or distinguish content/visual reproducibility from byte-for-byte reproducibility. This distinction must be explicit in CH-4 acceptance.
+
+## I. Requirement-to-design-to-test traceability
+
+New requirement IDs for this addendum:
+- **PM-LOGO-01:** uploaded owner logo wins when mode UPLOADED.
+- **PM-LOGO-02:** when no upload exists, deterministic generated logo is available as fallback, subject to explicit owner selection.
+- **PM-LOGO-03:** owner may explicitly choose BLANK; blank never auto-falls back.
+- **PM-LOGO-04:** logo state/asset consistency across digital invoice, PDF and print.
+- **PM-LOGO-05:** generated output has no external AI/API dependency and is deterministic.
+- **PM-LOGO-06:** generated logo depends on persisted shop type and shop name; no type inference from name.
+- **PM-LOGO-07:** uploaded asset processing, ownership, format and storage security.
+- **PM-TAG-01:** optional owner-entered Bangla/English tagline.
+- **PM-TAG-02:** proposed 80 grapheme-cluster maximum; blank valid.
+- **PM-TAG-03:** tagline independent from logo state and not auto-generated.
+- **PM-TAG-04:** tagline appears in future invoice header and is escaped text.
+- **PM-HDR-01:** issued invoice freezes logo state, immutable asset revision and tagline.
+- **PM-HDR-02:** subsequent profile changes affect future invoices only.
+
+| Requirement | Design sections | Data/service effect | Proposed acceptance evidence (NOT EXECUTED) |
+|---|---|---|---|
+| PM-LOGO-01/02 | B, C | Mode + generated/uploaded asset identity | LG-01/02/03 |
+| PM-LOGO-03 | B | Explicit BLANK state and null asset invariant | LG-04/05 |
+| PM-LOGO-04 | B, D, F, H | Snapshot-based renderer across surfaces | LG-06/07/14 |
+| PM-LOGO-05/06 | C | Deterministic local renderer and controlled shop type | LG-08/09 |
+| PM-LOGO-07 | D, G | Private object store, safe raster pipeline and asset registry | LG-10..13 |
+| PM-TAG-01..04 | E, F, H | Nullable text snapshot and safe rendering | TG-01..06 |
+| PM-HDR-01/02 | F | Immutable header snapshot / asset retention | HDR-01..06 |
+| Existing v0.2 controls | §§4–10, 14–20 | No change to invoice facts, token, idempotency or financial rules | Existing AT-* suites retained |
+
+### I.1 Proposed logo/tagline acceptance scenarios
+
+All tests below are proposed for future CH-4 review. No tests were executed.
+
+**Logo state and transitions**
+- **LG-01:** UPLOADED profile uses the selected uploaded asset in digital preview, PDF and print.
+- **LG-02:** UPLOADED takes priority over any generated candidate; no generated logo overlays/replaces it.
+- **LG-03:** A successfully replaced upload changes future invoices only; old issued invoices retain old asset digest/bytes.
+- **LG-04:** BLANK selection persists across reload and all renderers emit no logo and no fallback placeholder.
+- **LG-05:** BLANK→GENERATED requires explicit owner action/preview; a blank selection never automatically regenerates.
+- **LG-06:** GENERATED→UPLOADED and UPLOADED→GENERATED follow the explicit state transition and preserve old asset references for history.
+- **LG-07:** failed upload, decode or save leaves previous state/asset active.
+- **LG-08:** same shop-name NFC + shop-type + generator/template version yields identical canonical SVG/output digest.
+- **LG-09:** shop name/type edit does not silently change active generated logo; explicit regeneration creates new asset version.
+- **LG-10:** reject SVG, MIME spoof, malformed/truncated/polyglot/animated image, oversized upload and decoded pixel overflow.
+- **LG-11:** two-shop security tests prove one owner cannot upload, overwrite, read or delete another shop's object by guessing shop or asset ID.
+- **LG-12:** normalized asset contains no EXIF GPS/metadata and uses the allowed output MIME/dimensions.
+- **LG-13:** stored object is private; public DTO leaks no storage key or permanent object URL; unauthorized direct object access fails.
+- **LG-14:** logo aspect ratio remains intact and neither item table nor QR/total/footer is obscured at normal/long bill lengths.
+
+**Tagline**
+- **TG-01:** null, empty and whitespace-only tagline normalize to NULL and omit the block.
+- **TG-02:** Bangla, English, mixed text and combining marks survive NFC normalization without visible corruption.
+- **TG-03:** exactly 80 grapheme clusters accepted; 81 rejected; byte ceiling independently enforced.
+- **TG-04:** HTML/script-looking text is rendered literally, not executed or interpreted as markup.
+- **TG-05:** disallowed control/bidi characters follow documented rejection rules; no silent truncation.
+- **TG-06:** changing tagline affects future invoices only; old snapshots and reprints remain identical.
+
+**Historical header integrity / rendering**
+- **HDR-01:** issue transaction captures profile revision and exact logo/tagline values atomically with invoice facts.
+- **HDR-02:** profile changes immediately after issue do not alter invoice preview, public bill, PDF or print.
+- **HDR-03:** asset replacement/deletion request cannot remove object bytes referenced by issued invoices.
+- **HDR-04:** missing asset or digest mismatch raises a controlled integrity error; current profile is never substituted.
+- **HDR-05:** same invoice snapshot, font and renderer manifest produces identical visual/text content; any byte-hash guarantee is tested separately.
+- **HDR-06:** concurrent profile edit and invoice issue resolve to one complete profile revision, never a mixture of old and new header fields.
+
+## J. Schema/API impact and change-impact matrix
+
+All entries are design proposals; no SQL, migrations, storage bucket or runtime service was created.
+
+| Area | Current checked-in source evidence | Proposed impact | Migration / release implication |
+|---|---|---|---|
+| `shops.shop_type` | Exists; controlled CHECK set `grocery/pharmacy/food/salon/general` | Reuse as generator input | No new field. Taxonomy expansion requires PM/PO and migration review |
+| `shops.logo_url` | Exists; nullable URL-like field | Deprecate as authoritative state; maintain compatibility during transition | Backfill/legacy classification needed; do not overwrite blindly |
+| Logo mode | No explicit mode observed in checked-in schema | Add controlled `logo_mode` | Additive schema change; legacy null/unconfigured treatment and backfill plan required |
+| Logo asset metadata | No asset registry observed | Add private `shop_assets` logical table/record or equivalent immutable object metadata | Table/storage policy and retention design require separate review |
+| Object storage | No logo storage contract verified in source | Private bucket/container, random immutable object keys, version/digest | Storage config, policies, processing service and retention are new infrastructure |
+| Tagline | No tagline field observed in `shops` snapshot | Add nullable `tagline TEXT` | Additive column; existing values NULL; no default text |
+| Profile concurrency | No revision token identified in inspected schema | Optional `profile_revision` to prevent stale form writes and ensure issue captures one profile version | Additive field or equivalent optimistic-concurrency token |
+| Invoice snapshot | Invoice schema is proposed, not implemented in pinned source | Add immutable header JSON/schema version plus logo asset reference/digest and tagline snapshot | Include before first invoice migration where possible; later rollout must not retrofit old invoices |
+| Invoice services | Invoice APIs/RPCs not present in pinned source tree | Narrow owner-authenticated upload/finalize/select/regenerate/tagline update contracts; issue uses single profile revision snapshot | New server-side authorization and audit; no broad client table access |
+| Public DTO | v0.2 defines explicit allow-list | Add snapshot tagline and safe same-origin logo/document media; never reveal storage internals or shop_type | Must preserve token-before-lookup, revocation and no-store rules |
+| PDF/render | v0.2 local Bengali font and pinned renderer proposal | Render resolved immutable logo and optional tagline from same semantic InvoiceDocument | Requires local font/hash, renderer digest, asset reproducibility and CH-4 visual evidence |
+| Historical invoices | v0.2 immutable facts/lines | Extend immutable header snapshot and asset retention | Old invoice must remain as originally issued; current profile never used to reconstruct it |
+
+### J.1 Physical model choice still required
+
+Preferred design is a typed, versioned immutable `header_snapshot` JSON object on invoice plus an immutable `shop_assets` record/object. This reduces a long set of scalar columns while retaining a strict schema:
+- `snapshot_schema_version`;
+- `shop`: name/address/phone/map URL;
+- `logo`: mode, asset UUID/version/digest, media/dimensions, generator/template metadata, or explicit BLANK;
+- `tagline`: NFC string or null.
+
+CH-1/CH-4 must decide whether to adopt the JSON snapshot or scalar immutable columns before physical migration design. Either model must be immutable, canonicalizable, digestible and independently testable.
+
+## K. Security and release risk register
+
+| ID | Severity | Risk / failure mode | Required control / closure evidence | Blocks |
+|---|---|---|---|---|
+| LG-R01 | MAJOR | SVG/script/external-resource upload executes or leaks data | SVG rejected; raster decode/re-encode; hostile corpus negative tests | Logo upload release |
+| LG-R02 | MAJOR | Tenant object ID/path guessing exposes or overwrites another shop logo | Private bucket, random IDs, owner checks, storage policy negative tests | Upload/public render release |
+| LG-R03 | MAJOR | Decompression bomb, malformed image, polyglot or oversized content exhausts decoder | Strict limits, magic-byte sniff, resource-limited decode, canonical re-encode | Upload release |
+| LG-R04 | MAJOR | Mutable `logo_url` or object overwrite changes historical invoice | Immutable asset versions, digest and retention/GC reference checks | Historical invoice/PDF release |
+| LG-R05 | MAJOR | BLANK treated as null/unconfigured and generated placeholder appears | Explicit `logo_mode`; state invariants; blank regression tests | Logo release |
+| LG-R06 | MAJOR | Shop name/type edit silently changes generated logo or type inferred incorrectly | Controlled persisted shop_type; owner preview/confirmation; generator version pin | Generated logo release |
+| TG-R01 | MAJOR | Tagline interpreted as HTML/script/unsafe markup | Plain text only, context-sensitive escaping, no raw HTML/SVG interpolation | Tagline release |
+| TG-R02 | MINOR | Unicode grapheme counting/truncation corrupts Bangla combining marks | NFC + grapheme segmentation; test corpus; reject rather than truncate | Tagline release |
+| HDR-R01 | BLOCKER | Reprint/public page uses current profile rather than issued header snapshot | Invoice issue captures atomic immutable header revision and asset version; historical reprint tests | Invoice release |
+| HDR-R02 | MAJOR | Old asset deleted while historical invoices still reference it | Referential retention / mark-and-sweep only when unreferenced and retention permits | Historical PDF release |
+| HDR-R03 | MAJOR | Concurrent profile update produces mixed logo/tagline/header fields in one invoice | Profile revision lock/snapshot transaction; concurrent issue/edit tests | Invoice issue release |
+| PDF-R01 | MAJOR | Preview/PDF/print render different logo or tagline versions | One semantic document projection and fixed renderer/font artifacts | PDF release |
+| PDF-R02 | MAJOR | Logo/tagline causes header overflow, overlaps QR/footer or clips Bangla | Bounded aspect ratio, grapheme-safe wrap, pagination/visual evidence | PDF/print release |
+| PDF-R03 | MAJOR | Byte-level PDF differs due timestamps despite same snapshot | Normalize metadata or claim visual/text reproducibility only; CH-4 compare content/visual hashes separately | Deterministic PDF claim |
+
+## L. CH-4 independent evidence package (future, NOT EXECUTED)
+
+CH-4 should receive:
+1. Exact revised PR #28 HEAD and v0.3 document blob.
+2. Exact CH-2 revised UX commit/blob containing logo/tagline screen and state behavior; do not use an unpinned moving branch.
+3. Schema snapshot identity and proposed logical schema change table; no live DB assertions.
+4. Sanitized positive and hostile raster fixture corpus with test manifest/hashes, created only under later authorized QA scope.
+5. Generated logo fixture vectors: Bengali names, English names, mixed script, blank, missing/unknown shop type and generator-version changes.
+6. Tagline fixture corpus: 0, 1, 80, 81 grapheme clusters; NFC/NFD; combining marks; HTML-like text; control/bidi edge cases.
+7. Historical header snapshot fixtures: upload replacement, blank state, generated regeneration, profile edits, concurrent issue/edit, missing asset and digest mismatch.
+8. PDF manifest with font binary/license/hash, renderer/container digest, invoice template version and sample output hashes.
+9. Storage authorization evidence: owner access, cross-tenant denial, no public bucket/object access, upload body/dimension/format rejection and cleanup retention behavior.
+10. Exact test commands/results and environment only after separate PM QA authorization. Until then every item is a proposed evidence requirement, not a pass.
+
+## M. PO/PM/CH-2 decision and coordination register
+
+| ID | Owner | Decision / clarification | Current status |
+|---|---|---|---|
+| PM-LOGO-01..07 | PM / CH-1 / CH-2 | Confirm logo states GENERATED/UPLOADED/BLANK, default for new/existing shops, explicit preview/selection, regeneration behavior and blank semantics | PM requirement received; UX and CH-1 confirmation pending |
+| PM-TAG-01..04 | PM / CH-1 / CH-2 | Confirm optional Bangla/English tagline; max 80 grapheme clusters; blank/null behavior; placement/wrapping | PM requirement received; max 80 remains proposed pending UX confirmation |
+| PM-HDR-01/02 | PM / PO | Confirm issued invoice permanently preserves logo selection/asset and tagline at issue; later profile changes apply to future invoices only | Technically recommended; explicit PO confirmation requested |
+| LOGO-TYPE-01 | PM / CH-2 | Confirm source for shop type and whether current controlled taxonomy is adequate for the Invoice-First food-store experience | Existing checked-in schema has shop_type; UX control and taxonomy not confirmed |
+| LOGO-DEFAULT-01 | PM / CH-2 | For new shop, should owner receive generated preview by default, or must they choose GENERATED/UPLOADED/BLANK? For legacy shops, preserve no-logo until owner choice | PENDING |
+| LOGO-UPLOAD-01 | PM / CH-1 | Approve proposed raster allow-list and engineering limits (JPEG/PNG, 2 MiB, 2048×2048, 4.19 MP) | Engineering proposal; UX/security review required |
+| TAG-LIMIT-01 | PM / CH-2 | Confirm whether “80 characters” means Unicode grapheme clusters (recommended), and decide any multiline behavior | PENDING |
+| HDR-RET-01 | PO / PM | Confirm retention expectations for old uploaded/generated assets while any invoice snapshot references them, plus shop deletion/legal retention policy | PENDING |
+| HDR-PUBLIC-01 | PO / CH-2 | Confirm tagline and logo appear on valid public bill page as part of invoice header; revoked/expired states follow existing disclosure gate | PENDING |
+| CH2-CROSSWALK-01 | CH-2 | Update UX states/screens/acceptance criteria and publish exact GitHub HEAD/blob; resolve UX P2 thread and preserve UX-01..39 plus new IDs | PENDING; no future SHA assumed |
+
+**Issue #31 status:** the current PO-response table still marks PO-02, PO-04, PO-05, PO-06, PO-11, PO-12, PO-I11 and PO-I06A as PENDING. This addendum does not change those decisions or imply any response. Logo and tagline are new requirements and must be added to a controlled PO/PM decision record only by the authorized owner.
+
+## N. PR #32 AC-10 coordination
+
+CH-1 has separately assigned the AC-10 correction to the existing PR #32 branch and supplied exact replacement wording in PR #32 comment `6765449022`. The correction states that Phase A1 must not introduce, extend, refactor, regress or otherwise change non-A1 features; existing memo/PDF, WhatsApp, stock, customer-ledger and Master QR flows may remain present exactly as at the baseline; acceptance is judged by no A1 diff/regression in those flows, not by their absence.
+
+CH-1 owns that governance-branch change. This CH-3 technical design addendum does not edit PR #32 or duplicate its authority register. CH-3 treats the exact CH-1 instruction as coordination evidence; completion remains for CH-1 to verify.
+
+## O. Existing v0.2 controls retained unchanged
+
+This addendum does not weaken or replace:
+- invoice/line immutability and append-only lifecycle/audit contracts (§4);
+- transactional per-shop bill numbering and lock order (§5);
+- canonical idempotency, same-key replay and unknown-outcome recovery (§6);
+- BDT numeric bounds, per-line rounding and golden vectors (§7);
+- versioned HMAC, key ID, expiry, revocation and token-before-lookup (§8);
+- public DTO, tenant isolation, no-store/CDN/log/referrer/CSP/rate limits (§9);
+- online-only issue/verification boundary (§10);
+- Bengali font provenance, pinned renderer, pagination and QR controls (§11);
+- menu policy authority gap (§12);
+- WhatsApp fallback and persisted data source (§13);
+- PO/UX/technical/test traceability (§14);
+- acceptance IDs AT-TOK/DB/PUB/IDEM/FIN/PDF/MENU/OFF/UX/SHARE (§15);
+- PO decision gates (§16), planning-only sequence (§17), CH-4 mapping (§18) and no-authorization statements (§19–20).
+
+## P. Updated technical release gates
+
+Before logo/tagline can ship:
+1. CH-2 must publish the exact revised UX specification with logo states, owner workflows, defaults, failures, 80-grapheme interpretation, preview and accessibility criteria.
+2. CH-1 must accept the revised technical design at the exact commit/blob.
+3. PM/PO must decide logo default, shop-type taxonomy use, historical header promise and public/revoked display treatment.
+4. Physical migration/storage architecture must be reviewed separately; never infer the checked-in `logo_url` field is sufficient.
+5. Upload pipeline must reject SVG and all unrecognized/malformed formats; only normalized safe raster output is stored.
+6. Storage policies and cross-tenant isolation must be independently verified.
+7. Invoice issue must atomically snapshot profile revision, logo state/asset digest and tagline.
+8. Font and renderer artifacts must be pinned and verified; CH-4 must confirm Bengali text and visual consistency across preview/PDF/print.
+9. Retention policy must prevent garbage collection of any asset referenced by an issued invoice.
+10. All LG/TG/HDR/PDF acceptance scenarios remain PROPOSED / NOT EXECUTED until separately authorized QA execution.
+
+## Q. Final CH-3 disposition
+
+The proposed approach is technically feasible without an external AI/logo service and without introducing a new shop-type field in the current checked-in schema snapshot. It does require explicit persisted logo state, immutable asset identity/storage, an optional nullable tagline field and invoice-header snapshot expansion. The existing `logo_url` is insufficient to express explicit BLANK and reliable historical asset identity. SVG upload is rejected for the initial MVP; raster upload must be decoded, normalized and re-encoded on a trusted server boundary. Generated logo must be deterministic, versioned and explicitly selected by the owner. Tagline is plain optional text, never generated, normalized to NFC and escaped at rendering. Issued invoices must retain the exact header snapshot and asset bytes/version; profile changes affect future invoices only.
+
+No live schema or database statement is made. No SQL, migration, code, storage bucket, API, dependency, build, test, PDF render or QA was executed.
+
+**Implementation authorization: NOT GRANTED.**  
+**QA execution authorization: NOT GRANTED.**  
+**PR merge authorization: NOT GRANTED.**  
+**Deployment / pilot: NOT AUTHORIZED.**
