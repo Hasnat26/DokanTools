@@ -7,10 +7,10 @@
 **Technical PR:** #33 (successor candidate; PR #28 preserved as historical)  
 **Prior design:** v0.1 at `ec67f403a625acea195c7913d23e7a69254c5ecc` (preserved unchanged)  
 **UX input:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
-**Independent assurance input:** CH-4 final report PR #34 HEAD `de39c00432ac1267e37601c01b2d9b83eda2f670`, blob `1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7`, report ID `DT-MVP-CH4-STATIC-ASSURANCE-2026-11-10-01`; frozen manifest ID `DT-MVP-CH4-FROZEN-2026-11-10-01`, content SHA-256 `f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561  
+**Independent assurance input:** CH-4 final report PR #34 HEAD `de39c00432ac1267e37601c01b2d9b83eda2f670`, blob `1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7`, report ID `DT-MVP-CH4-STATIC-ASSURANCE-2026-11-10-01`; frozen manifest ID `DT-MVP-CH4-FROZEN-2026-11-10-01`, content SHA-256 `f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561`  
 **Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2 / v0.4.0 / v0.4.1  
 **Current cross-document UX:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
-**Status:** CONSOLIDATED TECHNICAL DESIGN CANDIDATE v0.4.0 — CH-1 re-freeze and final review required  
+**Status:** CONSOLIDATED TECHNICAL DESIGN CANDIDATE v0.4.1 — CH-1 re-freeze and final review required  
 **Scope:** Design documentation only  
 **Implementation authorization:** NOT GRANTED  
 **Runtime verification:** NOT PERFORMED
@@ -223,11 +223,11 @@ The counter-row insertion race is serialized by the PK conflict. The row lock se
 
 For invoice creation, use one order everywhere:
 1. Authenticate and derive owner identity from the verified session; validate UUID syntax and canonicalize without registry access.
-2. Begin transaction; lock/read requested-shop ownership and authorize caller for that exact shop. If unauthorized, rollback/no writes and return ordinary authorization denial before registry comparison, without UUID/owner/shop/invoice/number disclosure.
+2. Begin transaction; lock the requested shop/profile row FOR SHARE and verify the authenticated owner against that exact shop while holding the lock through commit. If unauthorized, rollback/no writes and return ordinary authorization denial before registry comparison, without UUID/owner/shop/invoice/number disclosure. Capture the single profile_revision under this lock.
 3. Atomically INSERT the identity claim under PRIMARY KEY (`idempotency_namespace`, `request_id`) using `invoice-create/v1`. On collision, wait for the competing transaction, then compare only inside the private create RPC.
 4. Compare namespace, authenticated owner, requested shop, operation, canonicalization version and payload hash. Exact complete match permits replay after invoice owner/shop confirmation. Any mismatch is generic `IDEMPOTENCY_CONFLICT`; no bill number or side effects. Incomplete committed state fails closed for reconciliation.
-5. Only the transaction inserting the new claim locks the per-shop counter, allocates a bill number, and inserts invoice, lines, issued event and audit.
-6. Update result reference/completion and commit claim, counter, invoice, lines, audit and completion atomically. Roll back every write on error; a losing contender never reaches number allocation.
+5. Only the transaction inserting the new claim locks referenced immutable shop-asset metadata rows FOR SHARE in deterministic asset_id order; verify owner, READY state, durable object version/digest and that no deletion is pending. Capture the header snapshot from the locked profile_revision. Then lock the per-shop counter, allocate a bill number, and insert invoice, header snapshot, lines, issued event and audit.
+6. Update result reference/completion and commit claim, counter, invoice, header snapshot, lines, audit and completion atomically. Roll back every write on error; a losing contender never reaches number allocation.
 
 **Canonical lock order:** shop ownership/profile row → composite identity arbitration/registry row → referenced shop-asset metadata rows (sorted by asset_id) → per-shop counter → invoice/lines → lifecycle/audit rows → registry completion. Authenticate first; inside the transaction lock the requested shop/profile row FOR SHARE, verify owner and hold the lock through commit. Only then arbitrate the idempotency key. On a new claim, lock each referenced immutable asset metadata row FOR SHARE in deterministic order; verify owner, READY state, immutable object version/digest and durable object existence; read all header fields/references from the one locked profile_revision. Then lock the counter and insert invoice/header snapshot/lines/events/audit and complete the registry. A replay returns the original stored invoice/snapshot and never rebuilds a header from the current profile. A conflict allocates no number and writes no side effects.
 
@@ -1278,7 +1278,8 @@ Alternative storage design: put immutable header JSON snapshot on invoice row, p
 ### G.2 Services and API boundaries
 
 Proposed authenticated owner operations:
-- `update_shop_logo_selection(shop_id, mode, asset_id?, expected_profile_revision)`: supports explicit BLANK and valid UPLOADED selection only; validates owner, state/asset consistency and profile revision; creates audit event; never accepts arbitrary URL. Clearing BLANK resolves to GENERATED without a separate Generated opt-in.
+- `update_shop_logo_selection(shop_id, mode, asset_id?, expected_profile_revision)`: supports explicit BLANK and valid UPLOADED selection only; validates owner, state/asset consistency and profile revision; creates audit event; never accepts arbitrary URL.
+- `clear_logo_blank(shop_id, expected_profile_revision)`: explicit owner action to clear BLANK; after clearing, GENERATED resolves by default if no valid upload exists; no separate Generated opt-in or preview confirmation.
 - `create_logo_upload_intent(shop_id, file_metadata)`: reserves one short-lived upload attempt and returns restricted upload authorization only after owner check.
 - `finalize_logo_upload(shop_id, upload_id)`: server-side inspect/decode/re-encode/hash and durable private object write; then locks the shop profile and atomically sets UPLOADED pointer after revision/asset checks.
 - `preview_generated_logo(shop_id)`: optional read-only preview of deterministic output for the current profile revision; no state mutation and no confirmation requirement.
@@ -1606,7 +1607,7 @@ Source: PR #30 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b907
 |---|---|---|---|
 | UX-40 | Generated default when no upload/explicit Blank | §§B.1–B.3, C.4, R.3 | LG-08, HDR-01 |
 | UX-41 | Generated uses current name/category; preview regenerates on changes | §§C.1–C.4, R.4 | LG-10–12 |
-| UX-42 | Generated preview before invoice use | §§C.4, R.3; preview not an opt-in gate | LG-08, LG-12 |
+| UX-42 | Generated preview available before invoice use | §§C.4, R.3; preview is informational and not a mandatory opt-in gate under CH-1; CH-2 must clarify UX wording | LG-08, LG-12 |
 | UX-43 | Uploaded priority | §§B.1–B.3, R.3 | LG-01–03, LG-09 |
 | UX-44 | Replacement retains current logo until successful | §§B.2, D.3 | LG-03, LG-07 |
 | UX-45 | Owner removes upload and chooses Generated or Blank | §§B.2, R.3 | LG-05, LG-06, LG-09 |
@@ -1632,7 +1633,7 @@ All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01.
 The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14 was accepted by CH-1 for CH-4 static design review under the frozen manifest. The composite-key, authorization-order, response-precedence and tombstone corrections remain accepted design history. This v0.4.1 revision adds profile/asset lock ordering, outbox privacy, generated-logo service semantics and final CH-4 finding responses; it is a new artifact and must be re-frozen by CH-1. No implementation or QA authorization follows from the prior review acceptance.
 
 
-## R.11 v0.3.2 controlled correction summary
+## R.11 Historical v0.3.2 controlled correction summary
 
 - Canonical key: `PRIMARY KEY (idempotency_namespace, request_id)`; request_id is not independently primary/unique.
 - Namespace: `invoice-create/v1`; shop and operation are comparison attributes; invoice-creating operations in this API family share this namespace.
