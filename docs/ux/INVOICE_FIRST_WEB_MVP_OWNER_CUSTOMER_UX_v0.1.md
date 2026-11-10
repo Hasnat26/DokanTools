@@ -10,8 +10,8 @@
 - `docs/decisions/PO_CONFIRMED_INVOICE_MOCKUP.md` — blob `efe0d261c50a4cfc706e82c832a6f052c676127c`
 
 **Technical design reviewed:** PR #28, document `docs/design/INVOICE_FIRST_WEB_MVP_TECHNICAL_DESIGN_v0.1.md`, review target HEAD `ec67f403a625acea195c7913d23e7a69254c5ecc`, blob `10f795ddfc24b0d3eab204b8006379616ab2ec13`.  
-**Document version:** 0.2  
-**Status:** UPDATED SUBMISSION — CH-1 / CH-4 REVIEW REQUIRED  
+**Document version:** 0.3  
+**Status:** UPDATED SUBMISSION v0.3 — FINAL UX ASSURANCE REMEDIATION; CH-1 / CH-4 RE-REVIEW REQUIRED  
 **UX disposition of PR #28:** **ACCEPT WITH CONDITIONS**  
 **Implementation authorization:** NOT GRANTED
 **Additional PM-directed UX scope:** Shop Logo Management and Optional Shop Tagline
@@ -20,7 +20,7 @@
 
 ## 1. Purpose, authority and boundaries
 
-**Revision 0.2 scope:** resolve the open PR #30 P2 menu-lifecycle classification finding; add Shop Logo Management and Optional Shop Tagline UX; preserve UX-01–UX-39 identifiers and intent. This is an in-place revision of the existing v0.1 document on the same PR branch.
+**Revision 0.3 scope:** consolidated UX assurance remediation against frozen CH-4 manifest `DT-MVP-CH4-FROZEN-2026-11-10-01`; preserve UX-01–UX-64 identifiers and history; clarify actor/state/outcome, recovery, logo/category/tagline behavior, PO gates and test traceability. This is an in-place revision of the existing document and PR #30 branch.
 
 **Current review evidence:**
 - PR #30 pre-revision HEAD: `ca8324005048148b8d82c5151528ea41a2aa8a5a`.
@@ -809,3 +809,238 @@ All acceptance criteria above are proposed future test cases, not test results.
 
 **Revision 0.2 submitted by:** CH-2 — Product & UX Lead  
 **Submitted to:** CH-1 — Project Lead & Chief Reviewer
+
+
+---
+
+# Controlled Addendum v0.3 — Final UX Assurance Remediation
+
+**Frozen review basis**
+- PR #30: HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`; UX blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`.
+- PR #33: HEAD `898c834c30ec84599a6fa7c333d3da18ca235c30`; technical blob `9a1753d3bcba680961b39b91e320d1f59d70cd14`.
+- PO mockup blob `efe0d261c50a4cfc706e82c832a6f052c676127c`, baseline `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`.
+- CH-4 manifest `DT-MVP-CH4-FROZEN-2026-11-10-01`, Issue #27 comment `6766702882`.
+- PO register: Issue #31. No PO-authored approval was found in the retrieved history; CH-1 proposals remain proposals.
+
+This addendum controls where it clarifies or supersedes v0.2 wording. It preserves v0.1/v0.2 history, does not alter PO-confirmed invoice fields, and grants no implementation or QA authorization.
+
+## 15.1 CH-4 UX finding disposition
+
+| Finding | Severity | Frozen evidence | v0.3 disposition | Status |
+|---|---|---|---|---|
+| CH4-UX-01 Generated-logo preview confirmation | MAJOR | O-01A/UX-40..50 made Generated default and preview, but did not require separate confirmation. | CH-1's later instruction in PR #30 comment `6766054872` explicitly says Generated remains default and preview is informational, not an opt-in gate. v0.3 makes this explicit; a confirmation gate would contradict the later decision. | **REJECTED AS DEFECT / SUPERSEDED** |
+| CH4-UX-02 Adversarial upload matrix | MAJOR | O-01A/UX-51..53 lacked MIME/extension mismatch, SVG/active content, polyglot, animated, zero-byte, decoded-pixel and decompression cases. | §15.3 and UX-67 specify negative cases, recoverable outcomes and traceability to PR #33 §§D.1–D.3, LG-07/LG-13. Numeric limits remain proposals. | **FIXED AT UX LEVEL; TECH/PO GATES REMAIN** |
+| CH4-UX-03 Logo precedence | MINOR | Uploaded priority and Blank suppression were stated separately without one deterministic resolver. | §15.2 establishes one resolver: Explicit BLANK > Valid UPLOADED > GENERATED default; selected but missing/corrupt Uploaded never silently falls back. | **FIXED** |
+| CH4-UX-04 Tagline Unicode/control/XSS | MAJOR | O-01B/UX-54..58 did not define markup, NFC, grapheme, bidi/control or line-break behavior. | §15.4 defines plain text, contextual escaping, NFC proposal, proposed 80-grapheme gate, validation and recovery; mapped to PR #33 §E/TG-01..06. | **FIXED AT UX LEVEL; POLICY GATED** |
+| CH4-UX-05 Historical header | MAJOR | UX-61/62 left snapshot/latest-profile choice PO-gated; PR #33 §F proposes snapshots, but PO-L02/retention remain pending. | §15.5 preserves snapshot-at-issue as recommendation only; no customer promise until PO-L02 and retention decisions. | **PO-GATED; NOT PRODUCT-CLOSED** |
+| CH4-UX-06 Shop-type exceptional state | MINOR | Schema note says shop_type NOT NULL, while “missing type” wording did not distinguish unsupported legacy value from missing DB value. | §15.2 clarifies DB-null is not assumed; legacy values are not approved taxonomy or proof of explicit owner selection. | **FIXED** |
+| Tagline/logo independence | Observation | UX-53/56/59 stated independence but lacked paired transition tests. | §15.4 adds logo-only/tagline-only and failed-update preservation tests. | **FIXED** |
+
+The CH-4 register was preliminary/staging evidence; v0.3 is CH-2 remediation, not a signed CH-4 final acceptance.
+
+## 15.2 Logo resolver and explicit category selection
+
+### Deterministic resolver
+
+Apply this order in every screen, preview, customer page, PDF and print renderer:
+
+1. **Explicit BLANK** — no logo, mark, icon, generated asset or placeholder.
+2. **Valid UPLOADED** — selected, owner-authorized, validated immutable raster asset.
+3. **GENERATED default** — when no valid upload is selected and owner has not explicitly selected BLANK.
+
+Do not infer mode from `logo_url IS NULL`. A selected UPLOADED asset that is missing, corrupt, unreadable or digest-invalid remains an UPLOADED error; it never silently falls through to Generated. Owner recovery: retry retrieval, replace upload, or explicitly choose Generated/Blank. BLANK always wins even if an upload exists.
+
+Generated is the default without separate opt-in. UX-42 preview is informational, not a confirmation gate. Generation failure shows an actionable error/retry; it must not silently become BLANK or a placeholder.
+
+### Category must be explicitly selected
+
+- The pinned schema has non-null `shops.shop_type` with legacy controlled values. This proves the field/legacy values exist in that source snapshot; it does not prove they are the approved Invoice-First taxonomy or that a legacy value is an explicit owner selection for logo generation.
+- Never infer category from shop name, tagline, address, menu or invoice activity. Never silently default to `food` or another category.
+- PO-L01 is pending. Recommendation: a short PO-approved controlled list, explicitly selected by the owner. Free-text and automatic inference are not recommended.
+- A category is selected only when the owner actively chooses a value from the PO-approved list and that selection is persisted. Unsupported legacy values are not valid selections; do not relabel or expose them as the new list.
+- If no approved category is selected, Generated mode remains the default mode but its category-dependent asset is unresolved. Show “লোগো তৈরি করতে দোকানের ধরন নির্বাচন করুন”; do not emit a category-specific mark.
+- While PO-L01 is deferred, category-dependent Generated output is unavailable. Owner may upload a valid logo or explicitly choose BLANK. If Generated remains selected, show the unresolved state. A category-neutral wordmark is allowed only after explicit CH-1/PM approval; it is not silently substituted.
+- A missing DB value is not assumed because the pinned schema declares shop_type NOT NULL. The UX state is “no owner-confirmed approved category” or “unsupported legacy category”, not a presumed nullable DB field.
+
+### Upload error/recovery contract
+
+The selected logo remains active until replacement is fully validated and durably saved. Failure preserves old mode/asset and tagline. Untrusted original bytes are never rendered.
+
+| Negative case | Required outcome | Owner recovery |
+|---|---|---|
+| File extension/MIME disagrees with signature | Reject; explain format mismatch; retain current selection | Choose a genuine supported image |
+| Unknown/unsupported format | Reject; do not preview or replace | Select approved raster |
+| SVG/XML, HTML, PDF, archive or active/document content | Reject; never execute/render | Select supported raster |
+| Zero-byte, truncated, corrupt, malformed, polyglot or animated file | Reject after trusted decode; preserve old logo | Choose valid static image |
+| Compressed-byte limit exceeded | Reject before full processing | Resize/re-export and retry |
+| Decoded width/height/pixel/decompression limit exceeded | Controlled rejection; preserve old logo | Use smaller image |
+| Timeout, storage failure or profile commit failure | Old mode/asset/tagline remain active; no false success | Retry/status-check or choose another image |
+| Missing/corrupt asset during preview/PDF/print | Integrity/unavailable state; no fallback substitution | Retry, replace or explicitly change mode |
+| Owner cancels file picker | No state change and no false error | Continue with current selection |
+
+PR #33 §D proposes JPEG/PNG; WebP only if verified end-to-end; reject SVG/animated formats; 2 MiB compressed, 2048×2048 dimensions and 4,194,304 decoded pixels. These are technical proposals for review, not PO-approved or implemented limits. UI must not claim enforcement until CH-1/PM/CH-3 adopt exact values.
+
+## 15.3 Tagline text safety and Unicode
+
+- Optional, blank-valid, owner-authored only. No auto-generation, suggestion, translation, paraphrase or replacement.
+- Treat as plain text, never HTML/Markdown. Escape in every output context (web, SVG, PDF/HTML template). Literal text such as `<img src=x onerror=alert(1)>` must render as text and never execute, create markup, alter CSS or create a link.
+- NFC normalization is a proposed technical contract. Do not transliterate, case-fold, title-case or silently rewrite visible text. Empty/whitespace-only input may normalize to blank/NULL only under the adopted contract.
+- Proposed maximum: **80 Unicode grapheme clusters after NFC**, not bytes, UTF-16 code units or code points. It is not an active hard limit until PO-L04/PM approves it. If approved, use grapheme-aware count, show a counter and reject over-limit without truncation while preserving attempted text. If deferred, do not impose 80 as a hidden limit.
+- Recommended control policy for CH-1/CH-3 review: single-line field; reject CR/LF, NUL and non-printing controls, and reject bidi override/isolate controls unless a safe policy is approved. Show an actionable error and preserve attempted text; never silently strip/reorder. This is a recommendation, not a PO decision.
+- Bangla, English and mixed script must wrap without clipping in owner preview and approved customer/PDF/print surfaces. Bengali conjuncts, reph, kar/phalā and combining marks must not split or clip. Emoji/other scripts are not promised until the pinned font/fallback stack is verified; unsupported glyphs must not be silently dropped.
+- Failed tagline save preserves prior saved tagline and logo mode/asset. Tagline-only save cannot change logo; logo-only save cannot change tagline.
+
+## 15.4 Full UX-01–UX-64 actor/state/outcome assurance matrix
+
+Each row is a proposed static acceptance case, not an executed test. Actor, trigger, state/outcome and recovery are explicit.
+
+| Test / criterion | Actor + action | State / required outcome and recovery |
+|---|---|---|
+| UXAT-01 / UX-01 | Owner opens first-time setup | No profile → required form; save failure preserves fields and allows retry |
+| UXAT-02 / UX-02 | Owner enters name/address/mobile/Maps | Labels and invoice mapping visible; invalid field identified |
+| UXAT-03 / UX-03 | Owner submits incomplete profile | Block save; field-level error; retain valid inputs; correct and resubmit |
+| UXAT-04 / UX-04 | Owner saves during network failure | No false success; retain form; retry/status-check before duplicate create |
+| UXAT-05 / UX-05 | Owner edits profile after bill issue | State that old-bill effect follows PO-L02; no unsupported history promise |
+| UXAT-06 / UX-06 | Owner opens menu | Menu-only UI; no stock/purchase/supplier/inventory controls |
+| UXAT-07 / UX-07 | Owner views menu while PO-06 pending/approved | Pending: neutral gated state; approved: only approved fields/actions |
+| UXAT-08 / UX-08 | Owner opens menu list | No active/inactive tabs, filters or labels unless PO-06 approves |
+| UXAT-09 / UX-09 | Owner inspects lifecycle actions | Pending: no deactivate/reactivate/delete/archive/restore controls |
+| UXAT-10 / UX-10 | Owner views empty/search menu | Accurate no-item/no-result state; clear search; no invented lifecycle state |
+| UXAT-11 / UX-11 | Owner saves menu entry; network fails | Preserve values; check outcome before retry; no duplicate menu record |
+| UXAT-12 / UX-12 | Owner adds eligible item | One valid line; eligibility only from PO-06; no unresolved/ineligible item |
+| UXAT-13 / UX-13 | Owner reviews draft | Every line/total visible; edit returns without losing draft |
+| UXAT-14 / UX-14 | Owner reviews invoice fields | No discount/tax/paid/due/change/payment/customer/inventory fields |
+| UXAT-15 / UX-15 | Owner double-taps or submits same draft in two tabs | Same request identity/payload yields one invoice/number; repeat action returns canonical result |
+| UXAT-16 / UX-16 | Owner loses network after submit | Unknown state; query same request; retry exact same identity/payload only |
+| UXAT-17 / UX-17 | Owner opens successful result/history | Persisted bill number/date/time; re-open returns same invoice, no new issue |
+| UXAT-18 / UX-18 | Owner edits menu/profile after issue | Invoice uses persisted snapshots; header behavior remains PO-L02 gated |
+| UXAT-19 / UX-19 | Owner/customer views invoice | Every PO-confirmed field present; no invented fields |
+| UXAT-20 / UX-20 | Owner/customer views any invoice rendering | Exact heading/footer present as text |
+| UXAT-21 / UX-21 | Owner generates PDF/print | Engineering/PO-approved profile used; no unsupported paper-size promise |
+| UXAT-22 / UX-22 | Owner prints long bill | All lines preserved; paginate; no clipping/truncation |
+| UXAT-23 / UX-23 | Customer scans bill QR | Bill-specific QR resolves only to its own bill reference |
+| UXAT-24 / UX-24 | Owner compares preview/PDF/print | Persisted invoice values match; logo/tagline parity conditional on PO-L02 |
+| UXAT-25 / UX-25 | Font/QR/print fails | No false print/download success; retry and Copy link fallback |
+| UXAT-26 / UX-26 | Owner opens WhatsApp share | Message uses persisted bill values and exact bill URL only |
+| UXAT-27 / UX-27 | Owner cancels/fails share | Bill unchanged; Copy message/link, native share and print remain |
+| UXAT-28 / UX-28 | Owner shares bill without customer record | Share works without customer name/phone/account |
+| UXAT-29 / UX-29 | Customer opens valid public link | No login; allow-listed DTO only after server verification |
+| UXAT-30 / UX-30 | Customer scans shop promo QR | Not represented as bill verification; no invoice data |
+| UXAT-31 / UX-31 | Customer opens invalid/revoked/expired-if-enabled/offline link | Distinct truthful state; no verified details; transient retry or contact shop/sender |
+| UXAT-32 / UX-32 | Customer opens link while check pending | No bill content shown as verified before server success |
+| UXAT-33 / UX-33 | Customer reads positive status | “বিলটি DokanTools রেকর্ডে যাচাইকৃত” means record match only; never payment/delivery |
+| UXAT-34 / UX-34 | Customer inspects public page | No PII, ledger, stock, other bills, credentials or internal IDs |
+| UXAT-35 / UX-35 | Owner uses 320 CSS px viewport | No horizontal scroll; sticky action does not cover last line |
+| UXAT-36 / UX-36 | Owner taps primary controls | ~44×44 CSS px where practical; no hover-only critical action |
+| UXAT-37 / UX-37 | Owner enters form values | Persistent labels, correct keyboard, associated errors, logical focus |
+| UXAT-38 / UX-38 | Owner/customer zooms text | Status not color-only; Bangla readable, no clipped controls |
+| UXAT-39 / UX-39 | Owner encounters network-dependent screen | Explicit loading/empty/failure/offline state; preserve safe work; retry/status check |
+| UXAT-40 / UX-40 | Owner has no valid upload and no explicit Blank | Generated resolves by default; no opt-in required |
+| UXAT-41 / UX-41 | Owner changes name/explicit category in Generated mode | Preview refreshes from saved inputs; history follows PO-L02 only |
+| UXAT-42 / UX-42 | Owner inspects Generated preview | Informational preview; not a mandatory confirmation gate |
+| UXAT-43 / UX-43 | Owner uploads valid logo | Valid Uploaded wins; old selection remains until replacement commit |
+| UXAT-44 / UX-44 | Owner replaces upload | Old asset remains active until new asset validates and saves |
+| UXAT-45 / UX-45 | Owner removes upload | Must explicitly choose Generated or BLANK |
+| UXAT-46 / UX-46 | Owner selects BLANK | All renderers omit logo/placeholder; Blank overrides stored upload |
+| UXAT-47 / UX-47 | Owner switches BLANK to Generated | Explicit action; category must be explicitly selected/approved or show unresolved state |
+| UXAT-48 / UX-48 | Owner regenerates logo | Generated version updates future profile output; never overwrites Uploaded |
+| UXAT-49 / UX-49 | Owner opens category selector | Pending: no invented options; approved: only PO-approved choices |
+| UXAT-50 / UX-50 | Owner has no explicitly selected approved category | No inference; Generated unresolved; owner may upload or explicitly choose Blank |
+| UXAT-51 / UX-51 | Owner selects unsupported file | Reject safely; old logo retained; valid raster can be selected |
+| UXAT-52 / UX-52 | Owner selects over-limit file | Reject before replacement; show adopted limit; resize/re-export/retry |
+| UXAT-53 / UX-53 | Upload times out/profile commit fails | Preserve prior mode/asset and tagline; status-check/retry |
+| UXAT-54 / UX-54 | Owner enters Bangla/English/mixed tagline | Owner text only; no generation, translation or rewriting |
+| UXAT-55 / UX-55 | Owner clears tagline | Blank valid; no placeholder/separator/empty line |
+| UXAT-56 / UX-56 | Owner edits tagline only | Tagline changes; logo mode and asset identity unchanged |
+| UXAT-57 / UX-57 | Owner enters text around proposed limit | Pending: no 80 hard limit; approved: NFC grapheme count, reject over-limit without truncation |
+| UXAT-58 / UX-58 | Owner/customer views mixed-script tagline | No clipping; font failure blocks success and offers retry; no silent glyph deletion |
+| UXAT-59 / UX-59 | Owner changes logo only, then tagline only | Each operation preserves the other field's value/asset identity |
+| UXAT-60 / UX-60 | Owner previews header before issue | Current profile header visible; no historical promise before PO-L02 |
+| UXAT-61 / UX-61 | Owner/customer reopens issued invoice | Same immutable header projection only after PO-L02 approval |
+| UXAT-62 / UX-62 | Owner edits logo/tagline after issue | Pending: no historical promise; approved policy applied consistently, never mixed silently |
+| UXAT-63 / UX-63 | Owner views logo in mobile/PDF | Aspect ratio preserved; no crop/stretch; Blank reflows without placeholder gap |
+| UXAT-64 / UX-64 | Renderer cannot load selected asset | Error/retry/replace/explicit mode change; no silent fallback |
+ 
+## 15.5 Additional assurance criteria
+
+| Criterion | Actor/action | State/outcome | Recovery/gate | Test |
+|---|---|---|---|---|
+| **UX-65 Empty bill** | Owner attempts review/issue with zero lines or removes last line | Review/issue disabled; no zero-line invoice; empty-state shown | Add a PO-eligible line | UXAT-65 |
+| **UX-66 Stale menu price/eligibility** | Owner composes while menu price/eligibility changes before issue | Authoritative check detects revision/price mismatch; issue blocked; draft preserved; no silent price substitution | Owner refreshes and explicitly reviews changed price/eligibility or removes line; exact price policy remains PO-06/technical-gated | UXAT-66; AT-MENU-05 + invoice validation |
+| **UX-67 Adversarial upload** | Owner uploads MIME/extension mismatch, SVG/XML, HTML/PDF, unknown, zero-byte, truncated, corrupt, polyglot, animated or decompression-bomb file | Trusted validation rejects; current logo/tagline preserved; untrusted bytes never rendered | Choose valid supported raster; exact limits/formats PO-L03/CH-3 gated | UXAT-67; LG-07/LG-13 |
+| **UX-68 Tagline safe text/Unicode** | Owner enters markup-like, NFC/NFD, combining, control/bidi or line-break text | Literal safe rendering; deterministic normalization/control handling; no silent rewrite; 80 limit only if approved | Owner corrects invalid input; previous saved value preserved; PO-L04/CH-3 gated | UXAT-68; TG-01..05 |
+| **UX-69 Explicit category** | Owner enters shop name without approved category selection | No inference; Generated unresolved; no category-specific mark | Explicitly select approved category, upload, or explicitly choose BLANK; neutral wordmark requires separate approval | UXAT-69; LG-10/LG-11 |
+| **UX-70 QR expiry/revocation** | Customer opens expired/revoked link, if policy enables that state | No details labelled verified; expiry/revoked state distinct; no invented duration | Contact shop/sender; replacement only if PO-12 permits; PO-11/12 gated | UXAT-70; AT-TOK-01..14/AT-PUB-05 |
+| **UX-71 Historical header/asset retention** | Owner changes/removes logo/tagline after issue | No historical promise until PO-L02/HDR-RET-01; after approval follow one policy and retain referenced assets | If deferred, no claim of historical public/PDF/print consistency; current-profile internal preview only | UXAT-71; HDR-01..06 |
+
+### Customer verification wording
+
+The only positive claim permitted here is **“বিলটি DokanTools রেকর্ডে যাচাইকৃত”**: the server matched the reference to an issued DokanTools record. It does not prove payment, delivery, receipt, fulfilment, food quality, tax compliance or legal certification. Do not show paid/delivered status in this MVP.
+
+Invalid, unavailable, integrity-failed, offline, expired (if expiry is approved) and revoked links are not verified. Revoked disclosure follows PO-11; expiry/replacement follows PO-12. Do not show bill details for invalid/expired/revoked links unless the exact PO-approved revoked disclosure allows specified fields.
+
+## 15.6 Pending PO decision matrix
+
+Recommendations below are CH-2 proposals, not approvals. “Deferred” means the conservative behavior remains and the affected capability is not represented as complete.
+
+| Decision | Exact question | Recommendation | If approved | If deferred | Capability |
+|---|---|---|---|---|---|
+| **PO-02** | Is Phase 1 online-only for issuance and customer verification, with IndexedDB only for unknown-outcome recovery? | Approve online-only | Issue/verify only with live server confirmation; offline draft is not a bill | Fail closed offline; no offline-sale/verification claim | Issue and public verification |
+| **PO-04** | What does customer-facing “মূল্য” mean? | Four columns: item, quantity, একক মূল্য, মোট মূল্য; total sums line amounts | Show unit and extended amount distinctly on review/invoice/PDF/public DTO | Do not freeze customer price table; retain values provisionally | Final invoice/PDF/public price presentation |
+| **PO-05** | Quantity range, units, fractional values and repeated-item behavior? | Positive whole number 1–999; no unit label/conversion; repeated items remain separate | Enforce whole-number range and separate lines | No fractional/unit-aware promise; quantity contract remains provisional | Composer validation |
+| **PO-06** | Minimum menu fields, lifecycle actions/defaults and invoice eligibility? | Name + selling price only; no permanent delete; any deactivate/reactivate only if explicitly approved | Expose exactly approved fields/actions; issued lines remain snapshots | Neutral menu shell; no assumed lifecycle/filter/default/eligibility | Menu and menu-driven billing |
+| **PO-07** | Are same-shop duplicate names prohibited; what NFC/whitespace/case/punctuation and reactivation rules apply? | If prevention approved: NFC, trim, collapse internal whitespace, Latin case-fold, punctuation significant | Enforce exact approved comparator and show conflict | No hard uniqueness or silent normalization; manual warning only if authorized | Menu validation/integrity |
+| **PO-11** | May owner revoke; required reason; reversibility; customer disclosure? | Immutable issue; revoke with reason, irreversible; correction is new invoice; revoked page shows bill number/status only | Show controlled revoke flow and approved public projection | No revoke/restore controls or public bill release; internal issue separate | Invoice lifecycle/public revoked state |
+| **PO-12** | Do bill links expire or remain until revoked; what duration/replacement policy? | Prefer finite PO-selected duration; do not invent 365 days or any other duration | Apply exact approved expiry; expired link exposes no bill data | No active public verification/QR release or expiry promise | Bill QR/link/customer verification |
+| **PO-I11** | What does customer “verified” mean; is the proposed Bangla wording acceptable? | Approve record-match-only phrase; disclaim payment/delivery/quality/legal certification | Show approved wording only after successful server match | Neutral information/unavailable state; no positive verification claim | Customer trust wording |
+| **PO-I06A** | How long retain signing keys; what happens on key compromise? | Retain keys for unexpired links; compromise triggers affected-link revoke/reissue and rotation | Verify by key version and approved expiry; controlled recovery | No public signed-link release | Signed links/key lifecycle |
+| **PO-L01** | Which categories may owners select for logo generation; may category be inferred? | Controlled PO-approved list, explicit owner selection; no inference/free text | Show only approved list; persist selection; Generated uses selected category | No category-specific Generated asset; allow valid upload or explicit BLANK; no invented neutral fallback | Generated logo/shop profile |
+| **PO-L02** | Preserve logo/tagline at issue or use current profile for old bills? | Snapshot mode, immutable asset/version/digest and tagline at issue | All reprints/PDF/public views use the same immutable header and retained assets | No historical header promise; internal current-profile preview only | Historical invoice rendering |
+| **PO-L03** | Which raster formats, byte/pixel limits and ownership declaration? | JPEG/PNG initially; reject SVG/active content; CH-3 proposed 2 MiB, 2048×2048, 4,194,304 pixels as review values; owner confirms usage rights | Enforce exact approved list/limits using safe server decode/re-encode | Disable upload; Generated/Blank only as separately approved | Upload/security/storage |
+| **PO-L04** | Is tagline owner-entered only; what length/control/content policy? | Owner-authored Bangla/English/mixed; blank valid; 80 NFC grapheme clusters proposed; no generation | Enforce approved grapheme/control policy and safe literal rendering | Keep tagline out of customer-facing release; no default slogan or hidden 80 limit | Tagline profile/header |
+| **HDR-RET-01** | How long retain logo/generated assets referenced by issued invoices, including shop deletion/legal retention? | Retain immutable assets while any invoice snapshot references them, subject to approved legal retention | Garbage collection checks references and retention; integrity failure explicit | No historical reproducibility promise; do not delete referenced assets | Historical rendering/storage |
+| **HDR-PUBLIC-01** | Should logo/tagline appear on public bill page and how does this interact with revoked/expired disclosure? | Show only issue-time header snapshot on valid link; revoked/expired follows PO-11/12 | Public DTO includes only approved snapshot fields after verification | Omit logo/tagline from public projection until approved | Customer bill page/privacy |
+
+All listed decisions remain **PENDING** unless explicitly recorded by PO/PM in the controlled register. PR #33 technical proposals, schema fields, CH-1 recommendations or silence are not approvals. PO-01/03/13/14/15 are not reopened here where CH-1 has already classified the remaining choice as engineering-owned or optional copy; PO-08/09/10 remain excluded/deferred as recorded.
+
+## 15.7 PR #30 menu-lifecycle P2 reassessment
+
+**Finding:** review comment #4523203685, thread `PRRT_kwDOVhBFWs61okrS`, “Keep unpinned menu lifecycle rules provisional”.
+
+The original v0.1 concern was valid: lines 157–160 stated deactivation/deletion/reactivation behavior as requirements although the pinned authority register said PO-B01–PO-B07 were not established.
+
+Revision 0.2 substantively addresses the concern:
+- §4.2 says all catalogue actions come only from PO-06.
+- §4.2 says `is_active` does not authorize owner-facing lifecycle, default filters or deletion policy.
+- §4.2 withholds active/inactive tabs, filters, status labels and row actions while PO-06 is pending.
+- §4.2 prohibits assuming new-item defaults, inactive-item eligibility, name reuse or reactivation uniqueness absent PO-06/PO-07.
+- UX-07–UX-11 and the crosswalk classify menu fields/lifecycle/duplicates as PO-GATED.
+- Issue #31 remains the decision register; no PO-06/PO-07 approval is inferred.
+
+**Conclusion:** the substantive P2 concern is corrected in v0.2 and retained in v0.3. Recommend closure by the authorized reviewer because unsupported lifecycle behavior is no longer normative. This is not self-resolution: the thread remains outdated/unresolved until CH-1/authorized reviewer independently resolves it.
+
+## 15.8 UX-to-technical-design traceability
+
+| UX range | UX acceptance IDs | PR #33 technical trace | Outstanding gate |
+|---|---|---|---|
+| UX-01–05 | UXAT-01–05 | §9 profile validation; §F only if snapshot approved | PO-L02 |
+| UX-06–11 | UXAT-06–11 | §12; AT-MENU-01..07 | PO-06/07 |
+| UX-12–18 | UXAT-12–18, 65–66 | §§5–7; AT-FIN-01..09; AT-IDEM-01..18; AT-MENU-05 | PO-04/05/06 |
+| UX-19–25 | UXAT-19–25 | §11; AT-PDF-01..08 | Font binary/hash, renderer digest and later runtime evidence |
+| UX-26–28 | UXAT-26–28 | §13; AT-SHARE-01..04 | Public URL gates |
+| UX-29–34 | UXAT-29–34, 70 | §§8–9; AT-TOK-01..14; AT-PUB-01..09 | PO-11/12/I11/I06A |
+| UX-35–39 | UXAT-35–39 | §§3, 9–10; AT-UX-01..07; AT-OFF-01..04 | Online-only scope gate |
+| UX-40–53 | UXAT-40–53, 67, 69 | Addendum §§B–D; LG-01..LG-17 | PO-L01/L03 |
+| UX-54–59 | UXAT-54–59, 68 | Addendum §E; TG-01..TG-06 | PO-L04 |
+| UX-60–64 | UXAT-60–64, 71 | Addendum §§F/H; HDR-01..HDR-06 | PO-L02/HDR-RET-01/HDR-PUBLIC-01 |
+| UX-65–71 | UXAT-65–71 | §§5–9, 12 and addendum §§B–H | PO/technical gates above |
+
+UX-01–UX-64 identifiers are preserved. UX-65–UX-71 are additive. UXAT/LG/TG/HDR/AT references are proposed acceptance tests only; no test was executed.
+
+## 15.9 Authorization and status
+
+- Same PR #30, same branch and same file path; document revision 0.3, not a parallel specification.
+- PO-06/07, PO-L01..04, PO-11/12, PO-I11/PO-I06A and header-retention/public-display decisions remain pending.
+- PR #33 is a frozen design input; its technical recommendations do not become PO approvals.
+- No application code, schema, SQL, database, migration, configuration, dependency, build, test execution, browser/PDF QA, merge, deployment, release or pilot work was performed or authorized.
+- Implementation authorization remains **NOT GRANTED**; QA execution remains **NOT AUTHORIZED**. PR #30 remains open/unmerged pending CH-1/CH-4 re-review.
