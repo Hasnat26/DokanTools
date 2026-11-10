@@ -8,7 +8,7 @@
 **Prior design:** v0.1 at `ec67f403a625acea195c7913d23e7a69254c5ecc` (preserved unchanged)  
 **UX input:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
 **Independent assurance input:** CH-4 Issue #29; PR #28 comment `6763798273`; reviewed v0.1 HEAD above  
-**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1  
+**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2  
 **Current cross-document UX:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
 **Status:** REVISED TECHNICAL DESIGN — CH-1 / PO disposition required  
 **Scope:** Design documentation only  
@@ -156,7 +156,7 @@ The following is a proposed logical schema contract, not executable SQL. Physica
 - `currency_code` fixed to `BDT` for this MVP.
 - `total_amount` NUMERIC(14,2) NOT NULL.
 - `created_by` UUID NOT NULL, owner actor reference.
-- `request_id` UUID NOT NULL; globally unique across all invoice-creation request IDs and operation types, enforced by the shared idempotency registry.
+- `idempotency_namespace` TEXT NOT NULL and `request_id` UUID NOT NULL; invoice stores the composite registry identity. No standalone request UUID primary/unique constraint exists.
 - No customer, due, paid, discount, tax, payment-method, inventory or ledger foreign keys.
 
 **invoice_lines** (append-only line snapshots)
@@ -222,20 +222,24 @@ The counter-row insertion race is serialized by the PK conflict. The row lock se
 ### 5.2 Canonical lock order
 
 For invoice creation, use one order everywhere:
-1. Global idempotency registry claim keyed by `request_id` alone; the record stores immutable `owner_user_id`, `shop_id`, `operation_type`, `canonicalization_version`, `payload_hash` and result reference. The globally unique request ID is acquired before shop/counter locks.
-2. Shop ownership row (read/lock as required to prevent ownership race).
-3. Invoice counter row.
-4. New invoice and line rows.
-5. Audit/lifecycle rows.
-6. Idempotency completion row.
+1. Authenticate and derive owner identity from the verified session; validate UUID syntax and canonicalize without registry access.
+2. Begin transaction; lock/read requested-shop ownership and authorize caller for that exact shop. If unauthorized, rollback/no writes and return ordinary authorization denial before registry comparison, without UUID/owner/shop/invoice/number disclosure.
+3. Atomically INSERT the identity claim under PRIMARY KEY (`idempotency_namespace`, `request_id`) using `invoice-create/v1`. On collision, wait for the competing transaction, then compare only inside the private create RPC.
+4. Compare namespace, authenticated owner, requested shop, operation, canonicalization version and payload hash. Exact complete match permits replay after invoice owner/shop confirmation. Any mismatch is generic `IDEMPOTENCY_CONFLICT`; no bill number or side effects. Incomplete committed state fails closed for reconciliation.
+5. Only the transaction inserting the new claim locks the per-shop counter, allocates a bill number, and inserts invoice, lines, issued event and audit.
+6. Update result reference/completion and commit claim, counter, invoice, lines, audit and completion atomically. Roll back every write on error; a losing contender never reaches number allocation.
+
+**Global lock order:** requested-shop ownership row → composite identity arbitration/registry row → per-shop counter → invoice/lines → lifecycle/audit → registry completion. All invoice-create paths use this order. Deadlock/serialization retries are bounded and retain the same namespace, UUID and canonical payload; ambiguous outcomes retry that same authorized identity. Uniqueness performs arbitration only; authentication, authorization and response non-disclosure are separate controls.
 
 No path may acquire these in reverse order. Revocation uses invoice lifecycle lock → invoice/link event insert → audit insert. It must not acquire the counter or idempotency locks.
 
 ### 5.3 Atomicity and number-gap policy
 
-The idempotency UUID claim is global, while authorization and invoice data remain tenant-scoped. Duplicate UUID lookup may compare only minimal registry metadata needed to determine whether the caller's authenticated owner, shop, operation and payload match. It must not reveal the original invoice ID, bill number, shop identity, canonical payload or stored response on mismatch. Cross-tenant requests receive a generic conflict response. Never perform an unrestricted invoice lookup using a caller-supplied request UUID.
+The authoritative observable sequence is authentication → request validation/canonicalization → authorization for the requested shop → private registry arbitration/comparison. An unauthorized caller receives ordinary authorization denial and does not trigger registry comparison. There is no public registry lookup endpoint.
 
-Request claim, counter increment, invoice, lines, initial issued event, audit event and idempotency completion occur in one PostgreSQL transaction. No intermediate committed `processing` row is required. A concurrent same-key request waits on the unique-key conflict and then reads the completed result after the first transaction commits. If the first transaction rolls back, its claim/counter/invoice writes roll back and the waiting request can become the creator.
+After requested-shop authorization succeeds, the transaction atomically inserts or waits on PRIMARY KEY (`idempotency_namespace`, `request_id`). It compares namespace, original owner, requested shop, operation, canonicalization version and payload hash. Exact complete match permits replay after invoice owner/shop confirmation. Any mismatch for an authorized requested shop returns the same generic `IDEMPOTENCY_CONFLICT`, without mismatch dimension or original invoice/shop/owner/number/payload disclosure. An unauthorized shop always receives ordinary authorization denial even if the UUID already exists. Uniqueness is concurrency arbitration only, not authorization or information-disclosure protection.
+
+Claim, counter, invoice, lines, issued event, audit and completion update are one transaction. Same-key contenders wait on composite uniqueness; after commit they compare the record; after rollback one contender may become creator. No committed intermediate `processing` state exists. Conflicts allocate no bill number and create no invoice, line, audit or external side effects.
 
 **Number-gap interim contract:** failed/rolled-back creation does not consume a number because counter increment is transactional. Successfully committed invoices consume a number permanently, including invoices later revoked. Numbers are never reused. No daily/monthly reset or prefix is inferred. This sequence/gap behavior is a technical proposal; visible formatting/reset remains PO-pending.
 
@@ -286,7 +290,7 @@ The prior shop-scoped uniqueness proposal is superseded because it cannot detect
 **Proposed logical model (design only):** use a dedicated `invoice_idempotency_requests` registry, or redesign `transaction_requests` to provide the same global namespace:
 
 For this API, persist `idempotency_namespace = invoice-create/v1`. Enforce database uniqueness on `(idempotency_namespace, request_id)` alone; do not include `shop_id` or `operation_type` in that unique key.
-- `request_id UUID PRIMARY KEY` — globally unique across shops and operation types.
+- `request_id UUID NOT NULL` — not independently primary or unique; scoped only by the composite registry identity.
 - `owner_user_id UUID NOT NULL` — authenticated actor who first claimed the UUID.
 - `shop_id UUID NOT NULL` and `operation_type TEXT NOT NULL` — original immutable scope.
 - `canonicalization_version INTEGER NOT NULL` and `payload_hash BYTEA NOT NULL` — canonical operation identity; payload hash includes target shop and operation.
@@ -298,33 +302,35 @@ Do not rely solely on composite uniqueness `(shop_id, operation_type, request_id
 **Request handling and lookup order:**
 1. Authenticate first; derive owner ID from the verified session, never the request body.
 2. Validate request UUID syntax and canonicalize the requested payload.
-3. Insert/locate a global claim keyed by request_id alone, storing owner, shop, operation, canonicalization version and payload hash. This is within the same transaction as invoice creation.
-4. If newly claimed, authorize the owner for the requested shop. On denial, roll back the claim and all work; allocate no number.
-5. If the UUID already exists, lock/read only the global registry row and compare owner, shop, operation, canonicalization version and hash.
-6. If every field matches and the record is complete, verify the referenced invoice belongs to the same authenticated owner/shop; return the same invoice ID, number and canonical response with `replayed=true`.
-7. If owner, shop, operation, canonicalization version or payload differs, return generic `IDEMPOTENCY_CONFLICT`. Do not reveal invoice ID, bill number, shop identity, payload or which field differed. Do not query another tenant's invoice. Allocate no number and create no invoice.
-8. If the registry row is incomplete or inconsistent, return `REQUEST_STATE_REQUIRES_RECONCILIATION`; fail closed and never create a replacement invoice.
-9. Concurrent duplicate inserts serialize on the namespace+UUID unique constraint. If the first commits, identical contenders replay the result and mismatched contenders conflict. If the first rolls back, a waiting request may acquire the UUID and become the sole creator.
-10. Registry claim, invoice, lines, counter, audit and registry completion commit atomically. A rollback removes all claim/invoice effects.
+3. Authorize requested-shop ownership before registry comparison; if the caller does not own that shop, return ordinary authorization denial without inspecting registry identity/result.
+4. Atomically INSERT under PRIMARY KEY (`idempotency_namespace`, `request_id`) using `invoice-create/v1`; on collision, wait for the competing transaction, then compare only via the private create RPC.
+5. Compare namespace, authenticated owner, requested shop, operation, canonicalization version and payload hash; a changed shop/operation cannot become a new identity in this namespace.
+6. Exact complete match: verify invoice owner/shop and return the original result with `replayed=true`.
+7. Authorized caller plus any mismatch: uniform `IDEMPOTENCY_CONFLICT`; disclose no mismatch, invoice, number, owner/shop or payload; allocate no number and create no side effect.
+8. Incomplete/inconsistent committed record: `REQUEST_STATE_REQUIRES_RECONCILIATION`; fail closed.
+9. Only a transaction inserting a new composite identity claim allocates the counter and inserts invoice, lines, issued event and audit. Claim/counter/invoice/lines/audit/completion commit atomically and roll back together.
+10. Bounded deadlock/serialization retries use the same namespace, UUID and payload. Unknown outcome retries the same authorized identity; never mint a replacement UUID.
 
 **Response matrix:**
 
 | Scenario | Response | Disclosure | New invoice / number |
 |---|---|---|---|
-| Same owner + shop + operation + version/hash; complete | Original response, `replayed=true` | Only after owner/shop check | No |
-| Same UUID + changed payload | `IDEMPOTENCY_CONFLICT` | Generic only | No |
-| Same UUID + different shop, same owner | `IDEMPOTENCY_CONFLICT` | No original shop/invoice metadata | No |
-| Same UUID + different operation | `IDEMPOTENCY_CONFLICT` | Generic only | No |
-| Same UUID + different authenticated owner | `IDEMPOTENCY_CONFLICT` | No ownership oracle or invoice detail | No |
-| Concurrent identical UUID/scope/payload | One creator; others replay | Authorized result only | Exactly one |
-| Concurrent conflicting UUID/scope/payload | One claim wins; all mismatches conflict | No winner details disclosed | At most one |
-| Incomplete/inconsistent registry row | `REQUEST_STATE_REQUIRES_RECONCILIATION` | Generic controlled failure | No |
+| Same owner, namespace, shop, operation, canonicalization version and payload; complete | Replay original result (`replayed=true`) | After requested-shop authorization and invoice owner/shop confirmation | No |
+| Authorized owner reuses UUID with another shop also owned | Generic `IDEMPOTENCY_CONFLICT` | No original shop/invoice disclosure | No |
+| Authorized owner reuses UUID with different operation in namespace | Generic `IDEMPOTENCY_CONFLICT` | No original operation/invoice disclosure | No |
+| Payload/hash or canonicalization version differs | Generic `IDEMPOTENCY_CONFLICT` | No payload/mismatch disclosure | No |
+| Caller owns requested shop but original claim owner differs | Generic `IDEMPOTENCY_CONFLICT` | No original owner/invoice disclosure | No |
+| Caller does not own requested shop (regardless of UUID existence) | Ordinary authorization denial before registry comparison | No UUID-existence/owner/invoice/number disclosure | No |
+| Concurrent identical claims | At most one invoice; authorized contenders replay | Authorized result only | Exactly one |
+| Concurrent conflicting claims | At most one committed identity/invoice | Generic conflict only after authorization | At most one |
+| Incomplete committed registry row | `REQUEST_STATE_REQUIRES_RECONCILIATION` | Generic controlled failure | No |
+| Matching tombstone with result purged | `IDEMPOTENCY_RESULT_EXPIRED` | Identity remains reserved; no recreation | No |
 
-A rejected shop-ownership attempt rolls back the initial claim. Once a valid request commits, the UUID is never recycled, including after invoice revocation or result-retention cleanup; retain a minimal tombstone if response details are purged.
+Requested-shop authorization precedes claim arbitration; unauthorized attempts create no claim. After commit, the composite identity is permanent within `invoice-create/v1`: no TTL or cleanup releases the key. Result data may be purged only while a minimal immutable tombstone retains namespace, UUID, original owner/shop/operation, canonicalization version, payload hash, terminal state and retention metadata. No full payload, bearer secret or response body is retained. A matching retry after result purge returns `IDEMPOTENCY_RESULT_EXPIRED`; mismatch returns generic conflict; incomplete record requires reconciliation. Backup/restore and DR preserve every acknowledged identity. A restore/RPO that may lose an acknowledged identity violates the guarantee; if registry completeness cannot be proven, disable issuance until reconciled from durable backup/replica evidence. Retired namespaces retain tombstones. Namespace versioning cannot reissue a logical invoice; cross-namespace migration requires explicit CH-1/PO approval and duplicate prevention. This guarantee is conditional on verified recovery procedures, not infinite operational durability.
 
-**Existing table compatibility:** the current `transaction_requests` pattern is shop-scoped and has operation constraints. It cannot detect cross-shop/cross-operation reuse while the composite key remains authoritative. A future authorized schema design must either add a dedicated global registry atomically linked to invoice creation, or redesign the existing request table with globally unique request_id and owner/shop/operation/hash fields. Perform duplicate-UUID preflight before adding a global constraint. This is design only; no SQL/migration was authored or executed.
+**Existing table compatibility:** checked-in `transaction_requests` is shop-scoped and has operation constraints; alone it cannot satisfy this contract. Future authorized design must use `invoice_idempotency_requests` or redesign `transaction_requests` to use exactly PRIMARY KEY (`idempotency_namespace`, `request_id`) plus owner/shop/operation/canonicalization/hash attributes. No standalone global request_id key is permitted. Preflight duplicate composite pairs before migration. Design only; no SQL/migration authored or executed.
 
-**Tenant isolation:** global detection is not global data access. Only a narrow server/RPC boundary may access the registry; no broad client SELECT grants or public RLS policy. Return the invoice only after owner/shop equality is proven. CH-4 should assess existence/timing side channels.
+**Tenant isolation:** namespaced detection is not global data access. Only the authorized private create RPC may arbitrate; no public registry lookup endpoint, broad client SELECT or public RLS policy. Requested-shop authorization precedes comparison. Return invoice data only after owner/shop equality and invoice ownership are confirmed. Authorized mismatch dimensions use the same generic response; timing side channels require future security QA. Uniqueness is not an authorization control.
 
 - Client timeout/connection loss: retain the same request ID/payload; retry status/replay with the same identity. Never automatically mint a replacement ID.
 
@@ -1533,19 +1539,20 @@ No live schema or database statement is made. No SQL, migration, code, storage b
 # Controlled Addendum v0.3.1 — P2 Idempotency and Generated Default Alignment
 
 **Task:** DT-CH3-PR33-FOLLOWUP-001  
-**Parent candidate:** `00a3fcaa44b55a6a2b505aa2e756cd47ce4f723d`, blob `5f3e35fefe1890ffc93379d4415bb8ec86aba868`  
+**Parent candidate:** `275e133bf4b889f9f86f062575e42ab22f9e7842`, blob `8e16f1775defdfd6422cf771e2ace3a35b9cd338`  
 **Exact UX source:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
 **Codex finding:** PR #33 comment `4524063634`, P2  
-**Status:** Corrected design candidate — CH-1 / CH-4 re-review required  
+**Status:** Corrective v0.3.2 candidate — CH-1 independent re-review required; CH-4 freeze remains blocked pending CH-1 acceptance  
 **Implementation / DB / QA authorization:** NOT GRANTED
+**CH-1 acceptance:** NOT GRANTED / NOT YET RE-REVIEWED
 
-## R.1 P2 failure scenario
+## R.1 P2 failure scenario (historical defect; superseded)
 
-A request UUID R commits for shop A and operation `invoice_create`. A later request reuses R with shop B or a different operation. Under the old composite key `(shop_id, operation_type, request_id)`, no uniqueness collision occurs; lookup may report “No existing key”, allowing a second number allocation and invoice/operation. This contradicts the earlier conflict guarantee.
+The original v0.2 proposal used `(shop_id, operation_type, request_id)`, which allowed cross-shop/operation UUID reuse to avoid collision. That proposal is rejected. The current key is PRIMARY KEY (`idempotency_namespace`, `request_id`) as specified in §§5.2, 6.3 and R.2.
 
-## R.2 Corrected namespaced global idempotency identity
+## R.2 Authoritative namespaced idempotency and authorization algorithm
 
-CH-1's integrated review requires the global identity to state its namespace explicitly. Define the idempotency namespace as `invoice-create/v1` for this invoice-creation API contract. The database uniqueness key is **(`idempotency_namespace`, `request_id`)**, where the namespace identifies the API/domain contract and is independent of shop and operation. If another operation is later deliberately placed in the same namespace, `operation_type` remains a compared attribute and cannot evade collision detection. A different independently versioned API namespace may use the same UUID without collision only when that namespace boundary is explicitly defined and its side effects are independent.
+CH-1's integrated review requires the global identity to state its namespace explicitly. Define the idempotency namespace as `invoice-create/v1` for this invoice-creation API contract. The sole registry identity is **PRIMARY KEY (`idempotency_namespace`, `request_id`)**. `request_id` is not independently primary or unique. Shop and operation are comparison attributes. All invoice-creating operations in this API family share namespace `invoice-create/v1`. A future independent namespace requires CH-1/PO approval and cross-namespace duplicate prevention; it cannot reissue an existing logical invoice.
 
 Preferred logical storage is `invoice_idempotency_requests` with:
 - `idempotency_namespace TEXT NOT NULL`;
@@ -1626,4 +1633,14 @@ All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01.
 
 ## R.10 CH-1 P2 correction traceability
 
-CH-1 review comment 6766053949 requires namespace-defined uniqueness and authorization before disclosure. This revision pins `invoice-create/v1` as the namespace and requires database uniqueness on `(idempotency_namespace, request_id)` only; shop and operation are comparison attributes. The caller must be authorized for the requested shop before any prior result is disclosed. A caller without access to the requested shop receives ordinary authorization denial without any UUID-existence signal. A caller authorized for that requested shop but reusing the same namespace/UUID against a different owned shop or operation receives generic `IDEMPOTENCY_CONFLICT`, with no previous invoice disclosure or new side effect. CH-1 review remains reviewer-controlled until re-review of this exact commit.
+CH-1 final review requires composite-key consistency, one authorization/arbitration sequence, deterministic response precedence and tombstone/disaster-recovery guarantees. This revision uses only PRIMARY KEY (`idempotency_namespace`, `request_id`); request_id is not independently primary/unique. Sequence: authenticate → validate/canonicalize → authorize requested shop → atomic composite-key arbitration → compare identity attributes → allocate only for new claim → insert invoice/lines/audit → complete/commit. Unauthorized requested shops receive ordinary authorization denial before registry comparison; authorized mismatches receive uniform generic conflict. Tombstone/DR requirements are in §R.2. CH-1 review remains reviewer-controlled; this is not acceptance or P2 closure.
+
+
+## R.11 v0.3.2 controlled correction summary
+
+- Canonical key: `PRIMARY KEY (idempotency_namespace, request_id)`; request_id is not independently primary/unique.
+- Namespace: `invoice-create/v1`; shop and operation are comparison attributes; invoice-creating operations in this API family share this namespace.
+- Precedence: authenticate → validate/canonicalize → authorize requested shop → composite-key arbitration → compare identity → allocate only for new claim → insert invoice/lines/audit → complete/commit.
+- Unauthorized requested shop: ordinary authorization denial without UUID-existence disclosure. Authorized mismatch: generic `IDEMPOTENCY_CONFLICT`. Incomplete identity: reconciliation. Matching tombstone without result: `IDEMPOTENCY_RESULT_EXPIRED`.
+- Tombstones permanently reserve committed identities; cleanup never releases keys. Backup/restore preserves acknowledged identities; disable issuance if registry completeness cannot be proven.
+- Acceptance scenarios remain PROPOSED / NOT EXECUTED. No CH-1 acceptance or CH-4 freeze is claimed.
