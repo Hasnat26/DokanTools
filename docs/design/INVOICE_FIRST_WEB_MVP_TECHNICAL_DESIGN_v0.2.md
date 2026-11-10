@@ -155,7 +155,7 @@ The following is a proposed logical schema contract, not executable SQL. Physica
 - `currency_code` fixed to `BDT` for this MVP.
 - `total_amount` NUMERIC(14,2) NOT NULL.
 - `created_by` UUID NOT NULL, owner actor reference.
-- `request_id` UUID NOT NULL; unique within shop/operation through the idempotency record.
+- `request_id` UUID NOT NULL; globally unique across all invoice-creation request IDs and operation types, enforced by the shared idempotency registry.
 - No customer, due, paid, discount, tax, payment-method, inventory or ledger foreign keys.
 
 **invoice_lines** (append-only line snapshots)
@@ -221,7 +221,7 @@ The counter-row insertion race is serialized by the PK conflict. The row lock se
 ### 5.2 Canonical lock order
 
 For invoice creation, use one order everywhere:
-1. Idempotency key row/unique-key claim for `(shop_id, operation_type, request_id)`.
+1. Global idempotency registry claim keyed by `request_id` alone; the record stores immutable `owner_user_id`, `shop_id`, `operation_type`, `canonicalization_version`, `payload_hash` and result reference. The globally unique request ID is acquired before shop/counter locks.
 2. Shop ownership row (read/lock as required to prevent ownership race).
 3. Invoice counter row.
 4. New invoice and line rows.
@@ -231,6 +231,8 @@ For invoice creation, use one order everywhere:
 No path may acquire these in reverse order. Revocation uses invoice lifecycle lock → invoice/link event insert → audit insert. It must not acquire the counter or idempotency locks.
 
 ### 5.3 Atomicity and number-gap policy
+
+The idempotency UUID claim is global, while authorization and invoice data remain tenant-scoped. Duplicate UUID lookup may compare only minimal registry metadata needed to determine whether the caller's authenticated owner, shop, operation and payload match. It must not reveal the original invoice ID, bill number, shop identity, canonical payload or stored response on mismatch. Cross-tenant requests receive a generic conflict response. Never perform an unrestricted invoice lookup using a caller-supplied request UUID.
 
 Request claim, counter increment, invoice, lines, initial issued event, audit event and idempotency completion occur in one PostgreSQL transaction. No intermediate committed `processing` row is required. A concurrent same-key request waits on the unique-key conflict and then reads the completed result after the first transaction commits. If the first transaction rolls back, its claim/counter/invoice writes roll back and the waiting request can become the creator.
 
@@ -276,15 +278,52 @@ Serialization contract:
 
 Item order is meaningful and preserved. Reordering lines changes the request hash. Menu duplicate equivalence is separate from idempotency canonicalization and remains PO-gated.
 
-### 6.3 Server idempotency contract
+### 6.3 Server idempotency contract — globally unique request UUID
 
-Use the existing shop-scoped `transaction_requests` pattern only after extending its operation-type constraint through a future authorized migration. Unique key must include shop + operation type + request ID (or the existing equivalent must be proven to enforce the same uniqueness).
+The prior shop-scoped uniqueness proposal is superseded because it cannot detect reuse of the same UUID for another shop or operation. The UUID is the global idempotency identity; shop and operation are immutable attributes checked against that global record.
 
-- No existing key: insert claim, allocate number, persist invoice and mark completed in the same transaction.
-- Existing key, same operation/shop/hash/version, completed: return the same invoice ID, bill number and canonical result with `replayed=true`.
-- Existing key, different hash/version/shop/operation: reject with stable `IDEMPOTENCY_CONFLICT`; no invoice or number allocation.
-- Existing key with incomplete state: should not occur under the single-transaction contract. If found due to legacy/manual intervention, do not allocate a new number; return `REQUEST_STATE_REQUIRES_RECONCILIATION` and require owner/admin recovery.
-- Client timeout/connection loss: retain same request ID/payload; retry status/replay with the same identity. Never automatically mint a replacement ID.
+**Proposed logical model (design only):** use a dedicated `invoice_idempotency_requests` registry, or redesign `transaction_requests` to provide the same global namespace:
+- `request_id UUID PRIMARY KEY` — globally unique across shops and operation types.
+- `owner_user_id UUID NOT NULL` — authenticated actor who first claimed the UUID.
+- `shop_id UUID NOT NULL` and `operation_type TEXT NOT NULL` — original immutable scope.
+- `canonicalization_version INTEGER NOT NULL` and `payload_hash BYTEA NOT NULL` — canonical operation identity; payload hash includes target shop and operation.
+- `result_invoice_id UUID NULL`, completion state and timestamps; an incomplete committed row is an error, not permission to retry as a new request.
+- No bearer tokens, secrets or full client headers are stored in this registry.
+
+Do not rely solely on composite uniqueness `(shop_id, operation_type, request_id)`: it is the P2 defect.
+
+**Request handling and lookup order:**
+1. Authenticate first; derive owner ID from the verified session, never the request body.
+2. Validate request UUID syntax and canonicalize the requested payload.
+3. Insert/locate a global claim keyed by request_id alone, storing owner, shop, operation, canonicalization version and payload hash. This is within the same transaction as invoice creation.
+4. If newly claimed, authorize the owner for the requested shop. On denial, roll back the claim and all work; allocate no number.
+5. If the UUID already exists, lock/read only the global registry row and compare owner, shop, operation, canonicalization version and hash.
+6. If every field matches and the record is complete, verify the referenced invoice belongs to the same authenticated owner/shop; return the same invoice ID, number and canonical response with `replayed=true`.
+7. If owner, shop, operation, canonicalization version or payload differs, return generic `IDEMPOTENCY_CONFLICT`. Do not reveal invoice ID, bill number, shop identity, payload or which field differed. Do not query another tenant's invoice. Allocate no number and create no invoice.
+8. If the registry row is incomplete or inconsistent, return `REQUEST_STATE_REQUIRES_RECONCILIATION`; fail closed and never create a replacement invoice.
+9. Concurrent duplicate inserts serialize on the global unique constraint. If the first commits, identical contenders replay the result and mismatched contenders conflict. If the first rolls back, a waiting request may acquire the UUID and become the sole creator.
+10. Registry claim, invoice, lines, counter, audit and registry completion commit atomically. A rollback removes all claim/invoice effects.
+
+**Response matrix:**
+
+| Scenario | Response | Disclosure | New invoice / number |
+|---|---|---|---|
+| Same owner + shop + operation + version/hash; complete | Original response, `replayed=true` | Only after owner/shop check | No |
+| Same UUID + changed payload | `IDEMPOTENCY_CONFLICT` | Generic only | No |
+| Same UUID + different shop, same owner | `IDEMPOTENCY_CONFLICT` | No original shop/invoice metadata | No |
+| Same UUID + different operation | `IDEMPOTENCY_CONFLICT` | Generic only | No |
+| Same UUID + different authenticated owner | `IDEMPOTENCY_CONFLICT` | No ownership oracle or invoice detail | No |
+| Concurrent identical UUID/scope/payload | One creator; others replay | Authorized result only | Exactly one |
+| Concurrent conflicting UUID/scope/payload | One claim wins; all mismatches conflict | No winner details disclosed | At most one |
+| Incomplete/inconsistent registry row | `REQUEST_STATE_REQUIRES_RECONCILIATION` | Generic controlled failure | No |
+
+A rejected shop-ownership attempt rolls back the initial claim. Once a valid request commits, the UUID is never recycled, including after invoice revocation or result-retention cleanup; retain a minimal tombstone if response details are purged.
+
+**Existing table compatibility:** the current `transaction_requests` pattern is shop-scoped and has operation constraints. It cannot detect cross-shop/cross-operation reuse while the composite key remains authoritative. A future authorized schema design must either add a dedicated global registry atomically linked to invoice creation, or redesign the existing request table with globally unique request_id and owner/shop/operation/hash fields. Perform duplicate-UUID preflight before adding a global constraint. This is design only; no SQL/migration was authored or executed.
+
+**Tenant isolation:** global detection is not global data access. Only a narrow server/RPC boundary may access the registry; no broad client SELECT grants or public RLS policy. Return the invoice only after owner/shop equality is proven. CH-4 should assess existence/timing side channels.
+
+- Client timeout/connection loss: retain the same request ID/payload; retry status/replay with the same identity. Never automatically mint a replacement ID.
 
 ### 6.4 Client outbox state machine
 
@@ -738,6 +777,12 @@ All tests below are future acceptance specifications. They must be executed only
 | AT-IDEM-10 | Negative meaningful payload difference | Change ordered lines, item text, unit, quantity or price | Different hash; same-key replay rejected |
 | AT-IDEM-11 | Unicode canonicalization | Submit Bengali NFC and NFD forms | NFC normalization contract yields same canonical text/hash; display snapshot stored NFC |
 | AT-IDEM-12 | Number uniqueness under load | Concurrent distinct requests across one and multiple shops | Unique per shop; independent shop counters; no duplicate bill number |
+| AT-IDEM-13 | Same UUID reused for different shop | Commit shop A then reuse UUID for shop B | Generic IDEMPOTENCY_CONFLICT; no original shop data; no new bill/number |
+| AT-IDEM-14 | Same UUID reused for different operation | Commit invoice_create then reuse UUID for another operation | Generic IDEMPOTENCY_CONFLICT; no second operation |
+| AT-IDEM-15 | Same UUID reused by another owner | Different authenticated user reuses committed UUID | Generic IDEMPOTENCY_CONFLICT; no original-owner data disclosed |
+| AT-IDEM-16 | Concurrent identical global UUID requests | Multiple instances submit same owner/shop/operation/hash | One global claim and invoice; all valid retries replay |
+| AT-IDEM-17 | Concurrent conflicting global UUID requests | Same UUID raced with changed shop/operation/payload | One claim wins; mismatches conflict; at most one invoice |
+| AT-IDEM-18 | Incomplete registry row | Existing registry row has missing result/inconsistent state | REQUEST_STATE_REQUIRES_RECONCILIATION; no new invoice |
 
 ### 15.4 Financial calculations and input boundaries
 
@@ -985,20 +1030,27 @@ Use an explicit persisted `logo_mode` with exactly three values:
 
 Do not derive state from `logo_url IS NULL`. Null can mean legacy/unconfigured or no active asset reference; it cannot express explicit blank selection robustly.
 
-**Default for existing shops:** a migration/backfill must not silently generate or show a new logo to existing customers. Proposed compatibility rule: treat legacy rows with no explicit `logo_mode` as `UNCONFIGURED` during transition, and resolve them to no rendered logo until the owner makes a deliberate choice. `UNCONFIGURED` is a migration/read-compatibility state, not a fourth steady-state UI choice. For new shops created after a future authorized implementation, default `logo_mode = GENERATED` only if the owner has already supplied/confirmed a valid shop type and the product UX confirms this default; otherwise use `BLANK` or require explicit choice. This default is a PO/CH-2 decision, not approved by this design.
+**Default/precedence — aligned with CH-2 PR #30 revision 0.2:** a valid uploaded logo takes priority; otherwise GENERATED is the default unless the owner explicitly selected BLANK. Generated mode does not require separate opt-in. This follows UX-40/UX-42/UX-43 and supersedes the earlier v0.3 wording that made explicit generated selection a prerequisite.
+
+For new shops, absent upload and absent explicit BLANK resolves to GENERATED. Preview is informational and is not a precondition to generated mode. Invoice issue must resolve and snapshot the generated asset/version; generation failure fails closed rather than silently behaving as BLANK.
+
+For legacy shops, a non-null `logo_url` is not trusted solely because it exists. It must be classified as an owner-owned validated upload before UPLOADED precedence applies. Until then, do not fetch/render arbitrary remote URLs; resolve to GENERATED using an approved category or approved neutral fallback. Valid existing uploads remain UPLOADED after classification. Explicit BLANK persists and suppresses all logo output.
+
+The steady-state modes remain `GENERATED | UPLOADED | BLANK`; any legacy unconfigured condition is transitional only and must not override the UX default.
 
 ### B.2 State transitions
 
 | Current state | Owner action | New state | Required behavior |
 |---|---|---|---|
-| UNCONFIGURED / GENERATED | Upload valid image and save | UPLOADED | Validate, decode/re-encode, store immutable asset version; atomically switch profile pointer only after asset is durable |
-| UPLOADED | Replace upload | UPLOADED | Create a new immutable object version; update active pointer; do not overwrite bytes referenced by issued invoices |
-| UPLOADED | Remove uploaded and choose generated | GENERATED | Resolve deterministic generated logo using current approved inputs |
-| UPLOADED / GENERATED | Explicitly choose no logo | BLANK | Persist BLANK; never auto-fallback to generated or initials |
-| BLANK | Choose generated | GENERATED | Generate/resolve mark from approved shop name/type inputs; show preview and require explicit save/selection |
-| GENERATED | Regenerate | GENERATED | Same normalized inputs + same template version produce byte-identical output; changed inputs/template create a new immutable generated asset/version and future invoices only |
-| GENERATED | Upload | UPLOADED | Upload takes priority after successful validation and atomic pointer update |
-| Any configured state | Edit shop name/type | State remains | Do not silently regenerate an explicitly chosen/generated logo. Show stale-input notice and offer explicit preview/regeneration; state remains unchanged until owner confirms |
+| GENERATED default | Upload valid image and save | UPLOADED | Validate, decode/re-encode, store immutable asset version; switch pointer only after durable storage |
+| UPLOADED | Replace upload | UPLOADED | Create immutable new object version; old bytes remain for issued invoices |
+| UPLOADED | Remove upload without choosing BLANK | GENERATED | Resolve generated output from current name and approved category; never leave unconfigured/no-logo state |
+| GENERATED / UPLOADED | Explicitly choose no logo | BLANK | Persist BLANK; no generated mark, icon or placeholder |
+| BLANK | Clear BLANK / choose Generated | GENERATED | Generated default resumes immediately; preview is not a separate opt-in gate |
+| GENERATED | Regenerate after name/category change or owner action | GENERATED | Same normalized inputs/template yield same digest; changed inputs create immutable new version for future invoices |
+| GENERATED | Upload | UPLOADED | Upload takes priority after validation and atomic pointer update |
+| GENERATED | Edit shop name/category | GENERATED | Refresh generated output for future invoices; issue snapshot stores resolved version |
+| UPLOADED / BLANK | Edit shop name/category | State unchanged | Preserve uploaded asset or explicit blank semantics |
 | Any state | Upload fails | Unchanged | Preserve current active logo and state; do not switch to blank or generated |
 | Any state | Persist state update fails | Unchanged | Preserve last committed pointer/state; report retryable failure |
 
@@ -1055,16 +1107,22 @@ However:
 - Do not infer shop type from shop name or business description.
 - Do not expand the enum or add new category values without explicit PM/PO approval and schema design review.
 
-**Recommendation:** generated-logo template selection reads the already-persisted controlled `shops.shop_type` value. If missing/unrecognized in a legacy or drifted deployment, use a neutral generic template only after explicit design/UX acceptance; do not infer type. Make the source value visible to the owner and require an explicit correction flow if it is wrong.
+**Safe category dependency (aligned with UX-49/UX-50):** generated output may use only a category explicitly stored/selected under the eventually approved taxonomy. Never infer category from shop name, tagline, address or invoice activity.
+
+If category is missing, legacy-only or unsupported: do not coerce it to `food` or another category; do not fabricate a category-specific icon; use a deterministic category-neutral generic template only if CH-1/CH-2 approve that fallback, otherwise block logo-dependent rendering with an actionable category-selection error; prompt the owner to choose from final approved choices, not unapproved legacy values; and record category provenance/template version in the asset manifest.
+
+The checked-in schema's legacy values (`grocery/pharmacy/food/salon/general`) are source evidence only, not an approved final taxonomy. No new category field is proposed. Taxonomy, owner editability and neutral fallback remain PO/PM gates.
 
 ### C.4 Regeneration and user confirmation
 
-Generated logo is a proposed preview, not an automatic background change:
-1. Renderer computes a candidate from current normalized shop name/type and generator version.
-2. Owner sees preview and selects “Use generated logo”.
-3. Save persists GENERATED plus the immutable generated asset/version identity.
-4. Future shop name/type edits do not mutate the active mark. Show “Generated from previous shop details” and allow owner-triggered regeneration.
-5. Regeneration creates a new artifact version; past invoice snapshots retain the prior version.
+Generated logo is the effective default whenever no valid owner upload exists and BLANK has not been explicitly selected:
+1. Renderer computes output from current normalized shop name, approved stored category (or approved neutral fallback) and generator/template version.
+2. Owner may preview; preview does not gate default GENERATED mode (UX-40/UX-42).
+3. A profile with no valid upload and no explicit BLANK resolves to GENERATED.
+4. Valid upload switches to UPLOADED. Removing upload returns to GENERATED unless owner chooses BLANK.
+5. Explicit BLANK suppresses every logo/placeholder until cleared.
+6. In GENERATED mode, name/category edits refresh output for future invoices; issued invoices retain their asset/version snapshot. UPLOADED and BLANK do not change on name/category edits.
+7. Regeneration creates a new artifact version; historical invoice snapshots retain prior versions.
 
 This avoids silent visual drift and respects explicit BLANK selection.
 
@@ -1292,14 +1350,14 @@ New requirement IDs for this addendum:
 
 | Requirement | Design sections | Data/service effect | Proposed acceptance evidence (NOT EXECUTED) |
 |---|---|---|---|
-| PM-LOGO-01/02 | B, C | Mode + generated/uploaded asset identity | LG-01/02/03 |
-| PM-LOGO-03 | B | Explicit BLANK state and null asset invariant | LG-04/05 |
+| PM-LOGO-01/02 | B, C | GENERATED default; valid upload priority; explicit BLANK override | LG-01..LG-12 |
+| PM-LOGO-03 | B | Explicit BLANK suppresses every fallback | LG-04..LG-09 |
 | PM-LOGO-04 | B, D, F, H | Snapshot-based renderer across surfaces | LG-06/07/14 |
-| PM-LOGO-05/06 | C | Deterministic local renderer and controlled shop type | LG-08/09 |
+| PM-LOGO-05/06 | C | Deterministic renderer with approved category or approved neutral fallback | LG-10..LG-12 |
 | PM-LOGO-07 | D, G | Private object store, safe raster pipeline and asset registry | LG-10..13 |
 | PM-TAG-01..04 | E, F, H | Nullable text snapshot and safe rendering | TG-01..06 |
 | PM-HDR-01/02 | F | Immutable header snapshot / asset retention | HDR-01..06 |
-| Existing v0.2 controls | §§4–10, 14–20 | No change to invoice facts, token, idempotency or financial rules | Existing AT-* suites retained |
+| Existing v0.2 controls | §§4–10, 14–20 | Invoice/token/financial contracts retained; idempotency global UUID fixed in §6.3 | AT-IDEM-13..18 plus existing AT-* suites |
 
 ### I.1 Proposed logo/tagline acceptance scenarios
 
@@ -1313,13 +1371,16 @@ All tests below are proposed for future CH-4 review. No tests were executed.
 - **LG-05:** BLANK→GENERATED requires explicit owner action/preview; a blank selection never automatically regenerates.
 - **LG-06:** GENERATED→UPLOADED and UPLOADED→GENERATED follow the explicit state transition and preserve old asset references for history.
 - **LG-07:** failed upload, decode or save leaves previous state/asset active.
-- **LG-08:** same shop-name NFC + shop-type + generator/template version yields identical canonical SVG/output digest.
-- **LG-09:** shop name/type edit does not silently change active generated logo; explicit regeneration creates new asset version.
-- **LG-10:** reject SVG, MIME spoof, malformed/truncated/polyglot/animated image, oversized upload and decoded pixel overflow.
-- **LG-11:** two-shop security tests prove one owner cannot upload, overwrite, read or delete another shop's object by guessing shop or asset ID.
-- **LG-12:** normalized asset contains no EXIF GPS/metadata and uses the allowed output MIME/dimensions.
-- **LG-13:** stored object is private; public DTO leaks no storage key or permanent object URL; unauthorized direct object access fails.
-- **LG-14:** logo aspect ratio remains intact and neither item table nor QR/total/footer is obscured at normal/long bill lengths.
+- **LG-08:** absent upload and absent explicit BLANK resolves automatically to GENERATED; no separate opt-in is required.
+- **LG-09:** valid upload takes priority; removing it returns to GENERATED unless owner explicitly selects BLANK.
+- **LG-10:** same shop-name NFC + approved category + generator/template version yields identical canonical output digest.
+- **LG-11:** missing/unsupported category is never inferred from shop name; approved neutral fallback or actionable block is applied.
+- **LG-12:** preview is informational, not a gate to generated default; name/category edits refresh output for future invoices.
+- **LG-13:** reject SVG, MIME spoof, malformed/truncated/polyglot/animated image, oversized upload and decoded pixel overflow.
+- **LG-14:** two-shop security tests prove one owner cannot upload, overwrite, read or delete another shop's object.
+- **LG-15:** normalized asset contains no EXIF GPS/metadata and uses allowed output MIME/dimensions.
+- **LG-16:** object is private; public DTO leaks no storage key/permanent URL; unauthorized direct access fails.
+- **LG-17:** logo aspect ratio is preserved and does not obscure item table, QR, total or footer.
 
 **Tagline**
 - **TG-01:** null, empty and whitespace-only tagline normalize to NULL and omit the block.
@@ -1407,12 +1468,12 @@ CH-4 should receive:
 | PM-TAG-01..04 | PM / CH-1 / CH-2 | Confirm optional Bangla/English tagline; max 80 grapheme clusters; blank/null behavior; placement/wrapping | PM requirement received; max 80 remains proposed pending UX confirmation |
 | PM-HDR-01/02 | PM / PO | Confirm issued invoice permanently preserves logo selection/asset and tagline at issue; later profile changes apply to future invoices only | Technically recommended; explicit PO confirmation requested |
 | LOGO-TYPE-01 | PM / CH-2 | Confirm source for shop type and whether current controlled taxonomy is adequate for the Invoice-First food-store experience | Existing checked-in schema has shop_type; UX control and taxonomy not confirmed |
-| LOGO-DEFAULT-01 | PM / CH-2 | For new shop, should owner receive generated preview by default, or must they choose GENERATED/UPLOADED/BLANK? For legacy shops, preserve no-logo until owner choice | PENDING |
+| LOGO-DEFAULT-01 | PM / CH-2 | Generated is default absent valid upload/explicit BLANK; preview is not opt-in | ALIGNED TO PR #30 UX-40/42/43, revision 0.2 |
 | LOGO-UPLOAD-01 | PM / CH-1 | Approve proposed raster allow-list and engineering limits (JPEG/PNG, 2 MiB, 2048×2048, 4.19 MP) | Engineering proposal; UX/security review required |
 | TAG-LIMIT-01 | PM / CH-2 | Confirm whether “80 characters” means Unicode grapheme clusters (recommended), and decide any multiline behavior | PENDING |
 | HDR-RET-01 | PO / PM | Confirm retention expectations for old uploaded/generated assets while any invoice snapshot references them, plus shop deletion/legal retention policy | PENDING |
 | HDR-PUBLIC-01 | PO / CH-2 | Confirm tagline and logo appear on valid public bill page as part of invoice header; revoked/expired states follow existing disclosure gate | PENDING |
-| CH2-CROSSWALK-01 | CH-2 | Update UX states/screens/acceptance criteria and publish exact GitHub HEAD/blob; resolve UX P2 thread and preserve UX-01..39 plus new IDs | PENDING; no future SHA assumed |
+| CH2-CROSSWALK-01 | CH-2 | PR #30 revision 0.2; preserve UX-01..64 and re-pin later revisions before implementation | CURRENT UX REFERENCE PINNED |
 
 **Issue #31 status:** the current PO-response table still marks PO-02, PO-04, PO-05, PO-06, PO-11, PO-12, PO-I11 and PO-I06A as PENDING. This addendum does not change those decisions or imply any response. Logo and tagline are new requirements and must be added to a controlled PO/PM decision record only by the authorized owner.
 
@@ -1463,3 +1524,57 @@ No live schema or database statement is made. No SQL, migration, code, storage b
 **QA execution authorization: NOT GRANTED.**  
 **PR merge authorization: NOT GRANTED.**  
 **Deployment / pilot: NOT AUTHORIZED.**
+
+---
+
+# Controlled Addendum v0.3.1 — P2 Idempotency and Generated Default Alignment
+
+**Task:** DT-CH3-PR33-FOLLOWUP-001  
+**Parent candidate:** `00a3fcaa44b55a6a2b505aa2e756cd47ce4f723d`, blob `5f3e35fefe1890ffc93379d4415bb8ec86aba868`  
+**Exact UX source:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
+**Codex finding:** PR #33 comment `4524063634`, P2  
+**Status:** Corrected design candidate — CH-1 / CH-4 re-review required  
+**Implementation / DB / QA authorization:** NOT GRANTED
+
+## R.1 P2 failure scenario
+
+A request UUID R commits for shop A and operation `invoice_create`. A later request reuses R with shop B or a different operation. Under the old composite key `(shop_id, operation_type, request_id)`, no uniqueness collision occurs; lookup may report “No existing key”, allowing a second number allocation and invoice/operation. This contradicts the earlier conflict guarantee.
+
+## R.2 Corrected global idempotency identity
+
+The UUID is globally unique. Preferred logical storage is `invoice_idempotency_requests` with `request_id UUID PRIMARY KEY` and immutable `owner_user_id`, `shop_id`, `operation_type`, canonicalization version, payload hash, result reference and state. Alternatively redesign `transaction_requests` to enforce the same global uniqueness. Composite-only uniqueness is insufficient.
+
+Authenticate first, derive owner from the session, and insert/find the global UUID claim before counter access. Matching retries require exact owner + shop + operation + canonicalization version + payload hash equality, complete committed state and tenant-scoped confirmation that the referenced invoice belongs to the same owner/shop. Only then return the original result with `replayed=true`.
+
+Any mismatched owner, shop, operation, canonicalization version or payload returns generic `IDEMPOTENCY_CONFLICT`; disclose no existing invoice ID, bill number, shop identity, payload or mismatch detail. Do not query another tenant's invoice. No new invoice/number is allocated. Incomplete/inconsistent rows return `REQUEST_STATE_REQUIRES_RECONCILIATION`.
+
+Concurrent identical requests serialize on the global unique constraint and replay one result. Conflicting requests race for a single claim; at most one creates. Claim, invoice, lines, counter, audit and registry completion commit together; rollback removes all. Committed UUIDs are never recycled; retain a minimal tombstone after result data retention ends.
+
+**Database proposal only:** global unique/primary key on request_id, duplicate-UUID preflight across existing rows, owner/shop/operation/hash attributes, dedicated registry or redesign of `transaction_requests`, narrow service/RPC access and atomic transaction. No SQL or migration is authored/executed.
+
+## R.3 Logo resolution aligned to current UX
+
+PR #30 UX-40 says no upload and no explicit Blank resolves to Generated by default; UX-43 gives upload priority; UX-46 says Blank suppresses every mark/placeholder; UX-42 provides preview but not a separate opt-in.
+
+Effective state:
+1. Valid upload and no explicit Blank: `UPLOADED`.
+2. Explicit owner Blank selection: `BLANK`, suppressing generated and placeholder output.
+3. No valid upload and no explicit Blank: `GENERATED` by default; no separate opt-in.
+
+Removing an upload returns to Generated unless Blank is explicitly selected. Clearing Blank resumes Generated. Preview is informational. Issued invoices snapshot exact generated/uploaded asset version.
+
+## R.4 Category dependency
+
+Final category taxonomy remains PO/PM-pending. Never infer it from shop name or other free text. Use only explicitly stored/selected values from the approved taxonomy. If missing/unsupported, use a deterministic category-neutral template only with CH-1/CH-2 approval; otherwise block logo-dependent rendering with an actionable category-selection error. Do not coerce legacy values or default to `food`. UX-49/50 remain PO-gated.
+
+## R.5 Exact UX source
+
+PR #30 revision 0.2 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`. Aligns with UX-40/42/43/45/46/47/49/50/64. Remaining category taxonomy, upload limits, tagline limit and historical header retention remain PO/PM gates.
+
+## R.6 Proposed tests — NOT EXECUTED
+
+AT-IDEM-13..18 cover cross-shop, cross-operation, cross-owner, identical concurrency, conflicting concurrency and incomplete-record behaviour. Existing AT-IDEM-01..12 remain. Logo LG-08..12 are corrected for Generated default and category fallback. All are PROPOSED / NOT EXECUTED.
+
+## R.7 Verification boundary
+
+No application code, SQL, migration, database operation, build, automated test, browser/PDF QA, merge, deployment or pilot was performed. Runtime/security behaviour remains UNVERIFIED pending separate authorization.
