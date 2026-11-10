@@ -87,10 +87,10 @@ No evidence artifact is registered as received in this consolidation. CH-1's R2.
 
 ### 3.1 Current scope — preserved without reclassification
 
-| Scope | Total | Enumerated | Fully specified / confirmed | Blocked | Actual query IDs assigned | Closure status |
-|---|---:|---:|---:|---:|---:|---|
-| T01–T63 | 63 | Historical case IDs referenced in R2.10; row-by-row source manifest not located in accessible reviewed records | 0 confirmed | 63 NOT CLOSED; exact blocked-vs-partial partition unaudited | 0 confirmed | NOT CLOSED |
-| LEG/CAT/CUST/AUD | 28 | 28 | 0 with complete executable contracts | 28 | 0 | NOT CLOSED |
+| Scope | Total | Fully specified / confirmed | Closed | Overall status | Row-level classification | Blocked/partial breakdown | Actual query IDs assigned |
+|---|---:|---:|---:|---|---|---|---:|
+| T01–T63 | 63 | 0 | 0 | 63 NOT CLOSED | UNAUDITED | NOT ESTABLISHED | 0 confirmed |
+| LEG/CAT/CUST/AUD | 28 | 0 with complete executable contracts | 0 | 28 enumerated; 28 blocked; NOT CLOSED | Family-level enumeration only; case contracts remain incomplete | 28 blocked; no partial split established | 0 |
 
 **Preserved finding status:**
 - F25-05 — **PARTIALLY ADDRESSED**.
@@ -164,7 +164,9 @@ The template is intentionally blank. It does not assign IDs, actions, expected o
 | Gate / review | Current disposition | Evidence / interpretation |
 |---|---|---|
 | CH-1 R2.10 disposition | **ACCEPT WITH CONDITIONS** | Verified in PR #17 comment `6736302832`, exact reviewed commit `8c0cf59a7dcba7b4d353207c42c99a9800434542` |
-| CH-4 R2.10 independent verdict | **NOT LOCATED / NOT VERIFIED in accessible repository record** | CH-1 PR #17 comment says CH-4 independent review is required next. No CH-4 R2.10 acceptance comment/review was found during consolidation source inspection. Do not record ACCEPT WITH CONDITIONS until its exact review artifact is linked. |
+| CH-4 R2.10 report supplied to CH-1 | **ACCEPT WITH CONDITIONS** | CH-1 confirms that the independent CH-4 R2.10 report was supplied outside PR #17 GitHub review/comment history. The exact report filename/path was not provided to CH-3 in this task; no filename, URL, review ID or comment reference is inferred. |
+| CH-4 verdict linked in PR #17 GitHub history | **NOT LOCATED / NOT VERIFIED** | The supplied report is distinct from the PR #17 GitHub review/comment record. |
+| CH-4 R2.10 repository traceability | **PENDING** | The report's exact repository artifact/linkage must be recorded when supplied or published; do not treat missing PR #17 linkage as absence of the report itself. |
 | Original CH-4 F25 source | PR #11 R2.5 independent QA report | This is the source for F25-01–F25-08; its verdict on R2.5 was NEEDS REVISION, not an R2.10 verdict |
 | Physical DBA feasibility | NOT VERIFIED | No actual schema/role/trigger/constraint mapping or DBA sign-off artifact located |
 | Runtime/database verification | NOT EXECUTED | CH-1 R2.10 disposition explicitly confirms no execution |
@@ -203,7 +205,7 @@ No database, build, QA, merge, deployment or pilot approval is created by this r
 
 | ID | Risk / blocker | Impact | Current response / required next step |
 |---|---|---|---|
-| RSK-01 | CH-4 R2.10 verdict not located in current accessible repository evidence | Consolidation cannot truthfully record independent acceptance | CH-1 supplies exact CH-4 comment/review URL or CH-4 posts the verdict |
+| RSK-01 | CH-4 R2.10 report was supplied to CH-1, but its exact repository linkage is not recorded in PR #17 history | Repository traceability remains incomplete; the report's ACCEPT WITH CONDITIONS verdict is nevertheless recorded as supplied to CH-1 | Record the actual report artifact/filename and repository location when available; do not invent a link or review ID |
 | RSK-02 | T01–T63 row source manifest unavailable | No defensible row-by-row audit or partition | CH-1/PO provides exact source artifact path and revision |
 | RSK-03 | Supplemental 28 case contract source/query definitions unavailable | Cannot convert enumerated cases into executable manifest without invention | Locate original 28 case definitions and DBA/PO evidence |
 | RSK-04 | PostgreSQL schema/version/partition map unverified | Physical constraints/triggers may not support logical contract | DBA completes DBA-04/07/11 |
@@ -222,7 +224,7 @@ No database, build, QA, merge, deployment or pilot approval is created by this r
 - R2.10 commit `8c0cf59a7dcba7b4d353207c42c99a9800434542` is the exact baseline and remains unchanged.
 - The consolidation is a new one-file documentation artifact on a separate branch.
 - The source T01–T63 row-by-row register and fully specified 28-case executable contracts were not located in the accessible sources; no synthetic records were created.
-- CH-4's R2.10 verdict is not verified in the accessible repository records inspected for this task. It remains a blocking source gap, not silently accepted.
+- CH-4's R2.10 report was supplied to CH-1 with an ACCEPT WITH CONDITIONS verdict. Its linkage in PR #17 GitHub history remains NOT LOCATED / NOT VERIFIED, and repository traceability remains PENDING. The exact report filename/path was not supplied to CH-3 in this task.
 - F25-05/F25-06 remain PARTIALLY ADDRESSED; F25-07/F25-08 remain PENDING.
 - No code, SQL, database operation, build, runtime test, QA execution, deployment, merge or pilot was performed.
 - No test PASS, physical DBA feasibility, design closure or implementation readiness is claimed.
