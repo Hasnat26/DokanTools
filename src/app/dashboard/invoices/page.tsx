@@ -52,6 +52,7 @@ export default function OwnerInvoicesPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [storageAvailable, setStorageAvailable] = useState(true);
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
 
   const preview = useMemo(() => calculateInvoicePreview(lines), [lines]);
   const filteredCatalog = useMemo(() => {
@@ -155,6 +156,7 @@ export default function OwnerInvoicesPage() {
       return;
     }
     setSavingDraft(true);
+    setSaveSucceeded(false);
     setError("");
     const now = new Date().toISOString();
     const existing = drafts.find(item => item.id === selectedDraftId);
@@ -172,6 +174,7 @@ export default function OwnerInvoicesPage() {
       const all = await listInvoiceDrafts(userId, shop.id);
       setDrafts(all as LocalDraft[]);
       setSelectedDraftId(draft.id);
+      setSaveSucceeded(true);
       setNotice("খসড়া এই ডিভাইসে সংরক্ষিত হয়েছে। এটি ইস্যু করা বিল নয় এবং কোনো বিল নম্বর তৈরি হয়নি।");
       setError("");
     } catch (e) {
@@ -220,7 +223,7 @@ export default function OwnerInvoicesPage() {
 
   function saveAndReview() {
     void persistDraft().then(() => {
-      if (preview.valid && !error) setScreen("review");
+      if (preview.valid && saveSucceeded) setScreen("review");
     });
   }
 
