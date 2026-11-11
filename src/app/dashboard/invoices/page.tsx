@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase, InvoiceCatalogItem, InvoiceDraft, InvoiceDraftLine, Shop } from "@/lib/supabase";
 import { calculateInvoicePreview, formatBDTFromMinor } from "@/lib/invoice-domain.mjs";
 import { deleteInvoiceDraft, listInvoiceDrafts, saveInvoiceDraft } from "@/lib/invoice-draft-store.mjs";
+import InvoiceDocument from "@/components/invoice/InvoiceDocument";
 
 type Screen = "composer" | "review" | "history" | "detail";
 type LocalDraft = InvoiceDraft & { owner_id: string };
@@ -341,28 +342,19 @@ export default function OwnerInvoicesPage() {
               <div><p className="muted">পর্যালোচনা · খসড়া</p><h2 className="mt-1 text-2xl font-extrabold">খাবারের বিল</h2></div>
               <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">ইস্যু হয়নি</span>
             </div>
-            <div className="mt-4 border-b pb-4">
-              <p className="font-bold">{shop.shop_name}</p>
-              {shop.address && <p className="text-sm text-slate-600">{shop.address}</p>}
-              {shop.phone && <p className="text-sm text-slate-600">মোবাইল: {shop.phone}</p>}
-              {shop.map_link && <p className="break-all text-sm text-slate-600">Google Maps: {shop.map_link}</p>}
-            </div>
-            <div className="mt-5">
-              <div className="grid grid-cols-[minmax(0,1fr)_64px_90px] gap-2 border-b pb-2 text-xs font-bold text-slate-600 sm:grid-cols-[minmax(0,1fr)_80px_110px]">
-                <span>খাবার/আইটেম</span><span className="text-right">পরিমাণ</span><span className="text-right">মূল্য</span>
-              </div>
-              {lines.map((line, i) => (
-                <div key={i} className="grid grid-cols-[minmax(0,1fr)_64px_90px] gap-2 border-b py-3 text-sm sm:grid-cols-[minmax(0,1fr)_80px_110px]">
-                  <span className="break-words">{line.item_name}</span>
-                  <span className="text-right tabular-nums">{line.quantity_text}</span>
-                  <span className="text-right tabular-nums">{preview.valid ? `৳${formatBDTFromMinor(preview.lineAmounts[i])}` : "—"}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex items-center justify-between text-lg font-extrabold"><span>মোট বিল</span><span>৳{preview.valid ? formatBDTFromMinor(preview.totalMinor) : "—"}</span></div>
-            <div className="mt-6 border-t pt-4 text-center">
-              <h3 className="text-xl font-extrabold">খাবারের বিল</h3>
-              <p className="mt-4 text-sm">ধন্যবাদ, আবার আসবেন!</p>
+            <div className="invoice-print-root mt-4">
+              <InvoiceDocument
+                shop={shop}
+                title="খাবারের বিল"
+                lines={lines.filter(line => line.item_name.trim()).map((line, i) => ({
+                  item_name: line.item_name,
+                  quantity: line.quantity_text,
+                  amount_label: preview.valid ? `৳${formatBDTFromMinor(preview.lineAmounts[lines.indexOf(line)])}` : "—",
+                }))}
+                totalLabel={preview.valid ? `৳${formatBDTFromMinor(preview.totalMinor)}` : "—"}
+                statusLabel="খসড়া · ইস্যু হয়নি"
+                showIssueMetadata={false}
+              />
             </div>
           </div>
           <aside className="card h-fit">
@@ -370,6 +362,7 @@ export default function OwnerInvoicesPage() {
             <p className="mt-2 text-sm text-slate-600">দোকানের তথ্য, প্রতিটি আইটেম, পরিমাণ ও মোট দেখুন। এটি এখনো একটি local draft preview।</p>
             <button type="button" className="btn-secondary mt-4 min-h-12 w-full" onClick={() => setScreen("composer")}>বিল সম্পাদনা</button>
             <button type="button" className="btn-secondary mt-2 min-h-12 w-full" onClick={() => void persistDraft()} disabled={!storageAvailable || savingDraft}>খসড়া সংরক্ষণ</button>
+            <button type="button" className="btn-secondary mt-2 min-h-12 w-full" onClick={() => window.print()}>প্রিন্ট / Save as PDF · খসড়া</button>
             <button type="button" className="mt-3 min-h-12 w-full rounded-xl border border-amber-400 bg-amber-50 px-4 font-bold text-amber-950" onClick={blockedIssue}>বিল তৈরি করুন · বর্তমানে বন্ধ</button>
             <p className="mt-3 text-xs text-amber-900">PO-02/04/05/06 pending এবং CH-3 issue API contract এখনও branch-এ নেই। তাই বিল নম্বর, issued status, QR বা verification তৈরি হবে না।</p>
           </aside>
