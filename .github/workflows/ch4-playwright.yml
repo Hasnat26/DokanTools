@@ -54,6 +54,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
+      - name: Install Bengali font fallback for deterministic rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-core
+          fc-match "Noto Sans Bengali"
       - name: Install application dependencies
         working-directory: app
         run: npm ci
