@@ -14,6 +14,13 @@ async function installSyntheticSupabase(page: Page) {
   await page.route("https://example.supabase.co/**", async route => {
     const request = route.request();
     const url = new URL(request.url());
+    if (request.method() === "OPTIONS") {
+      return route.fulfill({ status: 204, headers: {
+        "access-control-allow-origin": "http://127.0.0.1:3000",
+        "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
+        "access-control-allow-headers": "apikey,authorization,content-type,x-client-info",
+      }, body: "" });
+    }
     if (url.pathname.endsWith("/auth/v1/token") && request.method() === "POST") {
       const body = request.postDataJSON() as { email?: string };
       currentUser = body.email === OWNER_A.email ? OWNER_A : body.email === OWNER_B.email ? OWNER_B : null;
