@@ -57,8 +57,7 @@ export default function OwnerInvoicesPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [storageAvailable, setStorageAvailable] = useState(true);
-  const [saveSucceeded, setSaveSucceeded] = useState(false);
-  const [issueBusy, setIssueBusy] = useState(false);
+
 
   const preview = useMemo(() => calculateInvoicePreview(lines), [lines]);
   const filteredCatalog = useMemo(() => {
@@ -193,7 +192,6 @@ export default function OwnerInvoicesPage() {
       return false;
     }
     setSavingDraft(true);
-    setSaveSucceeded(false);
     setError("");
     const now = new Date().toISOString();
     const existing = drafts.find(item => item.id === selectedDraftId);
@@ -211,7 +209,6 @@ export default function OwnerInvoicesPage() {
       const all = await listInvoiceDrafts(userId, shop.id);
       setDrafts(all as LocalDraft[]);
       setSelectedDraftId(draft.id);
-      setSaveSucceeded(true);
       setNotice("খসড়া এই ডিভাইসে সংরক্ষিত হয়েছে। এটি ইস্যু করা বিল নয় এবং কোনো বিল নম্বর তৈরি হয়নি।");
       setError("");
       return true;
@@ -413,8 +410,8 @@ export default function OwnerInvoicesPage() {
             <button type="button" className="btn-secondary mt-4 min-h-12 w-full" onClick={() => setScreen("composer")}>বিল সম্পাদনা</button>
             <button type="button" className="btn-secondary mt-2 min-h-12 w-full" onClick={() => void persistDraft()} disabled={!storageAvailable || savingDraft}>খসড়া সংরক্ষণ</button>
             <button type="button" className="btn-secondary mt-2 min-h-12 w-full" onClick={() => window.print()}>প্রিন্ট / Save as PDF · খসড়া</button>
-            <button type="button" className="mt-3 min-h-12 w-full rounded-xl border border-amber-400 bg-amber-50 px-4 font-bold text-amber-950" onClick={() => void issueInvoice()} disabled={issueBusy || !preview.valid}>{issueBusy ? "ইস্যু হচ্ছে…" : "বিল তৈরি করুন · PO approval pending"}</button>
-            <p className="mt-3 text-xs text-amber-900">PO-02/04/05/06 pending এবং CH-3 issue API contract এখনও branch-এ নেই। তাই বিল নম্বর, issued status, QR বা verification তৈরি হবে না।</p>
+            <button type="button" className="mt-3 min-h-12 w-full rounded-xl border border-amber-400 bg-amber-50 px-4 font-bold text-amber-950" disabled title="PO decisions pending">বিল তৈরি করুন · PO approval pending</button>
+            <p className="mt-3 text-xs text-amber-900">PO-02/04/05/06 pending। তাই UI ইস্যু API call করে না; কোনো বিল নম্বর বা QR তৈরি হয় না।</p>
           </aside>
         </section>
       )}
