@@ -103,7 +103,7 @@ async function login(page: Page, owner: typeof OWNER_A | typeof OWNER_B) {
 }
 
 async function addOneLine(page: Page, name = "সাদা ভাত", qty = "1", price = "10.50") {
-  await page.getByRole("button", { name: /সাদা ভাত ৳10\.50/ }).click();
+  await page.getByRole("button", { name: /সাদা ভাত\s+৳10\.50/ }).click();
   await page.locator("#qty-0").fill(qty);
   if (name !== "সাদা ভাত") await page.locator("#item-name-0").fill(name);
   if (price !== "10.50") await page.locator("#price-0").fill(price);
