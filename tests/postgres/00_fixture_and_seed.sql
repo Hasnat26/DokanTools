@@ -14,7 +14,7 @@ insert into public.shops(id,user_id,shop_name,phone,address,map_link) values
 -- Verify the production-default gate rejects direct RPC calls before any write.
 set role authenticated;
 set request.jwt.claim.sub='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-do $ begin
+do $$ begin
  begin
   perform * from public.create_invoice_transaction(
    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','invoice-create/v1','10000000-0000-4000-8000-000000000009',
