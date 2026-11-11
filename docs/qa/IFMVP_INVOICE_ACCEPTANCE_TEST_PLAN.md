@@ -48,26 +48,26 @@ Fixture IDs are synthetic and contain no customer or production data.
 
 | Test ID | Area | Assertion / oracle | Status before invoice implementation |
 |---|---|---|---|
-| IF-QA-001 | Tenant isolation | Owner A cannot read/issue/replay Owner B shop invoice; no invoice/header/sequence side effects on denial. | Fixture contract executable; RLS/API integration blocked |
+| IF-QA-001 | Tenant isolation | Owner A cannot read/issue/replay Owner B shop invoice; no invoice/header/sequence side effects on denial. | Model oracle only; RLS/API integration blocked |
 | IF-QA-002 | Shop authorization | Auth required; requested shop must belong to authenticated owner before idempotency lookup/claim comparison. | Fixture contract executable; API integration blocked |
 | IF-QA-003 | Numbering isolation | Sequential in-memory per-shop counter model only. | Model oracle; DB uniqueness/concurrency blocked |
 | IF-QA-004 | Number allocation atomicity | No rollback/number-consumption claim from the fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL transaction test |
 | IF-QA-005 | Idempotent exact replay | In-memory model canonicalizes recursively sorted object keys; reordered equivalent JSON replays same model invoice. | Model oracle only; production canonicalization/API integration blocked |
-| IF-QA-006 | Idempotency conflict | Same namespace + UUID with changed payload/shop/operation yields generic conflict and no number/side effects. | Oracle executable; API integration blocked |
+| IF-QA-006 | Idempotency conflict | Same namespace + UUID with changed payload/shop/operation yields generic conflict and no number/side effects. | Model oracle only; API integration blocked |
 | IF-QA-007 | Concurrent duplicate request | No concurrent behavior is asserted by this fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL multi-connection harness |
 | IF-QA-008 | Concurrent numbering | No distinct-request interleaving or concurrency behavior is asserted by this fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL multi-connection harness |
 | IF-QA-009 | Rollback | No partial-mutation rollback behavior is asserted by this fixture suite. | BLOCKED pending CH-3 transaction-level fault injection on disposable PostgreSQL |
 | IF-QA-010 | Immutable snapshot | Static fixture independence model only; not persistence proof. | Model oracle only; database integration blocked |
 | IF-QA-011 | No-side-effect guard | In-memory legacy-counter model remains unchanged; not evidence about actual tables/triggers. | Model oracle only; DB side-effect inspection blocked |
-| IF-QA-012 | Draft vs issued | Draft has no issued number/time/events and is never represented as issued/verified; issued requires server commit. | Fixture contract executable; UI/API tests blocked |
-| IF-QA-013 | QR disabled by default | Default configuration emits no public URL, token, MAC or QR payload; disabled verification returns fail-closed unavailable outcome. | Fixture contract executable; actual gate inspection blocked |
+| IF-QA-012 | Draft vs issued | Draft has no issued number/time/events and is never represented as issued/verified; issued requires server commit. | Model oracle only; UI/API integration blocked |
+| IF-QA-013 | QR disabled by default | Default configuration emits no public URL, token, MAC or QR payload; disabled verification returns fail-closed unavailable outcome. | Model oracle only; actual gate inspection blocked |
 | IF-QA-014 | History/detail privacy | In-memory owner-filtered history/detail lookup returns no Owner A invoice to Owner B. | Model oracle only; API/RLS integration blocked |
-| IF-QA-015 | PO policy gate | PO-dependent behavior stays disabled/parameterized; no expectation for PO-04/05/06/11 or L01–L04 until decisions exist. | Contract executable |
+| IF-QA-015 | PO policy gate | PO-dependent behavior stays disabled/parameterized; no expectation for PO-04/05/06/11 or L01–L04 until decisions exist. | Model oracle only |
 | IF-QA-016 | Legacy regression boundary | Invoice adapters have no dependency/call to memo transaction; invoice write path does not insert into legacy transaction_requests. | Static source guard executable when implementation appears |
 | IF-QA-017 | Bangla mockup content | No source/rendered-mockup assertion in current executable suite. | Blocked pending CH-2 UI integration and source-backed content assertion |
-| IF-QA-018 | Public QR PO gate | No production/public link issuance unless PO-12, PO-I06A and PO-I11 evidence and PM release flag all present. | Gate-oracle executable; production verification explicitly skipped |
+| IF-QA-018 | Public QR PO gate | No production/public link issuance unless PO-12, PO-I06A and PO-I11 evidence and PM release flag all present. | Model gate example only; production verification explicitly blocked |
 | IF-QA-019 | Snapshot concurrency | No concurrent profile-update behavior is asserted by this fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL two-session test |
-| IF-QA-020 | Lost response retry | Retry uses same request UUID and exact payload; it recovers one committed invoice or remains unknown; no automatic new key. | Oracle executable; end-to-end network test blocked |
+| IF-QA-020 | Lost response retry | Retry uses same request UUID and exact payload; it recovers one committed invoice or remains unknown; no automatic new key. | Model oracle only; end-to-end network test blocked |
 
 ### PO-dependent cases intentionally not assigned expected product results
 - **PO-02:** online/offline issuance promise. This package tests only that a local draft is not an issued bill; exact offline policy must be bound after PO response.
