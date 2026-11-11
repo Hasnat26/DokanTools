@@ -12,12 +12,12 @@
 At the time this test package was prepared, the QA branch was at the authorized base commit and contained no invoice-specific migration, invoice API/RPC, invoice routes or invoice tables. The existing `supabase/schema.sql` and migration inventory contain legacy memo/stock/customer-ledger behavior only. Existing test command is `npm test` → `node --test tests/*.test.mjs`.
 
 The plan therefore separates:
-- **Executable contract/fixture tests:** deterministic, local, in-memory tests for invoice invariants and expected outcome oracles.
+- **Fixture-model tests:** deterministic in-memory examples only. They exercise the test model's logic, not the application implementation. They are not PostgreSQL, RLS, transaction, database concurrency, UI, or persistence proof.
 - **Implementation integration tests:** explicitly blocked until CH-3 invoice migration/API is merged or made available on an implementation branch and a disposable local PostgreSQL/Supabase test target exists.
 - **Browser/render tests:** blocked until CH-2 UI route/components are available and a local browser harness is installed/configured.
 - **PO-dependent scenarios:** parameterized/blocked; not asserted as product policy.
 
-These tests must not be described as database/RLS proof. They verify test-fixture models and expected contracts only until bound to the implementation adapter.
+**Status terminology:** `MODEL ORACLE` means only that an in-memory model assertion exists. `BLOCKED` means no executable test is claimed until the real implementation and the named integration harness exist. No fixture-model result may be represented as PostgreSQL, RLS, transaction atomicity, real concurrency, persistent snapshot, or production no-side-effect proof.
 
 ## 2. Safety invariants
 
@@ -50,23 +50,23 @@ Fixture IDs are synthetic and contain no customer or production data.
 |---|---|---|---|
 | IF-QA-001 | Tenant isolation | Owner A cannot read/issue/replay Owner B shop invoice; no invoice/header/sequence side effects on denial. | Fixture contract executable; RLS/API integration blocked |
 | IF-QA-002 | Shop authorization | Auth required; requested shop must belong to authenticated owner before idempotency lookup/claim comparison. | Fixture contract executable; API integration blocked |
-| IF-QA-003 | Numbering isolation | Separate per-shop counters; unique bill number within a shop; no cross-shop collision requirement inferred. | Fixture oracle executable; DB uniqueness/concurrency blocked |
-| IF-QA-004 | Number allocation atomicity | Failed transaction does not consume a number; committed invoice consumes it permanently; revoked numbers not reused (revocation policy still PO-gated for customer behavior). | Oracle executable; DB transaction test blocked |
-| IF-QA-005 | Idempotent exact replay | Same namespace + request UUID + owner/shop/operation/version/hash returns same committed invoice; no duplicate side effects. | Oracle executable; API/database integration blocked |
+| IF-QA-003 | Numbering isolation | Sequential in-memory per-shop counter model only. | Model oracle; DB uniqueness/concurrency blocked |
+| IF-QA-004 | Number allocation atomicity | No rollback/number-consumption claim from the fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL transaction test |
+| IF-QA-005 | Idempotent exact replay | In-memory model canonicalizes recursively sorted object keys; reordered equivalent JSON replays same model invoice. | Model oracle only; production canonicalization/API integration blocked |
 | IF-QA-006 | Idempotency conflict | Same namespace + UUID with changed payload/shop/operation yields generic conflict and no number/side effects. | Oracle executable; API integration blocked |
-| IF-QA-007 | Concurrent duplicate request | Concurrent identical submissions create one invoice/one number; all successful callers resolve to same invoice. | Oracle executable; multi-connection DB test blocked |
-| IF-QA-008 | Concurrent numbering | Distinct concurrent requests for one shop receive distinct numbers; no gaps from rolled-back attempts. | Oracle executable; DB concurrency blocked |
-| IF-QA-009 | Rollback | Failure at each write boundary leaves no invoice, lines, events, audit, idempotency claim or consumed number. | Fault-injection oracle executable; SQL/RPC rollback test blocked |
-| IF-QA-010 | Immutable snapshot | Editing shop profile/menu after issuance does not mutate invoice header or line snapshot. | Fixture oracle executable; persistence/DB integration blocked |
-| IF-QA-011 | No-side-effect guard | Invoice issue leaves memo, stock item/movement, customer and due-ledger counts/rows unchanged. | Fixture oracle executable; DB trigger/side-effect evidence blocked |
+| IF-QA-007 | Concurrent duplicate request | No concurrent behavior is asserted by this fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL multi-connection harness |
+| IF-QA-008 | Concurrent numbering | No distinct-request interleaving or concurrency behavior is asserted by this fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL multi-connection harness |
+| IF-QA-009 | Rollback | No partial-mutation rollback behavior is asserted by this fixture suite. | BLOCKED pending CH-3 transaction-level fault injection on disposable PostgreSQL |
+| IF-QA-010 | Immutable snapshot | Static fixture independence model only; not persistence proof. | Model oracle only; database integration blocked |
+| IF-QA-011 | No-side-effect guard | In-memory legacy-counter model remains unchanged; not evidence about actual tables/triggers. | Model oracle only; DB side-effect inspection blocked |
 | IF-QA-012 | Draft vs issued | Draft has no issued number/time/events and is never represented as issued/verified; issued requires server commit. | Fixture contract executable; UI/API tests blocked |
 | IF-QA-013 | QR disabled by default | Default configuration emits no public URL, token, MAC or QR payload; disabled verification returns fail-closed unavailable outcome. | Fixture contract executable; actual gate inspection blocked |
-| IF-QA-014 | History/detail privacy | Owner history scoped to authenticated owner/shop; cross-tenant ID guessing returns generic denial/not-found. | Fixture oracle executable; API/RLS integration blocked |
+| IF-QA-014 | History/detail privacy | In-memory owner-filtered history/detail lookup returns no Owner A invoice to Owner B. | Model oracle only; API/RLS integration blocked |
 | IF-QA-015 | PO policy gate | PO-dependent behavior stays disabled/parameterized; no expectation for PO-04/05/06/11 or L01–L04 until decisions exist. | Contract executable |
 | IF-QA-016 | Legacy regression boundary | Invoice adapters have no dependency/call to memo transaction; invoice write path does not insert into legacy transaction_requests. | Static source guard executable when implementation appears |
-| IF-QA-017 | Bangla mockup content | Preserve exact heading `খাবারের বিল` and footer `ধন্যবাদ, আবার আসবেন!`; required header/line fields present. | Fixture content assertion executable; rendered visual QA blocked |
+| IF-QA-017 | Bangla mockup content | No source/rendered-mockup assertion in current executable suite. | Blocked pending CH-2 UI integration and source-backed content assertion |
 | IF-QA-018 | Public QR PO gate | No production/public link issuance unless PO-12, PO-I06A and PO-I11 evidence and PM release flag all present. | Gate-oracle executable; production verification explicitly skipped |
-| IF-QA-019 | Snapshot concurrency | Profile revision is coherent: invoice locks/snapshots one profile revision; no mixed header fields during concurrent update/upload. | Oracle executable; DB two-session race test blocked |
+| IF-QA-019 | Snapshot concurrency | No concurrent profile-update behavior is asserted by this fixture suite. | BLOCKED pending CH-3 disposable PostgreSQL two-session test |
 | IF-QA-020 | Lost response retry | Retry uses same request UUID and exact payload; it recovers one committed invoice or remains unknown; no automatic new key. | Oracle executable; end-to-end network test blocked |
 
 ### PO-dependent cases intentionally not assigned expected product results
@@ -106,7 +106,10 @@ Browser tests: no command is claimed until CH-2 implementation provides selector
 - Branch/base identity: PASS — QA branch exists and is at `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`.
 - Invoice implementation discovered on QA branch: NOT PRESENT at preparation start — no invoice API/migration/routes/tables.
 - Existing legacy test infrastructure: PRESENT — `npm test`, `npm run verify:sql`, lint/typecheck/build scripts exist.
-- Invoice tests run: 0 — no invoice-specific implementation adapter yet.
+- Fixture-model test execution: NOT RUN in this authoring environment; source changes do not constitute execution. Test cases are model-only and not implementation proof.
+- IF-QA-007/008 concurrency: BLOCKED (explicit skipped Node tests); requires distinct request IDs, forced interleaving and independent DB connections in CH-3 harness.
+- IF-QA-009 rollback: BLOCKED (explicit skipped Node test); requires failure injection after partial SQL mutations inside a disposable PostgreSQL transaction.
+- IF-QA-014: owner-scoped history/detail model oracle added; actual API/RLS authorization remains BLOCKED.
 - Database integration: SKIPPED — no invoice schema and no disposable local DB target was configured.
 - Browser/UI tests: SKIPPED — no invoice UI implementation/browser harness is available on this branch.
 - Lint/typecheck/build: NOT RUN in this preparation pass; dependencies/environment not inspected or installed.
@@ -115,6 +118,10 @@ Browser tests: no command is claimed until CH-2 implementation provides selector
 - Render: not provisioned/deployed; Issue #36 comment 6787378387 selects Render but explicitly does not authorize infrastructure or deployment.
 
 ## 7. Entry criteria for executable implementation integration
+
+CH-3 coordination request (pending response): please provide the disposable local PostgreSQL harness owner/status, schema/RPC contract, transaction fault-injection seam, independent-connection concurrency mechanism, and safe test command. CH-4 has deliberately marked IF-QA-007/008/009 BLOCKED rather than substituting synchronous Map behavior for DB evidence.
+
+CH-2 coordination request (pending response): please provide the invoice UI route/component contract, history/detail selectors, and a synthetic-data browser test entry point. CH-4 will then bind IF-QA-012/017/020 UI assertions to the delivered implementation; current fixture checks are not UI proof.
 
 CH-3 must provide:
 1. Invoice migration path and exact schema/RPC contract.
