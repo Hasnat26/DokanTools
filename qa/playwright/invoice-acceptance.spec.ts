@@ -231,7 +231,7 @@ test("stale User A history success cannot populate User B after session switch",
   gate.resolve();
   await expect(page.getByText("A-0001")).toHaveCount(0);
   await expect(page.getByText(SHOP_A.shop_name)).toHaveCount(0);
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveText("");
 });
 
 test("stale User A detail success cannot populate User B after session switch", async ({ page }) => {
@@ -256,7 +256,7 @@ test("stale User A detail success cannot populate User B after session switch", 
   gate.resolve();
   await expect(page.getByText("A-0001")).toHaveCount(0);
   await expect(page.locator(".invoice-document")).toHaveCount(0);
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveText("");
 });
 
 test("stale User A history error cannot overwrite User B history state", async ({ page }) => {
@@ -276,7 +276,7 @@ test("stale User A history error cannot overwrite User B history state", async (
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await expect(page.getByText("সার্ভারে কোনো ইস্যু করা বিল পাওয়া যায়নি।")).toBeVisible();
   gate.resolve();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveText("");
   await expect(page.getByText("সার্ভারে কোনো ইস্যু করা বিল পাওয়া যায়নি।")).toBeVisible();
 });
 
