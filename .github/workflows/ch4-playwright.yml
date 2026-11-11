@@ -116,11 +116,10 @@ jobs:
         working-directory: qa-harness/qa/playwright
         shell: bash
         run: |
-          mkdir -p evidence
           OUT=pdf-fidelity.txt
           {
-            echo "Application SHA: ${APP_TESTED_SHA:-6cc0ce8535423a9367ed05f17ecf15e5e1d34c20}"
-            echo "QA harness SHA: ${QA_HARNESS_SHA:-not-recorded-if-checkout-setup-failed}"
+            echo "Application SHA: ${APP_TESTED_SHA:-not-recorded}"
+            echo "QA harness SHA: ${QA_HARNESS_SHA:-not-recorded}"
             pdffonts -v 2>&1 | head -n 2
             pdftotext -v 2>&1 | head -n 2
             for pdf in test-results/*/invoice-short.pdf test-results/*/invoice-long.pdf; do
