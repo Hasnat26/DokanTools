@@ -1636,9 +1636,9 @@ Source: PR #30 HEAD `ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f`, blob `b5c176de5b
 All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01..UX-39 and include UX-40..UX-71 in its criterion-level static mapping.
 
 
-## R.10 CH-1 P2 correction traceability
+## R.10 Historical CH-1 P2 correction traceability at v0.4.1
 
-The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14 was accepted by CH-1 for CH-4 static design review under the frozen manifest. The composite-key, authorization-order, response-precedence and tombstone corrections remain accepted design history. This v0.4.1 revision adds profile/asset lock ordering, outbox privacy, generated-logo service semantics and final CH-4 finding responses; it is a new artifact and must be re-frozen by CH-1. No implementation or QA authorization follows from the prior review acceptance.
+At v0.4.1, the prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14 had been accepted by CH-1 for CH-4 static design review under the 10 November manifest. The composite-key, authorization-order, response-precedence and tombstone corrections remain accepted design history. The v0.4.1 revision added profile/asset lock ordering, outbox privacy and generated-logo service semantics. This paragraph records that historical review state only; it does not describe the current v0.4.2 status. No implementation or QA authorization follows from any prior review acceptance.
 
 
 ## R.11 Historical v0.3.2 controlled correction summary
@@ -1648,7 +1648,7 @@ The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9
 - Precedence: authenticate → validate/canonicalize → authorize requested shop → composite-key arbitration → compare identity → allocate only for new claim → insert invoice/lines/audit → complete/commit.
 - Unauthorized requested shop: ordinary authorization denial without UUID-existence disclosure. Authorized mismatch: generic `IDEMPOTENCY_CONFLICT`. Incomplete identity: reconciliation. Matching tombstone without result: `IDEMPOTENCY_RESULT_EXPIRED`.
 - Tombstones permanently reserve committed identities; cleanup never releases keys. Backup/restore preserves acknowledged identities; disable issuance if registry completeness cannot be proven.
-- Acceptance scenarios remain PROPOSED / NOT EXECUTED. CH-1 accepted the prior exact v0.3.2 candidate for CH-4 static review; this v0.4.1 candidate requires a new CH-1 freeze/review.
+- Acceptance scenarios remain PROPOSED / NOT EXECUTED. Historical at v0.4.1: CH-1 had accepted the prior exact v0.3.2 candidate for CH-4 static review; the v0.4.1 candidate required a new freeze/review. Current v0.4.2 status is stated in AJ.
 
 
 ---
@@ -1667,7 +1667,7 @@ The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9
 
 ## S. Source and authority qualification
 
-The prior manifest was valid for pre-edit HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14. Its exact text is 8,742 UTF-8 bytes with SHA-256 f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561. This v0.4.1 edit changes the pinned technical artifact; CH-1 must issue a replacement freeze and include the manifest content digest before further CH-4 review.
+Historical at v0.4.1 authoring: the prior manifest was valid for pre-edit HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14. Its exact text was 8,742 UTF-8 bytes with SHA-256 f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561. Subsequent edits invalidated that freeze; the current replacement-freeze authority is recorded in the v0.4.2 addendum and Issue #27.
 
 The final report is published in PR #34 at HEAD de39c00432ac1267e37601c01b2d9b83eda2f670 / blob 1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7. Its overall disposition is NEEDS REVISION. The original manifest content digest is SHA-256 f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561 (8,742 UTF-8 bytes). The current PR #33 edit invalidates the prior freeze for this changed artifact; CH-1 must publish a replacement freeze.
 
@@ -1832,8 +1832,8 @@ Engineering security controls remain mandatory regardless of PO decisions. PO ap
 
 ## AC. Final gates and non-claims
 
-1. CH-1 must review this exact new HEAD/blob and publish a replacement frozen manifest before any CH-4 re-review.
-2. CH-4 must post its final signed report; the available register is preliminary.
+1. The v0.4.1 candidate required CH-1 to review its exact new HEAD/blob and publish a replacement freeze before further CH-4 review; that is historical status.
+2. CH-4's full static report has since been published at PR #34 / Issue #27 comment 6766878075; a focused closure verification against the replacement manifest remains required.
 3. Record PO/PM decisions for each PO-GATED capability.
 4. Review physical schema/RPC/storage design before migrations.
 5. Live schema/RLS/grants/storage/CDN/KMS remain NOT VERIFIED.
@@ -1850,7 +1850,7 @@ Documentation only. This addendum defines proposed constraints, transaction/API 
 
 **NOT AUTHORIZED:** implementation, SQL/schema/migrations, live DB, builds/tests/QA, KMS/secret configuration, merge, deployment, release and pilot.
 
-CH-4's final signed report remains pending. This is CH-3's consolidated response to the preliminary CH-4 register, not CH-4 acceptance or CH-1 closure. The edit changes a manifest-pinned artifact; CH-1 must re-freeze the new exact HEAD/blob.
+Historical at v0.4.1 authoring: CH-4's final signed report was still pending. The report was subsequently published at PR #34 / Issue #27 comment 6766878075. This CH-3 response to the preliminary register is not CH-4 acceptance or CH-1 closure; v0.4.2 requires a replacement freeze and focused independent verification.
 
 
 ## AE. Final CH-4 report reconciliation — report PR #34
