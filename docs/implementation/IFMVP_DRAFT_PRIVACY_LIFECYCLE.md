@@ -40,3 +40,13 @@ If PO selects B or C, define recovery/backup expectations and whether the user c
 ## Verification scope and limitations
 
 The session guard tests cover account invalidation, same-browser account switch, owner/shop matching, and stale asynchronous work. A fake-IndexedDB adapter test executes the actual store module's owner/shop index read path and verifies that both owners' records remain stored while each query returns only the matching owner/shop. IndexedDB-unavailable behavior is also tested. These are Node-level unit tests with a fake IndexedDB implementation, not real-browser persistence/E2E tests, encryption-at-rest tests, or proof against direct browser storage inspection.
+
+
+## P1 stale issued-invoice response remediation
+
+- Both `invoiceApi.list(shopId)` and `invoiceApi.get(shopId, invoiceId)` now capture an active authenticated owner/shop/generation snapshot before dispatch.
+- A shared `runSessionBoundRequest` helper checks the exact snapshot before the request and after its awaited success or rejection, and checks again before finally callbacks.
+- Sign-out/account-switch invalidates the generation. Therefore stale success, stale error and stale finally paths cannot update invoice list/detail data, screen, history error or request loading state.
+- A missing/invalid active snapshot prevents dispatch (fail closed).
+- Deterministic deferred-promise tests cover late list success, late detail success, stale rejection and stale finally/loading behavior. They test both successful and rejected pending promises without arbitrary sleeps/timeouts.
+- The tests exercise the shared request-boundary helper used by both page functions; they are not React DOM/browser integration tests.
