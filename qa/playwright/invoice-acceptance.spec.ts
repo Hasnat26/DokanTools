@@ -157,7 +157,7 @@ test("composer validation, decimal calculation and Bangla review document", asyn
   await page.locator("#qty-0").fill("1");
   await page.locator("#price-0").fill("10.00");
   await expect(page.getByRole("button", { name: "বিল পর্যালোচনা" })).toBeDisabled();
-  await page.getByRole("button", { name: /সাদা ভাত ৳10\.50/ }).click();
+  await page.getByRole("button", { name: /সাদা ভাত/ }).click();
   await page.locator("#qty-0").fill("2");
   await expect(page.getByText("৳21.00").first()).toBeVisible();
   await page.getByRole("button", { name: "বিল পর্যালোচনা" }).click();
