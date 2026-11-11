@@ -22,6 +22,9 @@ export function createInvoiceDraftSessionGuard() {
       active = null;
       return generation;
     },
+    isGenerationCurrent(requestGeneration) {
+      return requestGeneration === generation;
+    },
     isCurrent(snapshot) {
       return Boolean(
         snapshot &&
