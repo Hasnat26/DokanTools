@@ -94,7 +94,7 @@ create index if not exists invoice_lines_shop_invoice_idx on public.invoice_line
 create index if not exists invoice_audit_shop_created_idx on public.invoice_audit_events(shop_id,created_at desc);
 
 create or replace function public.reject_invoice_fact_mutation()
-returns trigger language plpgsql set search_path=pg_catalog as $
+returns trigger language plpgsql set search_path=pg_catalog as $$
 begin raise exception 'INVOICE_FACTS_IMMUTABLE' using errcode='55000'; end;
 $$;
 drop trigger if exists invoices_immutable on public.invoices;
@@ -129,7 +129,7 @@ create or replace function public.create_invoice_transaction(
 returns table(result_invoice_id uuid,result_bill_number bigint,result_issued_at timestamptz,
  result_total_amount numeric,result_was_replay boolean)
 language plpgsql security definer
-set search_path=pg_catalog as $
+set search_path=pg_catalog as $$
 declare
  v_actor uuid:=auth.uid();
  v_shop public.shops%rowtype;
@@ -223,10 +223,9 @@ begin
  -- A new request must snapshot the currently persisted shop profile. A mismatch is
  -- rejected; the claim rolls back with the exception, and no number is consumed.
  if nullif(btrim(v_shop.shop_name),'') is null or nullif(btrim(v_shop.address),'') is null
-   or nullif(btrim(v_shop.phone),'') is null or nullif(btrim(v_shop.map_link),'') is null
+   or nullif(btrim(v_shop.phone),'') is null
    or length(v_shop.shop_name)>200 or length(v_shop.address)>500
-   or length(v_shop.phone)>40 or length(v_shop.map_link)>2048
-   or v_shop.map_link !~* '^https://(www[.])?(google[.][a-z.]+/maps|maps[.]google[.][a-z.]+/)' then
+   or length(v_shop.phone)>40 then
    raise exception 'SHOP_PROFILE_INCOMPLETE_OR_INVALID' using errcode='22023';
  end if;
  if v_header->>'shopName' is distinct from v_shop.shop_name
