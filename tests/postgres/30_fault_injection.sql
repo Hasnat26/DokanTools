@@ -27,7 +27,7 @@ reset role;
 drop trigger test_fail_invoice_line on public.invoice_lines;
 drop function public.test_fail_invoice_line();
 
-do $ declare b record; n_invoice integer; n_claim integer; n_line integer; n_status integer; n_audit integer; n_next bigint; begin
+do $$ declare b record; n_invoice integer; n_claim integer; n_line integer; n_status integer; n_audit integer; n_next bigint; begin
  select * into b from invoice_state_before;
  select count(*) into n_invoice from public.invoices where shop_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
  select count(*) into n_claim from public.invoice_idempotency where request_id='20000000-0000-4000-8000-000000000001';
