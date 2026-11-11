@@ -294,7 +294,9 @@ This record does **not** decide paper size, unit-price versus line-amount semant
 
 The v0.2 document maps CH4-01..CH4-11 to technical sections and proposed acceptance scenarios. CH-1's review records CH4-01 as design-resolved only with the PO-12 bearer-link risk gate; CH4-02..CH4-11 as document-level design-resolved. All database enforcement, key/KMS, CDN/cache, rate-limit, font/renderer and runtime evidence remains outstanding. Proposed tests are NOT EXECUTED. This review is not implementation approval, QA acceptance or merge approval.
 
-### 12.4 PR #30 — CH-2 owner/customer UX v0.1
+### 12.4 Historical PR #30 UX v0.1 record — superseded by §12.13
+
+**Historical-status notice:** the identities and unresolved-thread statements in this subsection describe the earlier v0.1 review snapshot only. They are superseded by the controlling current authority register in §12.13; do not use them as current status.
 
 | Field | Verified value |
 |---|---|
@@ -428,7 +430,7 @@ The CH-2 O-01 UX proposal treats all four fields as required. The PO mockup conf
 - Display the Maps link only after safe URL validation; no geocoding or third-party tracking is part of A1.
 - No profile deletion or owner-transfer flow.
 
-**Required-field validation / save / acceptance traceability (A1 design clarification; no new PO policy):**
+**PO-mockup-confirmed profile fields (A1 requiredness remains PM-proposed) — validation / save / acceptance traceability:**
 
 | Confirmed profile field | Validation before save | Save behavior | Acceptance criteria / evidence mapping |
 |---|---|---|---|
@@ -479,7 +481,9 @@ The CH-2 O-01 UX proposal treats all four fields as required. The PO mockup conf
 - Tests: authorize writing the A1 test source as part of implementation; test execution is NOT AUTHORIZED until a separate QA permission specifies test layers, environment and accounts.
 - Merge, deployment and pilot: NOT AUTHORIZED; separate later decisions required.
 
-### 12.9 CH-4 assurance status and findings
+### 12.9 Historical CH-4 assurance staging and findings — superseded by §12.13
+
+**Historical-status notice:** this subsection records the pre-final-review state and preliminary findings. The full CH-4 report was subsequently published at PR #34 / Issue #27 comment 6766878075. Current finding dispositions and exact artifact identities are in §12.13.
 
 The recorded independent CH-4 report at PR #28 comment 6763798273 reviewed v0.1 and returned REJECT. Issue #29 is now closed as completed for that v0.1 review scope. There is **no recorded independent CH-4 review of PR #28 v0.2 or of this Phase A1 package**. CH-1's v0.2 integrated review is not a substitute for CH-4's independent review. Issue #27 remains open for the required v0.2/A1 review. Do not claim the CH-4 gate is complete.
 
@@ -497,7 +501,9 @@ CH-1's adversarial cross-check identified the following items for CH-4 to confir
 
 **Provisional review recommendation:** ACCEPT WITH CONDITIONS for the Phase A1 design package, subject to CH-4 independently confirming the acceptance criteria and the findings above. This is a CH-1 recommendation only; it is not a CH-4 disposition or QA acceptance. The formal independent CH-4 gate remains PENDING-QA.
 
-### 12.10 Consolidated pending-item register — Invoice-First workstream
+### 12.10 Historical pending-item register — superseded by §12.13
+
+**Historical-status notice:** this table predates the final CH-4 report and the documentation corrections recorded in §12.13. Its historical rows are retained for audit provenance, not as current task status.
 
 Statuses below use the controlled status vocabulary in the PM directive. A completed design deliverable does not imply that its PR is merged or that implementation/QA is authorized.
 
@@ -526,12 +532,12 @@ Statuses below use the controlled status vocabulary in the PM directive. A compl
 | Dependency/configuration changes | NOT AUTHORIZED |
 | Build/lint/typecheck/test execution | NOT AUTHORIZED |
 | Browser/manual QA or Supabase integration QA | NOT AUTHORIZED |
-| CH-4 independent review of v0.2/A1 | PENDING |
+| CH-4 full static review of prior candidate/A1 | COMPLETED — focused closure verification pending |
 | PR #28 / PR #30 merge | NOT AUTHORIZED |
 | Deployment / production release | NOT AUTHORIZED |
 | Customer pilot | NOT AUTHORIZED |
 
-**CH-1 final recommendation:** The Invoice-First technical design v0.2 is accepted with conditions for documentation only. The UX v0.1 remains accepted with conditions, with one unresolved P2 thread. The eight requested PO decisions remain PENDING-PO. Phase A1 is technically separable from those PO decisions and can use the existing web architecture and shops table, but its current dashboard creation side effect, missing edit flow, incomplete required-field validation and unverified live RLS state must be addressed. Do not authorize A1 implementation until CH-4 independently reviews this exact package and PM grants the explicit A1 implementation and separate QA permissions. No implementation, database operation, build, test, merge, deployment or pilot is authorized by this register update.
+**Historical CH-1 recommendation at the earlier review snapshot:** The Invoice-First technical design v0.2 was accepted with conditions for documentation only. The UX v0.1 remained accepted with conditions and its menu P2 thread was then unresolved. This is superseded by the current register in §12.13. The PO decisions remain PENDING-PO unless Issue #31 contains explicit PO-authored responses. Phase A1 is technically separable from those PO decisions and can use the existing web architecture and shops table, but its current dashboard creation side effect, missing edit flow, incomplete required-field validation and unverified live RLS state must be addressed. Do not authorize A1 implementation until CH-4 independently reviews this exact package and PM grants the explicit A1 implementation and separate QA permissions. No implementation, database operation, build, test, merge, deployment or pilot is authorized by this register update.
 
 
 ### 12.12 Final PM decisions required for Phase A1
@@ -547,3 +553,62 @@ Only the following decisions require PM disposition before the relevant gate:
 | A1-PM-05 — shop cardinality | Retain current earliest-shop primary-profile behavior for A1; do not add a unique user_id index or multi-shop UI | Repository code selects the earliest shop; schema has no uniqueness constraint and live duplicate data is unknown | No immediate action if recommendation accepted; any uniqueness change requires separate data audit and approval |
 
 **Validation enforcement limitation:** client-side validation is not a database integrity control. A user authenticated to Supabase can call the public client API directly and write to their own row, subject to existing grants/RLS. The current A1 proposal does not authorize a database constraint or write RPC. This is acceptable only as a bounded A1 UI-validation approach; it must not be represented as server-enforced validation. If PM requires strict phone/Maps format enforcement for all write paths, CH-3 must propose the exact constraint/RPC and data-preflight plan, then obtain separate DB/schema authorization before implementation. The public shop page currently renders the stored map_link; before relying on the link as a customer-safe URL, the allow-list must also be enforced at a trusted boundary. This customer-facing hardening is not silently included in A1.
+
+
+### 12.13 Controlling authority register — 11 November 2026
+
+This subsection supersedes the earlier PR #30/PR #28/CH-4 status references in §§12.4, 12.9 and 12.10. Older entries are retained as historical audit records only. Exact candidate identities below were re-fetched from GitHub during this closure cycle.
+
+**Pinned source baseline and mandatory main documents**
+- Main: `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`.
+- Worker SSOT blob: `5714e127aad7a81d3e26da2ac2d77fe875927fdc`.
+- Main Project SSOT blob: `0a2534fd67ebf5d1c3094faf147cdfa4b2cb73a5`.
+- PO-confirmed mockup blob: `efe0d261c50a4cfc706e82c832a6f052c676127c`.
+
+**Current review candidates**
+
+| Artifact | Exact current identity | Status / authority |
+|---|---|---|
+| PR #30 UX | Revision 0.3; HEAD `ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f`; blob `b5c176de5badf5ec7d85bdb1b530e8aa3c083b97`; `docs/ux/INVOICE_FIRST_WEB_MVP_OWNER_CUSTOMER_UX_v0.1.md` | CH-4 prior disposition ACCEPT WITH CONDITIONS. UX-42/UXAT-42 now explicitly make preview informational/no acknowledgement gate. Menu P2 thread comment #4523203685, thread `PRRT_kwDOVhBFWs61okrS`, is RESOLVED; GitHub still reports OUTDATED=true. PR #30 remains OPEN/UNMERGED. |
+| PR #33 technical | Revision 0.4.2; HEAD `5b1d94df904d65e25cca77d4119f5632891a0d9c`; blob `57538180766ecbccf8d8232ccca4448cf6a42591`; `docs/design/INVOICE_FIRST_WEB_MVP_TECHNICAL_DESIGN_v0.2.md` | CH-4 prior disposition NEEDS REVISION. v0.4.2 corrects the UX source pin and UX-42 semantics; DES-01/02/05 and OBS-01 have design-level responses. Focused CH-4 verification is still required. Public QR remains PO-/runtime-gated; PDF reproducibility remains runtime-gated. PR #33 remains OPEN/UNMERGED. |
+| PR #32 governance/A1 | Existing branch `governance/invoice-first-phase-a1-readiness`; `PROJECT_SOURCE_OF_TRUTH.md` | This file is the authority-register candidate. Its exact resulting HEAD/blob is recorded in the PR #32 metadata after this commit; it is not self-pinned here because any self-reference would change the very blob being identified. PR #32 remains OPEN/UNMERGED. |
+| PR #34 CH-4 report | HEAD `de39c00432ac1267e37601c01b2d9b83eda2f670`; blob `1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7`; report `docs/qa/INVOICE_FIRST_MVP_STATIC_DESIGN_ASSURANCE_2026-11-10.md`; Issue #27 comment `6766878075` | Full independent static report published. Overall NEEDS REVISION; PR #30 ACCEPT WITH CONDITIONS; PR #33 NEEDS REVISION; PR #32 NEEDS REVISION. These are the report's dispositions for the reviewed 10 November candidates, not automatic acceptance of later revisions. PR #34 remains OPEN/UNMERGED. |
+| PR #28 technical v0.2 | Historical HEAD `2b1e0be89e2487bedf841dbc8247d646529ae7cc`; blob `348ec933a2798ba2c790707397d723e8377a8442` | PRESERVED HISTORICAL / SUPERSEDED for current technical review by PR #33. Keep history; do not merge/close by implication. |
+
+**CH-4 final finding-by-finding control status**
+
+| Finding | Severity | Current disposition | Evidence / residual gate |
+|---|---|---|---|
+| CH4-DES-01 Generated default / confirmation contradiction | P1 | DESIGN CORRECTED — focused verification pending | PR #33 §§B/C/G/I/R.3/R.9 and AJ; Generated default is resolved internally, preview is informational, no owner confirmation gate. UXAT-42 aligns. No runtime claim. |
+| CH4-DES-02 profile/header concurrency | P1 | DESIGN CORRECTED — runtime-gated | PR #33 §5.2 and §§F/G: canonical shop/profile → idempotency → asset → counter → invoice/lines → audit/completion lock order; FOR SHARE/FOR UPDATE; snapshot from one profile revision; durable asset checks; GC lock behavior; deadlock/retry criteria. No DB implementation or concurrency test executed. |
+| CH4-DES-03 public QR bearer policy | P1 | PO-GATED + RUNTIME-GATED | PR #33 §§8–9/U: production links disabled pending PO-12, PO-I06A, PO-I11, KMS/key lifecycle, revocation, no-store, redaction, rate limits, incident response and PM release. |
+| CH4-DES-04 PDF reproducibility | P1 | RUNTIME-GATED | PR #33 §11/Y and release gates: exact TTF/OFL binary hashes and immutable renderer/container digest are still absent; no PDF/print evidence. No deterministic/reproducible PDF claim. |
+| CH4-UX-01 UX-42 preview wording | P2 | DOCUMENT CORRECTED — focused verification pending | PR #30 v0.3 UX-42/UXAT-42; PR #33 v0.4.2 R.9/AJ. Menu thread resolution is a separate P2. |
+| CH4-DES-05 stale CH-1 acceptance statements | P2 | STATUS TEXT CORRECTED — focused verification pending | PR #33 R.10/R.11 now qualify earlier acceptance as historical; AJ states v0.4.2 is not yet CH-1/CH-4 accepted. Old addenda retained as provenance. |
+| CH4-OBS-01 IndexedDB outbox privacy lifecycle | OBSERVATION | DESIGN CORRECTED — runtime-gated | PR #33 §6.4 and AH: owner/shop binding, session-expiry pause, logout/owner-switch payload clearing, minimal marker, re-authentication, retention and no bearer secrets. Client/browser privacy tests not executed. |
+| CH4-GOV-01 stale authority references | P2 | DOCUMENT CORRECTED IN THIS REVISION | This §12.13 supersedes stale §§12.4/12.9/12.10 and pins PR #30/#33/#34 plus historical PR #28. |
+| CH4-A1-01 format-only mobile values | P2 | DOCUMENT CORRECTED — focused verification pending | §12.8 requires at least one ASCII digit after stripping allowed formatting; no Bangladesh-specific prefix/length rule is invented. |
+| CH4-A1-02 profile-field test traceability | P2 | DOCUMENT CORRECTED — focused verification pending | §12.8 maps shop_name, address, phone and map_link individually to validation, save behavior, A1-AC IDs and proposed test vectors. Requiredness remains an A1 PM proposal, not a new PO decision. |
+| PR #34 manifest-hash P2 #4524677009 | P2 | OPEN — remediation evidence not yet committed | Exact replacement manifest body, byte count, SHA-256 and pinned artifact refs must be committed and independently re-fetched before resolving thread `PRRT_kwDOVhBFWs61sCEf`. |
+
+**Menu lifecycle P2 disposition**
+- PR #30 comment #4523203685; thread `PRRT_kwDOVhBFWs61okrS`.
+- Current UX v0.3 §4.2 states all catalogue actions (create/edit/enable/disable/archive/delete/restore/reactivate) must come only from PO-06; status/search/filter/row actions remain provisional; no lifecycle is inferred from `is_active`.
+- CH-1 resolved the thread after independently reviewing the exact v0.3 text. GitHub state: `is_resolved=true`, `is_outdated=true`. PO-06 remains PENDING; menu policy is not approved.
+
+**PR #33 current disposition boundary**
+- CH-4's NEEDS REVISION applies to the exact PR #33 candidate in its report, not to this later v0.4.2 candidate. v0.4.2 is submitted for CH-1 review and focused CH-4 verification; no acceptance is implied.
+- PR #33 preserves the v0.4.1 concurrency, QR security, PDF reproducibility and IndexedDB privacy corrections. Design corrections do not constitute implementation or runtime evidence.
+- PR #28 remains historical/superseded for current technical review only; its branch and review history are preserved.
+
+**PO decision status**
+Issue #31 has no PO-authored approval response in the reviewed comment history. The following remain PENDING-PO: PO-02, PO-04, PO-05, PO-06, PO-11, PO-12, PO-I11, PO-I06A, PO-L01, PO-L02, PO-L03 and PO-L04. Recommendations are not approvals. PO-06 gates menu fields/lifecycle; PO-12/I06A/I11 gate public QR; PO-L01/L03 gate category/upload policy; PO-L02/HDR-RET-01 gate historical header/asset retention; PO-L04 gates tagline length/content policy.
+
+**Phase A1 boundary**
+Phase A1 remains separate from Invoice-First MVP. The four profile fields in the PO mockup are confirmed invoice-header content; their A1 requiredness remains the PM proposal recorded in §12.8/A1-PM-01, not a new PO decision. The mobile grammar now rejects format-only values by requiring at least one ASCII digit after stripping allowed formatting, without country-specific assumptions. The field-level matrix in §12.8 maps validation, save behavior and acceptance criteria. Live schema/RLS/grants, data cardinality and catalog-side-effect behavior still require later separately authorized verification. No A1 implementation is authorized.
+
+**Replacement manifest metadata**
+The immutable replacement manifest will be published in Issue #27 and its exact body/digest recorded in the dedicated manifest-freeze evidence addendum. The PR #32 description and Issue #27 freeze comment are the external authority-register metadata for the manifest ID/digest and this PR's own final HEAD/blob; this file intentionally avoids a self-referential blob/commit claim. See the immutable manifest comment after it is published.
+
+**Execution / authorization**
+Documentation-only. Application source changes, SQL/schema/migrations, live DB access/mutation, storage/KMS/secrets, builds/lint/tests/QA, browser/PDF/runtime verification, merge, deployment, release and financial pilot remain NOT AUTHORIZED. PRs #30, #32, #33 and #34 remain OPEN/UNMERGED. Phase A1 and Invoice-First implementation remain NOT AUTHORIZED.
