@@ -6,7 +6,9 @@ insert into auth.users(id) values
 insert into public.shops(id,user_id,shop_name,phone,address,map_link) values
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Shop A','+8801700000001','Address A','https://maps.google.com/maps?q=shop-a'),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Shop B','+8801700000002','Address B','https://maps.google.com/maps?q=shop-b'),
- ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','cccccccc-cccc-4ccc-8ccc-cccccccccccc','Shop C',null,null,null);
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','cccccccc-cccc-4ccc-8ccc-cccccccccccc','Shop C',null,null,null),
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','dddddddd-dddd-4ddd-8ddd-dddddddddddd','Shop D','+8801700000004','Address D',null),
+ ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','Shop E','+8801700000005','Address E','https://evil.example/path');
 -- Verify the production-default gate rejects direct RPC calls before any write.
 set role authenticated;
 set request.jwt.claim.sub='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -54,3 +56,26 @@ begin
 end $$;
 reset role;
 select 'PASS: nullable baseline profile row is valid; invoice RPC fails closed' as result;
+
+-- Valid required profile with no map URL: invoice succeeds and snapshot stores NULL.
+set role authenticated;
+set request.jwt.claim.sub='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+select * from public.create_invoice_transaction(
+ 'dddddddd-dddd-4ddd-8ddd-dddddddddddd','invoice-create/v1','10000000-0000-4000-8000-000000000004',
+ '{"header":{"shopName":"Shop D","shopAddress":"Address D","shopPhone":"+8801700000004","mapUrl":""},"lines":[{"catalogItemId":null,"itemName":"Water","unit":"bottle","quantity":"1","unitPrice":"5.00"}]}'::jsonb);
+reset role;
+do $$ begin
+ if (select map_url_snapshot from public.invoices where shop_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd') is not null then raise exception 'ABSENT_MAP_NOT_NULL'; end if;
+end $$;
+
+-- A non-allow-listed HTTPS host is normalized to NULL, never rendered as a link.
+set role authenticated;
+set request.jwt.claim.sub='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+select * from public.create_invoice_transaction(
+ 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','invoice-create/v1','10000000-0000-4000-8000-000000000005',
+ '{"header":{"shopName":"Shop E","shopAddress":"Address E","shopPhone":"+8801700000005","mapUrl":"https://evil.example/path"},"lines":[{"catalogItemId":null,"itemName":"Water","unit":"bottle","quantity":"1","unitPrice":"5.00"}]}'::jsonb);
+reset role;
+do $$ begin
+ if (select map_url_snapshot from public.invoices where shop_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') is not null then raise exception 'INVALID_MAP_NOT_NULL'; end if;
+end $$;
+select 'PASS: absent/invalid Maps URLs stored as non-clickable NULL snapshots' as result;

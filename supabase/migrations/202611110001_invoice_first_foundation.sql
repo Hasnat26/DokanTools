@@ -25,7 +25,7 @@ create table if not exists public.invoices (
  shop_name_snapshot text not null check(length(btrim(shop_name_snapshot)) between 1 and 200),
  shop_address_snapshot text not null check(length(btrim(shop_address_snapshot)) between 1 and 500),
  shop_phone_snapshot text not null check(length(btrim(shop_phone_snapshot)) between 1 and 40),
- map_url_snapshot text not null check(length(btrim(map_url_snapshot)) between 1 and 2048),
+ map_url_snapshot text check(map_url_snapshot is null or (length(btrim(map_url_snapshot)) between 1 and 2048 and map_url_snapshot ~* '^https://(maps[.]google[.]com(/|$)|www[.]google[.]com/maps([/?#]|$)|google[.]com/maps([/?#]|$)|maps[.]app[.]goo[.]gl(/|$))')),
  total_amount numeric(14,2) not null check(total_amount>=0),
  line_count integer not null check(line_count>0),
  idempotency_namespace text not null,
@@ -152,6 +152,7 @@ declare
  v_hash bytea;
  v_integrity bytea;
  v_item_id uuid;
+ v_map text;
  v_issue_enabled boolean;
 begin
  if v_actor is null then raise exception 'AUTHENTICATION_REQUIRED' using errcode='28000'; end if;
@@ -189,6 +190,9 @@ begin
 
  -- Canonical key uses the exact supplied header and line JSON; replay remains stable
  -- even after the current shop profile is edited.
+ -- Invalid or absent Maps URLs are snapshotted as NULL/non-clickable, per design section 9.3.
+ v_map:=case when v_shop.map_link ~* '^https://(maps[.]google[.]com(/|$)|www[.]google[.]com/maps([/?#]|$)|google[.]com/maps([/?#]|$)|maps[.]app[.]goo[.]gl(/|$))'
+   and length(v_shop.map_link)<=2048 then v_shop.map_link else null end;
  v_canonical:=jsonb_build_object('header',v_header,'lines',v_lines);
  v_hash:=extensions.digest(convert_to(v_canonical::text,'UTF8'),'sha256');
 
@@ -228,7 +232,7 @@ begin
  if v_header->>'shopName' is distinct from v_shop.shop_name
    or v_header->>'shopAddress' is distinct from v_shop.address
    or v_header->>'shopPhone' is distinct from v_shop.phone
-   or v_header->>'mapUrl' is distinct from v_shop.map_link then
+   or nullif(btrim(v_header->>'mapUrl'),'') is distinct from nullif(btrim(v_shop.map_link),'') then
    raise exception 'SHOP_PROFILE_CHANGED_REFRESH_REQUIRED' using errcode='22023';
  end if;
 
@@ -279,7 +283,7 @@ begin
   shop_address_snapshot,shop_phone_snapshot,map_url_snapshot,total_amount,line_count,
   idempotency_namespace,request_id,payload_hash,integrity_hash)
  values(v_invoice,p_shop_id,v_bill,v_issued,v_actor,v_shop.shop_name,v_shop.address,v_shop.phone,
-  v_shop.map_link,v_total,v_no,p_idempotency_namespace,p_request_id,v_hash,v_integrity);
+  v_map,v_total,v_no,p_idempotency_namespace,p_request_id,v_hash,v_integrity);
 
  v_no:=0;
  for v_line in select value from jsonb_array_elements(v_lines) x(value) loop
