@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase, invoiceApi, InvoiceCatalogItem, InvoiceDraft, InvoiceDraftLine, Shop } from "@/lib/supabase";
 import type { InvoiceDTO } from "@/lib/invoice-contract";
 import { calculateInvoicePreview, formatBDTFromMinor } from "@/lib/invoice-domain.mjs";
 import { deleteInvoiceDraft, listInvoiceDrafts, saveInvoiceDraft } from "@/lib/invoice-draft-store.mjs";
+import { createInvoiceDraftSessionGuard } from "@/lib/invoice-draft-session.mjs";
 import InvoiceDocument from "@/components/invoice/InvoiceDocument";
 
 type Screen = "composer" | "review" | "history" | "detail";
@@ -57,6 +58,8 @@ function OwnerInvoicesContent() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [storageAvailable, setStorageAvailable] = useState(true);
+  const userIdRef = useRef("");
+  const draftSession = useRef(createInvoiceDraftSessionGuard());
 
 
   const preview = useMemo(() => calculateInvoicePreview(lines), [lines]);
@@ -66,14 +69,23 @@ function OwnerInvoicesContent() {
   }, [catalog, search]);
 
   const load = useCallback(async () => {
+    const requestGeneration = draftSession.current.begin();
     setLoading(true);
     setError("");
     const { data: auth, error: authError } = await supabase.auth.getUser();
+    if (!draftSession.current.isGenerationCurrent(requestGeneration)) return;
     if (authError || !auth.user) {
+      userIdRef.current = "";
+      setUserId("");
+      setShop(null);
+      setDrafts([]);
+      setCatalog([]);
+      setIssuedInvoices([]);
+      setSelectedInvoice(null);
+      setLoading(false);
       router.replace("/login");
       return;
     }
-    setUserId(auth.user.id);
 
     const { data: shopData, error: shopError } = await supabase
       .from("shops")
@@ -83,16 +95,27 @@ function OwnerInvoicesContent() {
       .limit(1)
       .maybeSingle();
 
+    if (!draftSession.current.isGenerationCurrent(requestGeneration)) return;
     if (shopError) {
       setError("দোকানের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
       setLoading(false);
       return;
     }
     if (!shopData) {
+      userIdRef.current = auth.user.id;
+      setUserId(auth.user.id);
+      setShop(null);
+      setDrafts([]);
+      setLoading(false);
       router.replace("/dashboard");
       return;
     }
+
     const currentShop = shopData as ShopProfile;
+    const sessionSnapshot = draftSession.current.activate(requestGeneration, auth.user.id, currentShop.id);
+    if (!sessionSnapshot) return;
+    userIdRef.current = auth.user.id;
+    setUserId(auth.user.id);
     setShop(currentShop);
 
     // Read only the menu catalogue. Never query stock, customers, memos or ledger.
@@ -102,6 +125,7 @@ function OwnerInvoicesContent() {
       .eq("shop_id", currentShop.id)
       .order("sort_order", { ascending: true });
 
+    if (!draftSession.current.isCurrent(sessionSnapshot)) return;
     if (menuError) {
       setError("খাবারের তালিকা লোড করা যায়নি। কোনো স্টক বা লেজার তথ্য পড়া হয়নি।");
       setCatalog([]);
@@ -111,18 +135,68 @@ function OwnerInvoicesContent() {
 
     try {
       const localDrafts = await listInvoiceDrafts(auth.user.id, currentShop.id);
+      if (!draftSession.current.isCurrent(sessionSnapshot)) return;
       setDrafts(localDrafts as LocalDraft[]);
       setStorageAvailable(true);
     } catch {
+      if (!draftSession.current.isCurrent(sessionSnapshot)) return;
       setStorageAvailable(false);
       setDrafts([]);
       setNotice("এই ব্রাউজারে নিরাপদ খসড়া সংরক্ষণ নেই। এই সেশনের বাইরে খসড়া সংরক্ষিত থাকবে না।");
     }
 
+    if (!draftSession.current.isCurrent(sessionSnapshot)) return;
     setLoading(false);
   }, [router]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextOwnerId = session?.user?.id || "";
+      const currentOwnerId = userIdRef.current;
+
+      if (!nextOwnerId) {
+        if (event === "SIGNED_OUT" || currentOwnerId) {
+          draftSession.current.invalidate();
+          userIdRef.current = "";
+          setUserId("");
+          setShop(null);
+          setCatalog([]);
+          setDrafts([]);
+          setIssuedInvoices([]);
+          setSelectedInvoice(null);
+          setSelectedDraftId("");
+          setLines([{ ...EMPTY_LINE }]);
+          setScreen("composer");
+          setLoading(false);
+          setError("");
+          setNotice("");
+          router.replace("/login");
+        }
+        return;
+      }
+
+      if (event === "SIGNED_IN" && nextOwnerId !== currentOwnerId) {
+        draftSession.current.invalidate();
+        userIdRef.current = "";
+        setUserId("");
+        setShop(null);
+        setCatalog([]);
+        setDrafts([]);
+        setIssuedInvoices([]);
+        setSelectedInvoice(null);
+        setSelectedDraftId("");
+        setLines([{ ...EMPTY_LINE }]);
+        setScreen("composer");
+        setLoading(true);
+        setError("");
+        setNotice("");
+        queueMicrotask(() => { void load(); });
+      }
+    });
+    return () => authListener.subscription.unsubscribe();
+  }, [load, router]);
+
 
   const loadIssuedInvoices = useCallback(async () => {
     if (!shop) return;
@@ -186,7 +260,7 @@ function OwnerInvoicesContent() {
   }
 
   async function persistDraft(): Promise<boolean> {
-    if (!shop || !userId) return false;
+    if (!shop || !userId || !draftSession.current.isActive(userId, shop.id)) return false;
     if (!storageAvailable) {
       setError("খসড়া সংরক্ষণের জন্য IndexedDB উপলব্ধ নয়। এই অবস্থায় অন্য পৃষ্ঠায় গেলে তথ্য হারাতে পারে।");
       return false;
@@ -221,7 +295,7 @@ function OwnerInvoicesContent() {
   }
 
   async function removeDraft(id: string) {
-    if (!shop || !userId || !storageAvailable) return;
+    if (!shop || !userId || !storageAvailable || !draftSession.current.isActive(userId, shop.id)) return;
     try {
       await deleteInvoiceDraft(userId, shop.id, id);
       setDrafts(await listInvoiceDrafts(userId, shop.id) as LocalDraft[]);
@@ -237,7 +311,7 @@ function OwnerInvoicesContent() {
   }
 
   function openDraft(draft: LocalDraft) {
-    if (draft.owner_id !== userId || draft.shop_id !== shop?.id) {
+    if (!draftSession.current.canAccess(draft, userId, shop?.id || "")) {
       setError("এই খসড়াটি বর্তমান দোকান/অ্যাকাউন্টের নয়।");
       return;
     }
