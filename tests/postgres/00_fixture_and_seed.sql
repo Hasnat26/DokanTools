@@ -2,7 +2,9 @@
 insert into auth.users(id) values
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
- ('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
+ ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
 insert into public.shops(id,user_id,shop_name,phone,address,map_link) values
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Shop A','+8801700000001','Address A','https://maps.google.com/maps?q=shop-a'),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Shop B','+8801700000002','Address B','https://maps.google.com/maps?q=shop-b'),
