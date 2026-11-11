@@ -1,0 +1,11 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const sql=readFileSync("supabase/migrations/202611110001_invoice_first_foundation.sql","utf8");
+const route=readFileSync("src/app/api/invoices/route.ts","utf8");
+const detail=readFileSync("src/app/api/invoices/[invoiceId]/route.ts","utf8");
+test("invoice idempotency and numbering are isolated",()=>{assert.match(sql,/primary key\(idempotency_namespace,request_id\)/i);assert.match(sql,/unique\(shop_id,bill_number\)/i);assert.doesNotMatch(sql,/transaction_requests|create_memo_transaction|stock_movements|baki_entries|public\.memos|public\.customers/i);});
+test("authorization before private registry compare",()=>{assert.ok(sql.indexOf("authorize and lock shop first")<sql.indexOf("insert into public.invoice_idempotency"));});
+test("invoice facts are immutable",()=>{assert.match(sql,/invoices_immutable/i);assert.match(sql,/invoice_lines_immutable/i);assert.match(sql,/INVOICE_FACTS_IMMUTABLE/i);});
+test("API authenticates and scopes by shop",()=>{assert.match(route,/auth\.getUser\(token\)/);assert.match(route,/create_invoice_transaction/);assert.match(route,/eq\("shop_id",shopId\)/);assert.match(detail,/auth\.getUser\(token\)/);assert.match(detail,/eq\("shop_id",shopId\)/);});
+test("public QR/token capability is absent",()=>{assert.doesNotMatch(sql,/invoice_public_links|verify_invoice/i);assert.doesNotMatch(route+detail,/publicUrl|qrPayload|signedUrl/i);});
