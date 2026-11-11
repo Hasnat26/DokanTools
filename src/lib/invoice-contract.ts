@@ -27,6 +27,13 @@ export type InvoiceLineDTO = {
   lineTotal: string;
 };
 
+export type InvoiceResponseHeader = {
+  shopName: string;
+  shopAddress: string;
+  shopPhone: string;
+  mapUrl: string | null;
+};
+
 export type InvoiceDTO = {
   id: string;
   shopId: string;
@@ -34,7 +41,7 @@ export type InvoiceDTO = {
   issuedAt: string;
   currency: "BDT";
   totalAmount: string;
-  header: InvoiceCreateRequest["header"];
+  header: InvoiceResponseHeader;
   lines: InvoiceLineDTO[];
 };
 
