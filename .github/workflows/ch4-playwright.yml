@@ -114,11 +114,11 @@ jobs:
         working-directory: qa-harness/qa/playwright
         shell: bash
         run: |
-          set +e
+          set -e
           OUT=pdf-fidelity.txt
           {
-            echo "Application SHA: $(git -C ../../app rev-parse HEAD)"
-            echo "QA harness SHA: $(git -C .. rev-parse HEAD)"
+            echo "Application SHA: $(git -C ../../../app rev-parse HEAD)"
+            echo "QA harness SHA: $(git -C ../.. rev-parse HEAD)"
             pdffonts -v 2>&1 | head -n 2
             pdftotext -v 2>&1 | head -n 2
             for pdf in test-results/*/invoice-short.pdf test-results/*/invoice-long.pdf; do
@@ -143,7 +143,7 @@ jobs:
               extracted = subprocess.run(["pdftotext", "-layout", pdf, "-"], text=True, capture_output=True)
               text = extracted.stdout
               bengali_fonts = [line for line in fonts.stdout.splitlines() if "NotoSansBengali" in line]
-              embedded = bool(bengali_fonts) and all(line.split()[-3] == "yes" for line in bengali_fonts if len(line.split()) >= 7)
+              embedded = bool(bengali_fonts) and all(len(line.split()) >= 7 and line.split()[-3] == "yes" and line.split()[-1] == "yes" for line in bengali_fonts)
               required = ["খাবারের বিল", "ধন্যবাদ, আবার আসবেন!", "খাবার/আইটেম", "পরীক্ষামূলক খাবার ঘর", "সাদা ভাত"]
               missing = [value for value in required if value not in text]
               print(f"{pdf}: Bengali font lines={len(bengali_fonts)}, embedded={embedded}, extracted_chars={len(text)}, missing={missing}")
@@ -154,6 +154,12 @@ jobs:
                       if item not in text:
                           print(f"Long PDF missing expected item: {item}")
                           failed = True
+                  # Ensure content continues onto the second physical page.
+                  pages = subprocess.run(["pdfinfo", pdf], text=True, capture_output=True)
+                  page_line = next((line for line in pages.stdout.splitlines() if line.startswith("Pages:")), "")
+                  if not page_line or int(page_line.split()[-1]) < 2:
+                      print("Long PDF did not paginate to at least two pages")
+                      failed = True
           if failed:
               sys.exit("PDF Bengali fidelity acceptance failed")
           PY
