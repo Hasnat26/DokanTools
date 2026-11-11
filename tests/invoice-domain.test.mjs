@@ -75,8 +75,16 @@ test("BDT formatter does not produce negative or unsafe display values", () => {
   assert.equal(formatBDTFromMinor(-1), "—");
 });
 
-test("nullable invoice mapUrl renders no link and never fabricates a Maps URL", () => {
-  assert.equal(safeInvoiceMapUrl(null), null);
+test("invoice DTO with nullable mapUrl renders no link and never fabricates a Maps URL", () => {
+  const invoice = {
+    header: {
+      shopName: "Test Shop",
+      shopAddress: "Dhaka",
+      shopPhone: "01700000000",
+      mapUrl: null,
+    },
+  };
+  assert.equal(safeInvoiceMapUrl(invoice.header.mapUrl), null);
   assert.equal(safeInvoiceMapUrl(undefined), null);
   assert.equal(safeInvoiceMapUrl(""), null);
   assert.equal(safeInvoiceMapUrl("https://example.com/shop"), null);
