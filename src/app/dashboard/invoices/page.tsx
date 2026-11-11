@@ -220,7 +220,7 @@ export default function OwnerInvoicesPage() {
 
   function saveAndReview() {
     void persistDraft().then(() => {
-      if (preview.valid) setScreen("review");
+      if (preview.valid && !error) setScreen("review");
     });
   }
 
