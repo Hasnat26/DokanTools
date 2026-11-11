@@ -280,7 +280,9 @@ function OwnerInvoicesContent() {
     };
     try {
       await saveInvoiceDraft(draft);
+      if (!draftSession.current.isActive(userId, shop.id)) return false;
       const all = await listInvoiceDrafts(userId, shop.id);
+      if (!draftSession.current.isActive(userId, shop.id)) return false;
       setDrafts(all as LocalDraft[]);
       setSelectedDraftId(draft.id);
       setNotice("খসড়া এই ডিভাইসে সংরক্ষিত হয়েছে। এটি ইস্যু করা বিল নয় এবং কোনো বিল নম্বর তৈরি হয়নি।");
@@ -298,7 +300,10 @@ function OwnerInvoicesContent() {
     if (!shop || !userId || !storageAvailable || !draftSession.current.isActive(userId, shop.id)) return;
     try {
       await deleteInvoiceDraft(userId, shop.id, id);
-      setDrafts(await listInvoiceDrafts(userId, shop.id) as LocalDraft[]);
+      if (!draftSession.current.isActive(userId, shop.id)) return;
+      const remaining = await listInvoiceDrafts(userId, shop.id);
+      if (!draftSession.current.isActive(userId, shop.id)) return;
+      setDrafts(remaining as LocalDraft[]);
       if (selectedDraftId === id) {
         setSelectedDraftId("");
         setLines([{ ...EMPTY_LINE }]);
