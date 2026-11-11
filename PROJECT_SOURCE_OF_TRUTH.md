@@ -413,7 +413,7 @@ The CH-2 O-01 UX proposal treats all four fields as required. The PO mockup conf
 
 **Proposed validation contract for CH-4 review:**
 - Trim outer whitespace and reject empty shop name and address; preserve Bengali/Unicode display text.
-- Require a non-empty mobile number. Reject alphabetic characters; allow digits and common display characters (+, spaces, hyphens and parentheses). Do not claim carrier verification or a verified phone identity. Do not reuse normalizeBdPhone as validation. A stricter Bangladesh-number rule must be explicitly specified and tested before adoption.
+- Require a non-empty mobile number. Accept only ASCII digits and the approved display-format characters `+`, space, hyphen and parentheses. After removing those formatting characters, at least one ASCII digit (`0`–`9`) MUST remain; values containing only formatting characters (for example `+`, `() -` or spaces) are invalid. Reject alphabetic characters and every other character. This is a syntax/presence check only: do not infer a country, impose a Bangladesh prefix/length rule, normalize/prefix the value, or claim carrier verification or verified phone identity. Do not reuse `normalizeBdPhone` as validation. Any stricter country-specific rule requires an explicit PM decision and tests.
 - Require a Google Maps URL using HTTPS and an explicit host allow-list. Proposed hosts for review: maps.google.com, www.google.com with a /maps path, maps.app.goo.gl, and goo.gl/maps. Parse the URL; do not accept javascript:, data:, arbitrary external hosts or malformed values. Do not claim geocoding or pin accuracy; store the supplied share URL only.
 - Preserve all entered values after validation or save failure. Do not silently truncate input.
 - Exact maximum text lengths are not specified in the existing PO mockup/schema; CH-3 must propose bounded UI limits and CH-4 must review them before implementation. Do not silently invent a PO limit.
@@ -428,20 +428,31 @@ The CH-2 O-01 UX proposal treats all four fields as required. The PO mockup conf
 - Display the Maps link only after safe URL validation; no geocoding or third-party tracking is part of A1.
 - No profile deletion or owner-transfer flow.
 
+**Required-field validation / save / acceptance traceability (A1 design clarification; no new PO policy):**
+
+| Confirmed profile field | Validation before save | Save behavior | Acceptance criteria / evidence mapping |
+|---|---|---|---|
+| Shop name (`shop_name`) | Trim outer whitespace; reject empty/whitespace-only; preserve Bangla/Unicode; do not silently truncate. | Required value is saved to the same authenticated owner's shop row together with the other three required profile fields. | A1-AC-02, A1-AC-03, A1-AC-05, A1-AC-06; unit/UI cases for empty, whitespace, Bangla/Unicode and valid input. |
+| Address (`address`) | Trim outer whitespace; reject empty/whitespace-only; preserve Bangla/Unicode; do not silently truncate. | Required value is saved to the same authenticated owner's shop row together with the other three required profile fields. | A1-AC-02, A1-AC-03, A1-AC-05, A1-AC-06; unit/UI cases for empty, whitespace, Bangla/Unicode and valid input. |
+| Mobile number (`phone`) | Required; allow only ASCII digits and `+`, spaces, hyphens and parentheses; after stripping those formatting characters at least one ASCII digit must remain. No country-specific prefix/length or carrier verification is implied. | Save the validated user-entered value; do not silently prefix, normalize or rewrite it. A failed save preserves the entered value. | A1-AC-02, A1-AC-03, A1-AC-06, A1-AC-07; test empty, whitespace, punctuation-only, valid digit-containing formats, alphabetic and other disallowed characters. |
+| Google Maps location (`map_link`) | Required; parse as HTTPS and enforce the proposed explicit host/path allow-list in the trusted validation boundary; reject malformed URL, unsafe scheme and unapproved host/path. No geocoding or pin-accuracy claim. | Save the supplied URL only after validation; do not geocode or silently rewrite it. A failed save preserves the entered value. | A1-AC-02, A1-AC-03, A1-AC-06, A1-AC-07, A1-AC-09; test valid allow-listed URL and malformed/scheme/host/path negatives. |
+
+**Form-level save contract:** all four fields are required. A save is attempted only when all four pass the stated validation. Create persists one profile row for the authenticated owner; edit updates that same row. A validation or persistence failure must not clear or partially replace the user's draft. No profile-save path may seed menu/catalog, stock, memo, customer or ledger records. This is a documentation-level acceptance contract; it does not assert that the current application enforces it.
+
 **Proposed acceptance criteria (all require future evidence):**
 - A1-AC-01: Unauthenticated access to the profile flow redirects to login and exposes no shop data.
 - A1-AC-02: An authenticated account without a shop sees the empty/create state with all four profile fields and clear required-field labels.
 - A1-AC-03: A valid save creates the shop profile for the authenticated owner and persists all four fields; it creates no item_catalog, stock, memo, customer or ledger rows.
 - A1-AC-04: A page reload retrieves and displays the same saved profile from Supabase.
 - A1-AC-05: Edit updates the existing shop row, not a second row, and preserves unrelated existing columns such as shop_type, owner_name, logo_url, plan and is_public.
-- A1-AC-06: Empty/whitespace required fields and malformed phone/Maps values produce adjacent actionable errors; valid fields remain unchanged.
+- A1-AC-06: Each required field is validated independently and on the complete form: shop name and address reject empty/whitespace-only values; mobile rejects empty/whitespace, alphabetic/disallowed characters and formatting-only values with no ASCII digit after formatting removal; Maps location rejects malformed URLs, non-HTTPS schemes and hosts/paths outside the proposed allow-list. Errors are adjacent/actionable; all other valid field values remain unchanged.
 - A1-AC-07: A failed save retains the full draft and provides a retry path; duplicate taps do not create duplicate profile rows.
 - A1-AC-08: Two-user negative tests prove that one authenticated user cannot read or update another user's shop, including when the other shop ID is supplied directly.
 - A1-AC-09: The Maps link is HTTPS and matches the approved host/path allow-list; invalid schemes/hosts are rejected.
 - A1-AC-10: Phase A1 must not introduce, extend, refactor, regress, or otherwise change existing non-A1 capabilities, including memo/PDF, WhatsApp, stock, customer-ledger and Master QR flows. These capabilities may remain present and operational exactly as they are at the pinned baseline. Acceptance is based on the A1 diff and regression evidence showing no changes to those flows, not on their absence from the application.
 
 **Proposed test strategy (NOT EXECUTED):**
-- Unit: required-field trimming, Unicode preservation, phone character grammar, Maps URL parsing/allow-list, invalid scheme/host and boundary lengths.
+- Unit: each required field's empty/whitespace/valid cases; Unicode preservation for name/address; phone allow-list and digit-presence after formatting removal (including punctuation-only rejection), without country-specific assumptions; Maps URL parsing/HTTPS/host/path allow-list and invalid scheme/host/path.
 - Supabase integration: two authenticated test users; owner create/read/update; cross-tenant SELECT/UPDATE denial; spoofed user_id denial; profile persistence; no catalog/ledger side effects.
 - UI/browser: empty/create/view/edit, field errors, loading/saving/success/failure/retry, duplicate taps, reload persistence, 320 CSS px and common mobile widths, keyboard/focus/labels.
 - Regression: existing login/signup and existing dashboard routes remain functional; profile-only changes do not alter existing memo/stock/public-page behavior.
