@@ -6,11 +6,11 @@
 **Source baseline:** `main` at `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`  
 **Technical PR:** #33 (successor candidate; PR #28 preserved as historical)  
 **Prior design:** v0.1 at `ec67f403a625acea195c7913d23e7a69254c5ecc` (preserved unchanged)  
-**UX input:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
+**UX input (current):** PR #30 revision 0.3, HEAD `ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f`, blob `b5c176de5badf5ec7d85bdb1b530e8aa3c083b97`  
 **Independent assurance input:** CH-4 final report PR #34 HEAD `de39c00432ac1267e37601c01b2d9b83eda2f670`, blob `1667d9fb084b6ba60fc18eef3fb746e0f5b8cfb7`, report ID `DT-MVP-CH4-STATIC-ASSURANCE-2026-11-10-01`; frozen manifest ID `DT-MVP-CH4-FROZEN-2026-11-10-01`, content SHA-256 `f995ae365e661d6f42e483217fcbab9e9b7464bbb558dc392494b314a4ef4561`  
-**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2 / v0.4.0 / v0.4.1  
-**Current cross-document UX:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
-**Status:** CONSOLIDATED TECHNICAL DESIGN CANDIDATE v0.4.1 — CH-1 re-freeze and final review required  
+**Version:** 0.2 + controlled technical addenda v0.3 / v0.3.1 / v0.3.2 / v0.4.0 / v0.4.1 / v0.4.2  
+**Current cross-document UX:** PR #30 revision 0.3, HEAD `ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f`, blob `b5c176de5badf5ec7d85bdb1b530e8aa3c083b97`  
+**Status:** CONSOLIDATED TECHNICAL DESIGN CANDIDATE v0.4.2 — CH-1 review and replacement freeze required  
 **Scope:** Design documentation only  
 **Implementation authorization:** NOT GRANTED  
 **Runtime verification:** NOT PERFORMED
@@ -958,7 +958,7 @@ No estimate is treated as a commitment; no work package is authorized by this se
 **Performed for v0.2 design preparation:**
 - Read the complete CH-4 finding report at PR #28 comment `6763798273`.
 - Read CH-4 Issue #29 disposition and findings summary.
-- Read CH-2 UX PR #30 revision 0.2 at exact HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`, including UX-01..UX-64, logo/tagline behavior and PO-gated category decisions.
+- Historical v0.4.1 preparation record: read CH-2 UX PR #30 revision 0.2 at exact HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`, including UX-01..UX-64. This is not the current UX source.
 - Re-read the pinned PO mockup at exact baseline; blob `efe0d261c50a4cfc706e82c832a6f052c676127c`.
 - Prepared design contracts and acceptance specifications only.
 
@@ -1456,7 +1456,7 @@ CH-1/CH-4 must decide whether to adopt the JSON snapshot or scalar immutable col
 
 CH-4 should receive:
 1. Exact revised PR #33 HEAD and v0.4.0 document blob; PR #28 is historical only.
-2. Exact CH-2 PR #30 revision-0.2 UX HEAD/blob c7b0d8bddad3afcdf48b0b8fba8331ad46dda309 / 3b34e6b9075b65ee027ac368fb964a5f9e98ae8f.
+2. Exact current CH-2 PR #30 revision-0.3 UX HEAD/blob ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f / b5c176de5badf5ec7d85bdb1b530e8aa3c083b97.
 3. Schema snapshot identity and proposed logical schema change table; no live DB assertions.
 4. Sanitized positive and hostile raster fixture corpus with test manifest/hashes, created only under later authorized QA scope.
 5. Generated logo fixture vectors: Bengali names, English names, mixed script, blank, missing/unknown shop type and generator-version changes.
@@ -1474,12 +1474,12 @@ CH-4 should receive:
 | PM-TAG-01..04 | PM / CH-1 / CH-2 | Confirm optional Bangla/English tagline; max 80 grapheme clusters; blank/null behavior; placement/wrapping | PM requirement received; max 80 remains proposed pending UX confirmation |
 | PM-HDR-01/02 | PM / PO | Confirm issued invoice permanently preserves logo selection/asset and tagline at issue; later profile changes apply to future invoices only | Technically recommended; explicit PO confirmation requested |
 | LOGO-TYPE-01 | PM / CH-2 | Confirm source for shop type and whether current controlled taxonomy is adequate for the Invoice-First food-store experience | Existing checked-in schema has shop_type; UX control and taxonomy not confirmed |
-| LOGO-DEFAULT-01 | PM / CH-2 | Generated is default absent valid upload/explicit BLANK; preview is not opt-in | ALIGNED TO PR #30 UX-40/42/43, revision 0.2 |
+| LOGO-DEFAULT-01 | PM / CH-2 | Generated is default absent valid upload/explicit BLANK; preview is informational and never an acknowledgement gate | ALIGNED TO PR #30 UX-40/42/43, revision 0.3 |
 | LOGO-UPLOAD-01 | PM / CH-1 | Approve proposed raster allow-list and engineering limits (JPEG/PNG, 2 MiB, 2048×2048, 4.19 MP) | Engineering proposal; UX/security review required |
 | TAG-LIMIT-01 | PM / CH-2 | Confirm whether “80 characters” means Unicode grapheme clusters (recommended), and decide any multiline behavior | PENDING |
 | HDR-RET-01 | PO / PM | Confirm retention expectations for old uploaded/generated assets while any invoice snapshot references them, plus shop deletion/legal retention policy | PENDING |
 | HDR-PUBLIC-01 | PO / CH-2 | Confirm tagline and logo appear on valid public bill page as part of invoice header; revoked/expired states follow existing disclosure gate | PENDING |
-| CH2-CROSSWALK-01 | CH-2 | PR #30 revision 0.2; preserve UX-01..64 and re-pin later revisions before implementation | CURRENT UX REFERENCE PINNED |
+| CH2-CROSSWALK-01 | CH-2 | PR #30 revision 0.3; preserve UX-01..71 and re-pin later revisions before implementation | CURRENT UX REFERENCE; CH-1 RE-FREEZE REQUIRED |
 
 **Issue #31 status:** the current PO-response table still marks PO-02, PO-04, PO-05, PO-06, PO-11, PO-12, PO-I11 and PO-I06A as PENDING. This addendum does not change those decisions or imply any response. Logo and tagline are new requirements and must be added to a controlled PO/PM decision record only by the authorized owner.
 
@@ -1509,7 +1509,7 @@ This addendum does not weaken or replace:
 ## P. Updated technical release gates
 
 Before logo/tagline can ship:
-1. CH-2 current UX revision 0.2 is pinned at HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`; map its UX-40..UX-64 individually before CH-4 test-plan freeze.
+1. CH-2 current UX revision 0.3 is pinned at HEAD `ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f`, blob `b5c176de5badf5ec7d85bdb1b530e8aa3c083b97`; map UX-40..UX-71 individually before focused CH-4 verification.
 2. CH-1 must accept the revised technical design at the exact commit/blob.
 3. PM/PO must decide logo default, shop-type taxonomy use, historical header promise and public/revoked display treatment.
 4. Physical migration/storage architecture must be reviewed separately; never infer the checked-in `logo_url` field is sufficient.
@@ -1537,7 +1537,7 @@ No live schema or database statement is made. No SQL, migration, code, storage b
 
 **Task:** DT-CH3-PR33-FOLLOWUP-001  
 **Parent candidate:** `275e133bf4b889f9f86f062575e42ab22f9e7842`, blob `8e16f1775defdfd6422cf771e2ace3a35b9cd338`  
-**Exact UX source:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`  
+**Historical UX source at v0.3.1 authoring:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`; retained as provenance only.  
 **Codex finding:** PR #33 comment `4524063634`, P2  
 **Historical status at v0.3.2:** awaiting CH-1 re-review when authored; superseded by CH-1 acceptance of HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 for CH-4 static design review.  
 **Implementation / DB / QA authorization:** NOT GRANTED
@@ -1584,7 +1584,7 @@ Final category taxonomy remains PO/PM-pending. Never infer it from shop name or 
 
 ## R.5 Exact UX source
 
-PR #30 revision 0.2 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`. Aligns with UX-40/42/43/45/46/47/49/50/64. Remaining category taxonomy, upload limits, tagline limit and historical header retention remain PO/PM gates.
+Historical UX source at v0.3.2 authoring: PR #30 revision 0.2 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`. This historical crosswalk is superseded for current use by AJ/R.9. Remaining category taxonomy, upload limits, tagline limit and historical header retention remain PO/PM gates.
 
 ## R.6 Proposed tests — NOT EXECUTED
 
@@ -1599,15 +1599,15 @@ No application code, SQL, migration, database operation, build, automated test, 
 The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9a1753d3bcba680961b39b91e320d1f59d70cd14 was ACCEPTED by CH-1 for CH-4 static design review under manifest DT-MVP-CH4-FROZEN-2026-11-10-01. That acceptance applies only to that exact artifact and is not implementation, QA, merge, deployment or pilot authorization. This v0.4.1 revision changes the pinned technical artifact and therefore requires CH-1 re-freeze; prior acceptance does not automatically extend to the new HEAD/blob.
 
 
-## R.9 PR #30 UX-40..UX-64 technical crosswalk (exact revision 0.2)
+## R.9 PR #30 UX-40..UX-71 technical crosswalk (current revision 0.3)
 
-Source: PR #30 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`. No UX criterion is replaced or renumbered.
+Source: PR #30 HEAD `ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f`, blob `b5c176de5badf5ec7d85bdb1b530e8aa3c083b97`. No UX criterion is replaced or renumbered.
 
 | UX IDs | UX intent | Technical design mapping | Proposed CH-4 evidence |
 |---|---|---|---|
 | UX-40 | Generated default when no upload/explicit Blank | §§B.1–B.3, C.4, R.3 | LG-08, HDR-01 |
 | UX-41 | Generated uses current name/category; preview regenerates on changes | §§C.1–C.4, R.4 | LG-10–12 |
-| UX-42 | Generated preview available before invoice use | §§C.4, R.3; preview is informational and not a mandatory opt-in gate under CH-1; CH-2 must clarify UX wording | LG-08, LG-12 |
+| UX-42 | Generated preview is informational; no acknowledgement/confirmation is required and normal invoice use is not blocked if it is not inspected | §§C.4, R.3; Generated remains default independently of preview inspection | LG-08, LG-12; UXAT-42 |
 | UX-43 | Uploaded priority | §§B.1–B.3, R.3 | LG-01–03, LG-09 |
 | UX-44 | Replacement retains current logo until successful | §§B.2, D.3 | LG-03, LG-07 |
 | UX-45 | Owner removes upload and chooses Generated or Blank | §§B.2, R.3 | LG-05, LG-06, LG-09 |
@@ -1625,7 +1625,15 @@ Source: PR #30 HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b907
 | UX-61–62 | Same issued header across surfaces; profile edit follows historical policy | §§F, H; PM-HDR-01/02 remains PO/PM gate | HDR-01–06 |
 | UX-63–64 | Aspect ratio/Blank reflow; corrupt/missing assets report safely | §§D.5, H.2 | LG-14–17, PDF-R02 |
 
-All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01..UX-39 and include UX-40..UX-64 in its criterion-level QA mapping.
+| UX-65 | Empty bill / zero-line prevention | §7; invoice composer review/issue guard | AT-MENU-05; invoice validation | PO/technical gate; no zero-line invoice |
+| UX-66 | Stale menu price/eligibility revalidation | §§7, 12; authoritative server-side recheck before issue; preserve draft and require explicit owner review | AT-MENU-05; invoice validation | PO-06 / technical gate |
+| UX-67 | Adversarial upload rejects active, malformed, polyglot, animated and resource-exhaustion inputs; preserves current logo/tagline | §§D.1–D.3, V; trusted validation and safe raster normalization | LG-07, LG-13 | PO-L03 / runtime gate |
+| UX-68 | Tagline safe text, Unicode normalization and control/bidi handling | §§E, G, W; literal escaped rendering and explicit validation | TG-01..05 | PO-L04 / runtime gate |
+| UX-69 | Explicit category; no inference from shop name | §§C.3, R.4; unresolved category has no generated category-specific mark | LG-10, LG-11 | PO-L01 gate |
+| UX-70 | Expired/revoked QR link discloses no bill details as verified | §§8–9, U; expiry/revocation state and no-store public DTO | AT-TOK-01..14; AT-PUB-05 | PO-11/12/I11/I06A and runtime gates |
+| UX-71 | Historical header/asset retention only under approved policy | §§F, H; immutable issue snapshot and retained referenced assets after policy approval | HDR-01..06 | PO-L02 / HDR-RET-01 gate |
+
+All crosswalked scenarios are PROPOSED / NOT EXECUTED. CH-4 must preserve UX-01..UX-39 and include UX-40..UX-71 in its criterion-level static mapping.
 
 
 ## R.10 CH-1 P2 correction traceability
@@ -1651,7 +1659,7 @@ The prior exact candidate HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30 / blob 9
 **CH-4 preliminary register:** Issue #27 comment 6765953207  
 **Prior frozen manifest:** DT-MVP-CH4-FROZEN-2026-11-10-01, Issue #27 comment 6766702882  
 **Prior technical candidate:** PR #33 HEAD 898c834c30ec84599a6fa7c333d3da18ca235c30, blob 9a1753d3bcba680961b39b91e320d1f59d70cd14  
-**UX source:** PR #30 HEAD c7b0d8bddad3afcdf48b0b8fba8331ad46dda309, blob 3b34e6b9075b65ee027ac368fb964a5f9e98ae8f  
+**Historical UX source at v0.4.0 authoring:** PR #30 HEAD c7b0d8bddad3afcdf48b0b8fba8331ad46dda309, blob 3b34e6b9075b65ee027ac368fb964a5f9e98ae8f; retained as provenance only.  
 **Governance source:** PR #32 HEAD 38068e159939aa963807b4cbdfc3fc26cbd3abee, blob 1782e4eb3816f5ce03d900aebbbafd1e0a427a78  
 **CH-4 final report disposition:** NEEDS REVISION; PR #33 NEEDS REVISION, PR #30 ACCEPT WITH CONDITIONS, PR #32 NEEDS REVISION.  
 **Status:** documentation remediation submitted for CH-1 re-freeze/final review  
@@ -1855,12 +1863,12 @@ Authoritative report: PR #34 HEAD de39c00432ac1267e37601c01b2d9b83eda2f670, blob
 | CH4-DES-02 profile/header snapshot concurrency (P1) | CH-3 | §§5.2/F/G define shop-row share/update locks, deterministic asset lock order, issue snapshot, upload finalization, GC and deadlock/retry behavior | DESIGN CORRECTED—RE-REVIEW; physical transaction and concurrency tests not implemented |
 | CH4-DES-03 public QR bearer policy (P1) | PO/CH-3/PM | U blocks production links until PO-12/I06A/I11, KMS, revocation, cache, redaction, rate-limit and incident-response gates | PO-/RUNTIME-GATED; no production token issuance |
 | CH4-DES-04 PDF reproducibility artifacts (P1) | CH-3 | Y requires exact TTF/OFL hashes, immutable renderer digest, fixed corpus and evidence; no hashes fabricated | RUNTIME-GATED; PDF release blocked pending artifacts and authorized tests |
-| CH4-UX-01 UX-42 preview wording (P2) | CH-2 | Technical behavior follows CH-1: preview available/informational, not a Generated opt-in. UX-42 still needs CH-2 wording clarification to remove mandatory-preview ambiguity | CH-2 ACTION OPEN; PR #30 unchanged; not claimed closed by CH-3 |
+| CH4-UX-01 UX-42 preview wording (P2) | CH-2 / CH-1 | Historical v0.4.1 status: UX-42 wording clarification open. Current UX v0.3 now states preview is informational, no acknowledgement is required, and normal invoice use is not blocked; v0.4.2 crosswalk is aligned | UX correction submitted; CH-1/CH-4 verification still required; not self-accepted |
 | CH4-DES-05 stale CH-1 acceptance text (P2) | CH-3 | R.8/R.10/R.11 and v0.3.2 historical header distinguish prior acceptance of exact 898c834... candidate from this new unreviewed artifact | DESIGN CORRECTED—RE-REVIEW; CH-1 re-freeze required |
 | CH4-OBS-01 IndexedDB outbox privacy lifecycle | CH-3 | §6.4 defines owner/shop binding, re-authentication, logout/owner-switch behavior, payload/marker retention, no bearer secrets and private reconciliation | DESIGN CORRECTED—RE-REVIEW; client runtime privacy tests not run |
 | CH4-GOV-01 stale PR #32 authority references (P2) | CH-1 | No PR #32 edits; recorded as a separate governance action | OUTSIDE PR #33; CH-1 must update PR #32 |
-| CH4-A1-01 format-only mobile values (P2) | CH-3 / CH-1 approval | Separate A1 proposal: after stripping allowed formatting, require at least one ASCII digit; no national prefix/length assumption | OUTSIDE PR #33; separate PR #32 governance work |
-| CH4-A1-02 profile field-level test traceability (P2) | CH-2 / CH-3 | Separate A1 requirement for per-field empty/whitespace/malformed/valid/boundary/save-failure/retry/reload/edit-preservation matrix | OUTSIDE PR #33; separate PR #32 work |
+| CH4-A1-01 format-only mobile values (P2) | CH-3 / CH-1 | Separate PR #32 governance correction requires at least one ASCII digit after stripping allowed formatting; no national prefix/length assumption | PR #32 docs corrected; CH-1 independent verification and CH-4 focused check required |
+| CH4-A1-02 profile field-level test traceability (P2) | CH-2 / CH-3 / CH-1 | PR #32 governance maps each of the four required fields to validation, save behavior and A1 acceptance/test criteria | PR #32 docs corrected; CH-1 independent verification and CH-4 focused check required |
 | CH4-UX-02..06 preliminary UX findings | CH-2/CH-3/PO | Preliminary responses retained in AA and detailed V–X contracts; final report's specific UX finding is UX-42 | CH-2/PO/runtime gates remain |
 | CH4-R2-01..05 preliminary findings | CH-3/PO/PM | Historical preliminary matrix AA retained; final DES-01..05/OBS-01 take precedence where different | Final dispositions above |
 
@@ -1900,3 +1908,20 @@ All PROPOSED / NOT EXECUTED.
 ## AI. Final CH-3 disposition after CH-4 report
 
 CH-3-owned final-report findings DES-01, DES-02, DES-03, DES-04, DES-05 and OBS-01 have explicit corrective design text and acceptance criteria in this candidate. This is a submission for independent re-review, not self-acceptance. CH4-UX-01 remains CH-2-owned; CH4-GOV-01 remains CH-1-owned; CH4-A1-01/02 remain separate PR #32 work. PO and runtime gates remain open. The exact new HEAD/blob must be re-frozen by CH-1 before CH-4 review.
+
+
+## AJ. Controlled Addendum v0.4.2 — UX v0.3 source pin and UX-42 closure alignment
+
+**Purpose:** Correct the operative UX source identity and traceability after the PR #30 v0.3 correction; retain prior addenda and review history without retroactively rewriting what earlier revisions inspected.
+
+**Current UX source:** PR #30, branch `docs/invoice-first-owner-customer-ux`, revision 0.3, HEAD `ae2746b8b35cb369fdd4d6b31e792fa9b9281b3f`, blob `b5c176de5badf5ec7d85bdb1b530e8aa3c083b97`.
+
+**Superseded UX source for current design use:** PR #30 revision 0.2, HEAD `c7b0d8bddad3afcdf48b0b8fba8331ad46dda309`, blob `3b34e6b9075b65ee027ac368fb964a5f9e98ae8f`. Those identities remain only as historical provenance for earlier review/addendum preparation; they are not the operative UX source for this revision.
+
+**UX-42 / UXAT-42 semantic alignment:** The current UX criterion states that Generated logo preview is informational. The owner may inspect it, but preview acknowledgement or confirmation is not required for Generated mode to remain the default or for normal invoice use. UXAT-42 covers both inspection and non-inspection paths and expects no acknowledgement gate. The technical resolver remains Explicit BLANK > valid UPLOADED > GENERATED default; no technical behavior is changed by this source-pin correction.
+
+**Current traceability:** R.9 maps UX-40..UX-71 to technical sections and proposed acceptance criteria. UXAT/LG/TG/HDR/AT scenarios remain proposed and not executed. UX v0.3's additive UX-65..UX-71 are mapped in R.9; no IDs are renumbered or replaced.
+
+**CH-4 finding CH4-UX-01:** The exact UX wording defect identified in the final report is corrected in PR #30 v0.3 and the technical crosswalk is aligned here. Status: SUBMITTED FOR CH-1 / FOCUSED CH-4 VERIFICATION; not claimed closed until exact artifact identities are frozen and independently checked.
+
+**CH-1 / CH-4 status:** This v0.4.2 technical candidate is a documentation correction only. It has not been accepted by CH-1 or CH-4. No PO decision is inferred. No implementation, SQL/schema/migration, DB operation, build, test, browser/PDF/runtime QA, merge, deployment, release or pilot is authorized.
