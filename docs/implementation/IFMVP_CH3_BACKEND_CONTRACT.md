@@ -44,3 +44,10 @@ The migration creates the RPC as the migration role (expected `postgres` in Supa
 
 ### Maps DTO compatibility
 The request contract retains header.mapUrl as a string for compatibility with the CH-2 request payload; an absent profile value is sent as an empty string. Response DTOs expose header.mapUrl as string or null because unsafe/absent values are normalized to NULL by the database. CH-2 must mirror the response type before integrating invoice history/detail.
+
+
+## Exact baseline and migration-sequence reconciliation
+
+The pinned main commit 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1 contains a consolidated supabase/schema.sql snapshot (blob e859b6de9660533962eddb6f9f3d17ad8a4c1cca). It already contains the inventory/catalog and reliability-foundation end-state, including item_catalog, transaction_requests, stock_movements, audit_events, is_public columns and split customer policies. The historical 20261019_reliability_foundation.sql is an upgrade path from the older starter schema, not a migration to reapply over this consolidated snapshot. An initial PostgreSQL 16 run demonstrated that applying it after the pinned schema fails with duplicate policy "owner reads customers". The harness validates those exact baseline objects/policies instead of reapplying that historical migration. The harness sequence is: auth compatibility shim → pinned schema.sql → 20261019_inventory_catalog.sql (idempotent reconciliation) → baseline end-state assertions → 20261102_p0_idempotency.sql → invoice migration. This is explicit migration ordering, not a silent omission.
+
+Pinned historical file identities: inventory migration 1f72ad2c8d643ec2d536225d8c8c09992d53cdc3; reliability migration 6b6b51318a5b4d1f38880ec2007049409102931c (asserted as already represented in schema.sql); P0 migration 03c9cb2940799731d614e97a9b48da2d9418f707.

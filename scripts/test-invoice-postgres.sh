@@ -48,11 +48,13 @@ echo "BASELINE=$BASELINE"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$TMP/00_auth_bootstrap.sql"
 git show "$BASELINE:supabase/schema.sql" > "$TMP/10_schema.sql"
 git show "$BASELINE:supabase/migrations/20261019_inventory_catalog.sql" > "$TMP/20_inventory_catalog.sql"
-git show "$BASELINE:supabase/migrations/20261019_reliability_foundation.sql" > "$TMP/30_reliability_foundation.sql"
 git show "$BASELINE:supabase/migrations/20261102_p0_idempotency.sql" > "$TMP/40_p0_idempotency.sql"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$TMP/10_schema.sql"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$TMP/20_inventory_catalog.sql"
-psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$TMP/30_reliability_foundation.sql"
+# The pinned schema.sql is a consolidated post-reliability snapshot. Reapplying the
+# historical reliability migration duplicates owner-read policies (verified in CI).
+# Assert the migration's expected end-state instead of applying it twice.
+psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f tests/postgres/05_baseline_assertions.sql
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$TMP/40_p0_idempotency.sql"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$MIGRATION"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f tests/postgres/00_fixture_and_seed.sql
