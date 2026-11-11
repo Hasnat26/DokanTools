@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase, InvoiceCatalogItem, InvoiceDraft, InvoiceDraftLine, Shop } from "@/lib/supabase";
+import { supabase, invoiceApi, InvoiceCatalogItem, InvoiceDraft, InvoiceDraftLine, Shop } from "@/lib/supabase";
+import type { InvoiceCreateRequest, InvoiceDTO } from "@/lib/invoice-contract";
 import { calculateInvoicePreview, formatBDTFromMinor } from "@/lib/invoice-domain.mjs";
 import { deleteInvoiceDraft, listInvoiceDrafts, saveInvoiceDraft } from "@/lib/invoice-draft-store.mjs";
 import InvoiceDocument from "@/components/invoice/InvoiceDocument";
@@ -43,6 +44,10 @@ export default function OwnerInvoicesPage() {
   const [shop, setShop] = useState<ShopProfile | null>(null);
   const [catalog, setCatalog] = useState<CatalogRow[]>([]);
   const [drafts, setDrafts] = useState<LocalDraft[]>([]);
+  const [issuedInvoices, setIssuedInvoices] = useState<InvoiceDTO[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDTO | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const [lines, setLines] = useState<InvoiceDraftLine[]>([{ ...EMPTY_LINE }]);
   const [screen, setScreen] = useState<Screen>("composer");
   const [selectedDraftId, setSelectedDraftId] = useState("");
@@ -53,6 +58,7 @@ export default function OwnerInvoicesPage() {
   const [notice, setNotice] = useState("");
   const [storageAvailable, setStorageAvailable] = useState(true);
   const [saveSucceeded, setSaveSucceeded] = useState(false);
+  const [issueBusy, setIssueBusy] = useState(false);
 
   const preview = useMemo(() => calculateInvoicePreview(lines), [lines]);
   const filteredCatalog = useMemo(() => {
@@ -119,6 +125,37 @@ export default function OwnerInvoicesPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const loadIssuedInvoices = useCallback(async () => {
+    if (!shop) return;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const invoices = await invoiceApi.list(shop.id);
+      setIssuedInvoices(invoices);
+    } catch (e) {
+      setIssuedInvoices([]);
+      setHistoryError(e instanceof Error ? e.message : "INVOICE_HISTORY_UNAVAILABLE");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [shop]);
+
+  useEffect(() => {
+    if (screen === "history" && shop) void loadIssuedInvoices();
+  }, [screen, shop, loadIssuedInvoices]);
+
+  async function openIssuedInvoice(invoiceId: string) {
+    if (!shop) return;
+    setHistoryError("");
+    try {
+      const invoice = await invoiceApi.get(shop.id, invoiceId);
+      setSelectedInvoice(invoice);
+      setScreen("detail");
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : "INVOICE_DETAIL_UNAVAILABLE");
+    }
+  }
+
   useEffect(() => {
     const draftId = searchParams.get("draft");
     if (draftId) setSelectedDraftId(draftId);
@@ -149,11 +186,11 @@ export default function OwnerInvoicesPage() {
     setScreen("composer");
   }
 
-  async function persistDraft() {
-    if (!shop || !userId) return;
+  async function persistDraft(): Promise<boolean> {
+    if (!shop || !userId) return false;
     if (!storageAvailable) {
       setError("খসড়া সংরক্ষণের জন্য IndexedDB উপলব্ধ নয়। এই অবস্থায় অন্য পৃষ্ঠায় গেলে তথ্য হারাতে পারে।");
-      return;
+      return false;
     }
     setSavingDraft(true);
     setSaveSucceeded(false);
@@ -177,8 +214,10 @@ export default function OwnerInvoicesPage() {
       setSaveSucceeded(true);
       setNotice("খসড়া এই ডিভাইসে সংরক্ষিত হয়েছে। এটি ইস্যু করা বিল নয় এবং কোনো বিল নম্বর তৈরি হয়নি।");
       setError("");
+      return true;
     } catch (e) {
       setError("খসড়া সংরক্ষণ করা যায়নি। "+(e instanceof Error ? e.message : ""));
+      return false;
     } finally {
       setSavingDraft(false);
     }
@@ -221,14 +260,22 @@ export default function OwnerInvoicesPage() {
     setScreen("review");
   }
 
-  function saveAndReview() {
-    void persistDraft().then(() => {
-      if (preview.valid && saveSucceeded) setScreen("review");
-    });
+  async function saveAndReview() {
+    const saved = await persistDraft();
+    if (saved && preview.valid) setScreen("review");
   }
 
-  function blockedIssue() {
-    setNotice("বিল ইস্যু করা যাচ্ছে না। CH-3-এর invoice API/atomic transaction এখনও যুক্ত হয়নি এবং PO-02/04/05/06-এর সিদ্ধান্ত pending। খসড়া সংরক্ষণ ও পর্যালোচনা করা যায়, কিন্তু এটিকে ইস্যু করা বিল বলা যাবে না।");
+  const pendingIssueDecisions = ["PO-02", "PO-04", "PO-05", "PO-06"] as const;
+
+  async function issueInvoice() {
+    if (!shop || !userId || issueBusy) return;
+    if (!preview.valid) {
+      setError("বিলের লাইন/পরিমাণ/মূল্য যাচাই করুন।");
+      return;
+    }
+    // Business semantics remain blocked until PO explicitly records decisions.
+    setError("");
+    setNotice(`ইস্যু বন্ধ: ${pendingIssueDecisions.join(", ")} এখনও pending। এই সিদ্ধান্তগুলো ছাড়া সার্ভার API call করা হবে না।`);
   }
 
   if (loading) return <div className="container-page py-12">লোড হচ্ছে…</div>;
@@ -366,7 +413,7 @@ export default function OwnerInvoicesPage() {
             <button type="button" className="btn-secondary mt-4 min-h-12 w-full" onClick={() => setScreen("composer")}>বিল সম্পাদনা</button>
             <button type="button" className="btn-secondary mt-2 min-h-12 w-full" onClick={() => void persistDraft()} disabled={!storageAvailable || savingDraft}>খসড়া সংরক্ষণ</button>
             <button type="button" className="btn-secondary mt-2 min-h-12 w-full" onClick={() => window.print()}>প্রিন্ট / Save as PDF · খসড়া</button>
-            <button type="button" className="mt-3 min-h-12 w-full rounded-xl border border-amber-400 bg-amber-50 px-4 font-bold text-amber-950" onClick={blockedIssue}>বিল তৈরি করুন · বর্তমানে বন্ধ</button>
+            <button type="button" className="mt-3 min-h-12 w-full rounded-xl border border-amber-400 bg-amber-50 px-4 font-bold text-amber-950" onClick={() => void issueInvoice()} disabled={issueBusy || !preview.valid}>{issueBusy ? "ইস্যু হচ্ছে…" : "বিল তৈরি করুন · PO approval pending"}</button>
             <p className="mt-3 text-xs text-amber-900">PO-02/04/05/06 pending এবং CH-3 issue API contract এখনও branch-এ নেই। তাই বিল নম্বর, issued status, QR বা verification তৈরি হবে না।</p>
           </aside>
         </section>
@@ -397,18 +444,52 @@ export default function OwnerInvoicesPage() {
             </div>
           </div>
           <div className="card mt-4">
-            <h3 className="font-bold">Issued invoice history</h3>
-            <p className="mt-1 text-sm text-slate-600">CH-3-এর owner history API branch-এ না আসা পর্যন্ত এই অংশ unavailable। কোনো invoice table সরাসরি পড়া হচ্ছে না।</p>
-            <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Backend contract pending</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><h3 className="font-bold">ইস্যু করা বিলের ইতিহাস</h3><p className="muted mt-1">শুধু authenticated owner API থেকে পাওয়া persisted invoice</p></div>
+              <button type="button" className="btn-secondary min-h-11" onClick={() => void loadIssuedInvoices()} disabled={historyLoading}>{historyLoading ? "লোড হচ্ছে…" : "রিফ্রেশ"}</button>
+            </div>
+            {historyError && <p role="alert" className="mt-3 text-sm text-amber-800">ইতিহাস লোড হয়নি: {historyError}</p>}
+            <div className="mt-4 space-y-3">
+              {issuedInvoices.map(invoice => (
+                <div key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
+                  <div>
+                    <p className="font-semibold">বিল নং {invoice.billNumber}</p>
+                    <p className="text-xs text-slate-500">{formatDate(invoice.issuedAt)} {formatTime(invoice.issuedAt)}</p>
+                    <p className="text-sm font-semibold">মোট: ৳{invoice.totalAmount}</p>
+                  </div>
+                  <button type="button" className="btn-secondary min-h-11" onClick={() => void openIssuedInvoice(invoice.id)}>বিস্তারিত</button>
+                </div>
+              ))}
+              {!historyLoading && !historyError && issuedInvoices.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">সার্ভারে কোনো ইস্যু করা বিল পাওয়া যায়নি।</p>}
+            </div>
           </div>
         </section>
       )}
 
       {screen === "detail" && (
-        <section className="mt-5 card">
-          <p className="font-semibold">Invoice detail unavailable</p>
-          <p className="mt-2 text-sm text-slate-600">Issued invoice detail requires the authenticated owner detail API from CH-3. Local drafts are not invoice records. Public QR, customer verification and revocation are disabled.</p>
-          <button type="button" className="btn-secondary mt-4" onClick={() => setScreen("history")}>ফিরে যান</button>
+        <section className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="invoice-print-root">
+            {selectedInvoice ? (
+              <InvoiceDocument
+                shop={{...shop, shop_name:selectedInvoice.header.shopName,address:selectedInvoice.header.shopAddress,phone:selectedInvoice.header.shopPhone,map_link:selectedInvoice.header.mapUrl}}
+                billNumber={selectedInvoice.billNumber}
+                createdAt={selectedInvoice.issuedAt}
+                lines={selectedInvoice.lines.map(line=>({item_name:line.itemName,quantity:line.quantity,amount_label:`৳${line.lineTotal}`}))}
+                totalLabel={`৳${selectedInvoice.totalAmount}`}
+                statusLabel="সার্ভারে ইস্যু করা হয়েছে"
+                showIssueMetadata={true}
+              />
+            ) : <div className="card">বিলের বিস্তারিত পাওয়া যায়নি। ইতিহাস থেকে আবার চেষ্টা করুন।</div>}
+          </div>
+          <aside className="card h-fit">
+            <h3 className="text-lg font-bold">ইস্যু করা বিল</h3>
+            <p className="mt-2 text-sm text-slate-600">বিল নং: {selectedInvoice?.billNumber || "—"}</p>
+            <p className="mt-1 text-sm text-slate-600">তারিখ: {selectedInvoice ? formatDate(selectedInvoice.issuedAt) : "—"}</p>
+            <p className="mt-1 text-sm text-slate-600">সময়: {selectedInvoice ? formatTime(selectedInvoice.issuedAt) : "—"}</p>
+            <button type="button" className="btn-secondary mt-4 min-h-12 w-full" onClick={() => window.print()} disabled={!selectedInvoice}>প্রিন্ট / Save as PDF</button>
+            <button type="button" className="btn-secondary mt-2 min-h-12 w-full" onClick={() => setScreen("history")}>ইতিহাসে ফিরে যান</button>
+            <p className="mt-3 text-xs text-amber-900">Public QR / customer verification / revocation are disabled pending PO and security gates.</p>
+          </aside>
         </section>
       )}
 
