@@ -1,5 +1,5 @@
 /**
- * In-memory session boundary for local invoice drafts.
+ * In-memory session boundary for local invoice drafts and issued-invoice reads.
  * Invalidating a session never deletes or mutates persisted drafts.
  */
 export function createInvoiceDraftSessionGuard() {
@@ -34,6 +34,11 @@ export function createInvoiceDraftSessionGuard() {
         active.shopId === snapshot.shopId
       );
     },
+    capture(ownerId, shopId) {
+      if (!ownerId || !shopId || !active ||
+          active.ownerId !== ownerId || active.shopId !== shopId) return null;
+      return { generation, ownerId, shopId };
+    },
     isActive(ownerId, shopId) {
       return Boolean(active && active.ownerId === ownerId && active.shopId === shopId);
     },
@@ -48,4 +53,25 @@ export function createInvoiceDraftSessionGuard() {
       );
     },
   };
+}
+
+/**
+ * Execute a session-bound async task. The task may only commit UI state while
+ * the exact captured owner/shop/generation remains current, including error
+ * and completion paths.
+ */
+export async function runSessionBoundRequest({ guard, snapshot, request, onSuccess, onError, onFinally }) {
+  if (!guard || !snapshot || !guard.isCurrent(snapshot)) return false;
+  try {
+    const value = await request();
+    if (!guard.isCurrent(snapshot)) return false;
+    onSuccess?.(value);
+    return true;
+  } catch (error) {
+    if (!guard.isCurrent(snapshot)) return false;
+    onError?.(error);
+    return false;
+  } finally {
+    if (guard.isCurrent(snapshot)) onFinally?.();
+  }
 }
