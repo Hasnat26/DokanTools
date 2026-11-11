@@ -87,7 +87,7 @@ jobs:
           exit 1
       - name: Run Chromium acceptance against exact candidate
         working-directory: app
-        run: npx playwright test --config=../qa-harness/qa/playwright/playwright.config.ts
+        run: npx playwright test --config=../qa-harness/qa/playwright/playwright.config.mts
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
