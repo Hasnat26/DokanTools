@@ -152,7 +152,7 @@ test("composer validation, decimal calculation and Bangla review document", asyn
   await login(page, OWNER_A);
   await expect(page.getByRole("button", { name: "বিল পর্যালোচনা" })).toBeDisabled();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(page.getByText("বিল খালি।")).toBeVisible();
+  await expect(page.locator(".invoice-document")).toHaveCount(0);
   await page.locator("#item-name-0").fill("   ");
   await page.locator("#qty-0").fill("1");
   await page.locator("#price-0").fill("10.00");
@@ -166,6 +166,7 @@ test("composer validation, decimal calculation and Bangla review document", asyn
   await expect(page.locator(".invoice-document__footer")).toHaveText("ধন্যবাদ, আবার আসবেন!");
   await expect(page.locator(".invoice-document__total")).toContainText("৳21.00");
   await expect(page.locator(".invoice-document__meta a")).toHaveCount(0);
+  await expect(page.locator('button[title="PO decisions pending"]')).toBeDisabled();
 });
 
 test("real Chromium IndexedDB saves, survives reload, reopens and deletes a local draft", async ({ page }) => {
