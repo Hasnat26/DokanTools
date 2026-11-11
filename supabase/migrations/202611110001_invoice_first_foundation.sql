@@ -1,5 +1,15 @@
 -- Invoice-First backend foundation. Additive and source-only until applied to an isolated DB.
 begin;
+create table if not exists public.invoice_runtime_controls (
+ control_key text primary key check(control_key='invoice_issue'),
+ issue_enabled boolean not null default false,
+ updated_at timestamptz not null default clock_timestamp()
+);
+insert into public.invoice_runtime_controls(control_key,issue_enabled)
+values('invoice_issue',false) on conflict(control_key) do nothing;
+alter table public.invoice_runtime_controls enable row level security;
+revoke all on public.invoice_runtime_controls from public,anon,authenticated;
+
 create table if not exists public.invoice_counters (
  shop_id uuid primary key references public.shops(id) on delete restrict,
  next_number bigint not null default 1 check(next_number>0),
@@ -119,7 +129,7 @@ create or replace function public.create_invoice_transaction(
 returns table(result_invoice_id uuid,result_bill_number bigint,result_issued_at timestamptz,
  result_total_amount numeric,result_was_replay boolean)
 language plpgsql security definer
-set search_path=pg_catalog,public,extensions,auth as $$
+set search_path=pg_catalog as $
 declare
  v_actor uuid:=auth.uid();
  v_shop public.shops%rowtype;
@@ -142,8 +152,13 @@ declare
  v_hash bytea;
  v_integrity bytea;
  v_item_id uuid;
+ v_issue_enabled boolean;
 begin
  if v_actor is null then raise exception 'AUTHENTICATION_REQUIRED' using errcode='28000'; end if;
+ select c.issue_enabled into v_issue_enabled from public.invoice_runtime_controls c where c.control_key='invoice_issue';
+ if not coalesce(v_issue_enabled,false) then
+  raise exception 'INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL' using errcode='55000';
+ end if;
  if p_shop_id is null or p_request_id is null or p_idempotency_namespace is null
    or length(p_idempotency_namespace) not between 1 and 100 then
    raise exception 'INVALID_REQUEST_IDENTITY' using errcode='22023';

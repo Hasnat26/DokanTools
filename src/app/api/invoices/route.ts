@@ -81,6 +81,10 @@ export async function POST(req: NextRequest) {
   try { input = JSON.parse(raw); } catch { return fail(400, "INVALID_JSON"); }
   if (!valid(input)) return fail(400, "INVALID_INVOICE_REQUEST");
 
+  // Fail closed until PO-02/04/05/06 are approved. Not env-configurable.
+  const INVOICE_ISSUE_ENABLED = false;
+  if (!INVOICE_ISSUE_ENABLED) return fail(423, "INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL");
+
   const { data, error } = await client.rpc("create_invoice_transaction", {
     p_shop_id: input.shopId,
     p_idempotency_namespace: input.idempotencyNamespace,
