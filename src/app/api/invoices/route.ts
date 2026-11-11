@@ -29,7 +29,17 @@ function valid(v: unknown): v is InvoiceCreateRequest {
     && typeof line.unitPrice === "string" && decimal(2).test(line.unitPrice));
 }
 
-function toDTO(row: Record<string, any>, lines: Record<string, any>[]): InvoiceDTO {
+type InvoiceDbRow = {
+  id: string; shop_id: string; bill_number: string | number; issued_at: string;
+  total_amount: string | number; shop_name_snapshot: string; shop_address_snapshot: string;
+  shop_phone_snapshot: string; map_url_snapshot: string | null;
+};
+type InvoiceLineDbRow = {
+  line_no: number; catalog_item_id_snapshot: string | null; item_name_snapshot: string;
+  unit_snapshot: string | null; quantity: string | number; unit_price: string | number;
+  line_total: string | number;
+};
+function toDTO(row: InvoiceDbRow, lines: InvoiceLineDbRow[]): InvoiceDTO {
   return {
     id: row.id, shopId: row.shop_id, billNumber: String(row.bill_number),
     issuedAt: row.issued_at, currency: "BDT", totalAmount: String(row.total_amount),
@@ -68,7 +78,7 @@ async function loadInvoice(client: ReturnType<typeof createClient>, shopId: stri
     .select("line_no,catalog_item_id_snapshot,item_name_snapshot,unit_snapshot,quantity,unit_price,line_total")
     .eq("shop_id", shopId).eq("invoice_id", invoiceId).order("line_no", { ascending: true });
   if (lineError || !lines) return null;
-  return toDTO(row as Record<string, any>, lines as Record<string, any>[]);
+  return toDTO(row as unknown as InvoiceDbRow, lines as unknown as InvoiceLineDbRow[]);
 }
 
 export async function POST(req: NextRequest) {
@@ -120,7 +130,7 @@ export async function GET(req: NextRequest) {
     .eq("shop_id", shopId).order("issued_at", { ascending: false })
     .order("bill_number", { ascending: false }).limit(limit);
   if (error) return fail(503, "INVOICE_HISTORY_UNAVAILABLE");
-  const invoices = rows ?? [];
+  const invoices = (rows ?? []) as unknown as InvoiceDbRow[];
   const ids = invoices.map(row => row.id);
   const { data: lines, error: linesError } = ids.length
     ? await client.from("invoice_lines")
@@ -128,9 +138,10 @@ export async function GET(req: NextRequest) {
       .eq("shop_id", shopId).in("invoice_id", ids).order("line_no", { ascending: true })
     : { data: [], error: null };
   if (linesError || !lines) return fail(503, "INVOICE_HISTORY_UNAVAILABLE");
-  const grouped = new Map<string, Record<string, any>[]>();
-  for (const line of lines) grouped.set(line.invoice_id, [...(grouped.get(line.invoice_id) ?? []), line]);
-  return NextResponse.json({ invoices: invoices.map(row => toDTO(row as Record<string, any>, grouped.get(row.id) ?? [])) }, {
+  const grouped = new Map<string, InvoiceLineDbRow[]>();
+  const lineRows = (lines ?? []) as unknown as Array<InvoiceLineDbRow & { invoice_id: string }>;
+  for (const line of lineRows) grouped.set(line.invoice_id, [...(grouped.get(line.invoice_id) ?? []), line]);
+  return NextResponse.json({ invoices: invoices.map(row => toDTO(row, grouped.get(row.id) ?? [])) }, {
     headers: { "Cache-Control": "no-store", "Pragma": "no-cache" },
   });
 }
