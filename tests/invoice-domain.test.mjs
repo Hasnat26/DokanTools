@@ -62,10 +62,10 @@ test("decimal quantity and price are accepted together and calculate correctly",
 
 test("invalid line and unsafe arithmetic fail closed", () => {
   assert.equal(calculateInvoicePreview([
-    { quantity_text: "1", unit_price_text: "0" },
+    { item_name: "Rice", quantity_text: "1", unit_price_text: "0" },
   ]).valid, false);
   assert.equal(calculateInvoicePreview([
-    { quantity_text: "1", unit_price_text: "999999999999999999999" },
+    { item_name: "Rice", quantity_text: "1", unit_price_text: "999999999999999999999" },
   ]).valid, false);
 });
 
