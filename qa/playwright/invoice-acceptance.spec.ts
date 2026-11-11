@@ -209,7 +209,7 @@ test("same browser context: A draft is retained but inaccessible to B after auth
   await expect(page.getByText(SHOP_B.shop_name)).toBeVisible();
   const retainedA = (await readDraftRecords(page)).some(row =>
     row.owner_id === OWNER_A.id && row.lines?.[0]?.item_name === "A-PRIVATE-DRAFT-ITEM");
-    expect(retainedA).toBeTruthy();
+  expect(retainedA).toBeTruthy();
 });
 
 test("stale User A history success cannot populate User B after session switch", async ({ page }) => {
