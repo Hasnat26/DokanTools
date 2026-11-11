@@ -70,26 +70,61 @@ export type InvoiceRecord = {
   // Public QR/link fields are deliberately not part of the owner UI contract.
 };
 
+
+import type {
+  InvoiceCreateRequest,
+  InvoiceCreateResponse,
+  InvoiceDTO,
+  InvoiceHistoryResponse,
+} from "@/lib/invoice-contract";
+
 /**
- * Owner invoice API boundary.
- *
- * CH-3 implementation branch is not yet available. The adapter intentionally
- * fails closed instead of guessing table/RPC names or directly querying
- * invoice tables from the browser. Routes are the design targets from
- * PR #33 v0.4.2 and must be reconciled with CH-3's committed contract before
- * issuance/history are enabled.
+ * Browser adapter for CH-3's authenticated invoice routes.
+ * All invoice reads/writes pass through owner-authorized server endpoints;
+ * the browser never queries invoice tables directly.
  */
+async function invoiceApiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const { data, error } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (error || !token) throw new Error("UNAUTHENTICATED");
+
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+    cache: "no-store",
+  });
+
+  const payload = await response.json().catch(() => null) as
+    | { error?: { code?: string } }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload && "error" in payload ? payload.error?.code || `INVOICE_API_HTTP_${response.status}` : `INVOICE_API_HTTP_${response.status}`);
+  }
+  return payload as T;
+}
+
 export const invoiceApi = {
-  async createDraft(_shopId: string, _lines: InvoiceDraftLine[]): Promise<InvoiceDraft> {
-    throw new Error("INVOICE_API_NOT_READY");
+  async create(request: InvoiceCreateRequest): Promise<InvoiceCreateResponse> {
+    return invoiceApiRequest<InvoiceCreateResponse>("/api/invoices", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
   },
-  async issue(_draft: InvoiceDraft): Promise<InvoiceRecord> {
-    throw new Error("INVOICE_API_NOT_READY");
+  async list(shopId: string): Promise<InvoiceDTO[]> {
+    const query = new URLSearchParams({ shopId, limit: "50" });
+    const result = await invoiceApiRequest<InvoiceHistoryResponse>(`/api/invoices?${query.toString()}`);
+    return result.invoices;
   },
-  async list(_shopId: string): Promise<InvoiceRecord[]> {
-    throw new Error("INVOICE_API_NOT_READY");
-  },
-  async get(_shopId: string, _invoiceId: string): Promise<InvoiceRecord> {
-    throw new Error("INVOICE_API_NOT_READY");
+  async get(shopId: string, invoiceId: string): Promise<InvoiceDTO> {
+    const query = new URLSearchParams({ shopId });
+    const result = await invoiceApiRequest<{ invoice: InvoiceDTO }>(
+      `/api/invoices/${encodeURIComponent(invoiceId)}?${query.toString()}`
+    );
+    return result.invoice;
   },
 };
