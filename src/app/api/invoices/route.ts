@@ -69,7 +69,8 @@ async function authenticatedClient(req: NextRequest) {
   });
 }
 
-async function loadInvoice(client: ReturnType<typeof createClient>, shopId: string, invoiceId: string) {
+type AuthenticatedSupabaseClient = NonNullable<Awaited<ReturnType<typeof authenticatedClient>>>;
+async function loadInvoice(client: AuthenticatedSupabaseClient, shopId: string, invoiceId: string) {
   const { data: row, error } = await client.from("invoices")
     .select("id,shop_id,bill_number,issued_at,total_amount,shop_name_snapshot,shop_address_snapshot,shop_phone_snapshot,map_url_snapshot")
     .eq("shop_id", shopId).eq("id", invoiceId).maybeSingle();
