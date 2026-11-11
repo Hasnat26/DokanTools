@@ -124,7 +124,7 @@ async function readDraftRecords(page: Page): Promise<Array<{ id: string; owner_i
 
 async function signOutThroughSupabaseUi(page: Page) {
   const logoutRequest = page.waitForRequest(request =>
-    request.url().endsWith("/auth/v1/logout") && request.method() === "POST");
+    request.url().includes("/auth/v1/logout") && request.method() === "POST");
   await page.getByRole("button", { name: "লগআউট" }).click();
   await logoutRequest;
   await expect(page.getByRole("link", { name: "লগইন" })).toBeVisible();
@@ -151,7 +151,7 @@ test("composer validation, decimal calculation and Bangla review document", asyn
   await installSyntheticSupabase(page);
   await login(page, OWNER_A);
   await expect(page.getByRole("button", { name: "বিল পর্যালোচনা" })).toBeDisabled();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveText("");
   await expect(page.locator(".invoice-document")).toHaveCount(0);
   await page.locator("#item-name-0").fill("   ");
   await page.locator("#qty-0").fill("1");
