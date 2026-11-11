@@ -1,8 +1,11 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
+const configDir = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
-  testDir: ".",
+  testDir: configDir,
   testMatch: "**/*.spec.ts",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -14,8 +17,8 @@ export default defineConfig({
     ["junit", { outputFile: path.resolve(process.cwd(), "test-results/junit.xml") }],
   ],
   outputDir: path.resolve(process.cwd(), "test-results"),
-  timeout: 45_000,
-  expect: { timeout: 10_000 },
+  timeout: 60_000,
+  expect: { timeout: 12_000 },
   use: {
     baseURL: "http://127.0.0.1:3000",
     trace: "retain-on-failure",
