@@ -2,7 +2,7 @@ const roundToMinor = (value) => Math.round((value + Number.EPSILON) * 100);
 
 export function parsePositiveQuantity(value) {
   const text = String(value ?? "").trim();
-  if (!/^[0-9]+(?:\\.[0-9]{1,3})?$/.test(text)) return null;
+  if (!/^[0-9]+(?:\.[0-9]{1,3})?$/.test(text)) return null;
   const parsed = Number(text);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return parsed;
@@ -10,7 +10,7 @@ export function parsePositiveQuantity(value) {
 
 export function parsePositivePrice(value) {
   const text = String(value ?? "").trim();
-  if (!/^[0-9]+(?:\\.[0-9]{1,2})?$/.test(text)) return null;
+  if (!/^[0-9]+(?:\.[0-9]{1,2})?$/.test(text)) return null;
   const parsed = Number(text);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return parsed;
@@ -25,6 +25,9 @@ export function calculateInvoicePreview(lines) {
   let totalMinor = 0;
 
   for (const line of lines) {
+    if (typeof line?.item_name !== "string" || !line.item_name.trim()) {
+      return { valid: false, reason: "MISSING_ITEM_NAME", lineAmounts: [], totalMinor: 0 };
+    }
     const quantity = parsePositiveQuantity(line.quantity_text);
     const unitPrice = parsePositivePrice(line.unit_price_text);
     if (quantity === null || unitPrice === null) {
