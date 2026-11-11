@@ -251,21 +251,25 @@ export default function OwnerInvoicesPage() {
     event.preventDefault();
     setError("");
     if (!preview.valid) {
-      setError(preview.reason === "EMPTY_BILL" ? "বিল খালি। অন্তত একটি আইটেম যোগ করুন।" : "পরিমাণ ও মূল্য যাচাই করুন।");
+      setError(preview.reason === "EMPTY_BILL" ? "বিল খালি। অন্তত একটি আইটেম যোগ করুন।" : preview.reason === "MISSING_ITEM_NAME" ? "প্রতিটি লাইনের খাবার/আইটেমের নাম দিন।" : "পরিমাণ ও মূল্য যাচাই করুন।");
       return;
     }
     setScreen("review");
   }
 
   async function saveAndReview() {
+    if (!preview.valid) {
+      setError(preview.reason === "MISSING_ITEM_NAME" ? "প্রতিটি লাইনের খাবার/আইটেমের নাম দিন।" : "পরিমাণ ও মূল্য যাচাই করুন।");
+      return;
+    }
     const saved = await persistDraft();
-    if (saved && preview.valid) setScreen("review");
+    if (saved) setScreen("review");
   }
 
   const pendingIssueDecisions = ["PO-02", "PO-04", "PO-05", "PO-06"] as const;
 
   async function issueInvoice() {
-    if (!shop || !userId || issueBusy) return;
+    if (!shop || !userId) return;
     if (!preview.valid) {
       setError("বিলের লাইন/পরিমাণ/মূল্য যাচাই করুন।");
       return;
@@ -297,7 +301,7 @@ export default function OwnerInvoicesPage() {
       <div className="mt-5 grid grid-cols-3 gap-2 rounded-xl border bg-white p-2 text-sm">
         <button type="button" className={`min-h-11 rounded-lg px-2 font-semibold ${screen === "composer" ? "bg-brand-50 text-brand-700" : "text-slate-600"}`} onClick={() => setScreen("composer")}>নতুন বিল</button>
         <button type="button" className={`min-h-11 rounded-lg px-2 font-semibold ${screen === "review" ? "bg-brand-50 text-brand-700" : "text-slate-600"}`} onClick={() => setScreen("review")} disabled={!preview.valid}>পর্যালোচনা</button>
-        <button type="button" className={`min-h-11 rounded-lg px-2 font-semibold ${screen === "history" || screen === "detail" ? "bg-brand-50 text-brand-700" : "text-slate-600"}`} onClick={() => setScreen("history")}>খসড়ার তালিকা</button>
+        <button type="button" className={`min-h-11 rounded-lg px-2 font-semibold ${screen === "history" || screen === "detail" ? "bg-brand-50 text-brand-700" : "text-slate-600"}`} onClick={() => setScreen("history")}>খসড়া ও বিলের ইতিহাস</button>
       </div>
 
       <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
@@ -393,10 +397,10 @@ export default function OwnerInvoicesPage() {
               <InvoiceDocument
                 shop={shop}
                 title="খাবারের বিল"
-                lines={lines.filter(line => line.item_name.trim()).map((line, i) => ({
-                  item_name: line.item_name,
+                lines={lines.map((line, i) => ({
+                  item_name: line.item_name.trim(),
                   quantity: line.quantity_text,
-                  amount_label: preview.valid ? `৳${formatBDTFromMinor(preview.lineAmounts[lines.indexOf(line)])}` : "—",
+                  amount_label: preview.valid ? `৳${formatBDTFromMinor(preview.lineAmounts[i])}` : "—",
                 }))}
                 totalLabel={preview.valid ? `৳${formatBDTFromMinor(preview.totalMinor)}` : "—"}
                 statusLabel="খসড়া · ইস্যু হয়নি"
