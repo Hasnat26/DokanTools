@@ -39,4 +39,4 @@ If PO selects B or C, define recovery/backup expectations and whether the user c
 
 ## Verification scope and limitations
 
-The session guard tests cover account invalidation, same-browser account switch, owner/shop matching, and stale asynchronous work. The existing IndexedDB store still performs owner/shop-indexed reads and its existing unavailable-storage test remains applicable. These are unit-level privacy-boundary tests, not browser E2E tests, encryption-at-rest tests, or proof against direct browser storage inspection.
+The session guard tests cover account invalidation, same-browser account switch, owner/shop matching, and stale asynchronous work. A fake-IndexedDB adapter test executes the actual store module's owner/shop index read path and verifies that both owners' records remain stored while each query returns only the matching owner/shop. IndexedDB-unavailable behavior is also tested. These are Node-level unit tests with a fake IndexedDB implementation, not real-browser persistence/E2E tests, encryption-at-rest tests, or proof against direct browser storage inspection.
