@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: ch4-integrated-playwright-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   # Fixed PR #43 application candidate. Change only through an explicit CH-1 baseline decision.
@@ -113,7 +113,7 @@ jobs:
         run: npm test -- --config=playwright.config.mts
 
       - name: Verify Bengali PDF font embedding and extracted text
-        if: success() || (failure() && steps.browser_tests.outcome == 'success')
+        if: always() && (steps.browser_tests.outcome == 'success' || steps.browser_tests.outcome == 'failure')
         working-directory: qa-harness/qa/playwright
         shell: bash
         run: |
@@ -163,7 +163,7 @@ jobs:
               extracted = subprocess.run(["pdftotext", "-layout", pdf, "-"], text=True, capture_output=True)
               text = extracted.stdout
               bengali_fonts = [line for line in fonts.stdout.splitlines() if "NotoSansBengali" in line]
-              embedded = bool(bengali_fonts) and all(len(line.split()) >= 7 and line.split()[-3] == "yes" and line.split()[-1] == "yes" for line in bengali_fonts)
+              embedded = bool(bengali_fonts) and all(len(line.split()) >= 8 and line.split()[3] == "yes" and line.split()[5] == "yes" for line in bengali_fonts)
               required = ["খাবারের বিল", "ধন্যবাদ, আবার আসবেন!", "খাবার/আইটেম", "পরীক্ষামূলক খাবার ঘর", "সাদা ভাত"]
               missing = [value for value in required if value not in text]
               print(f"{pdf}: Bengali font lines={len(bengali_fonts)}, embedded={embedded}, extracted_chars={len(text)}, missing={missing}")
