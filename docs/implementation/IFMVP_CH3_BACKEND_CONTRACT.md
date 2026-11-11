@@ -16,7 +16,7 @@ The migration does not modify legacy transaction_requests, memo RPCs, stock/inve
 Forward-only additive migration 202611110001_invoice_first_foundation.sql. It is intended only for a disposable isolated acceptance database after baseline schema and existing migrations. Not applied to any database. Rollback is destructive and requires separate approval/disposal confirmation: drop the RPC, triggers and invoice objects in reverse FK order. Never delete issued invoices or decrement counters where records/evidence must be retained.
 
 ## Limitations / gates
-PO-02/04/05/06/11/12/I11/I06A remain pending. Menu eligibility, price-column semantics, unit/quantity policy and revocation are not decided. This RPC deliberately does not read item_catalog; catalogItemId is stored only as a provenance snapshot and must not be treated as verified menu eligibility. Public bill QR/token, HMAC/KMS, public DTO, revocation and customer verification are not implemented. Logo/tagline historical snapshots are deferred. No database migration, runtime RLS, concurrency or two-tenant DB test has been run.
+PO-02/04/05/06/11/12/I11/I06A remain pending. Menu eligibility, price-column semantics, unit/quantity policy and revocation are not decided. This RPC deliberately does not read item_catalog; catalogItemId is stored only as a provenance snapshot and must not be treated as verified menu eligibility. Public bill QR/token, HMAC/KMS, public DTO, revocation and customer verification are not implemented. Logo/tagline historical snapshots are deferred. The disposable PostgreSQL 16.15 harness has now executed the baseline and invoice migration sequence, RLS/authorization, concurrency, fault rollback and down-migration checks; see Validation Evidence below. No hosted staging or production database was used. HTTP-level Supabase auth integration was not exercised.
 
 
 ## CH-1 remediation — runtime gate, profile provenance and catalog decision
@@ -51,3 +51,26 @@ The request contract retains header.mapUrl as a string for compatibility with th
 The pinned main commit 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1 contains a consolidated supabase/schema.sql snapshot (blob e859b6de9660533962eddb6f9f3d17ad8a4c1cca). It already contains the inventory/catalog and reliability-foundation end-state, including item_catalog, transaction_requests, stock_movements, audit_events, is_public columns and split customer policies. The historical 20261019_reliability_foundation.sql is an upgrade path from the older starter schema, not a migration to reapply over this consolidated snapshot. An initial PostgreSQL 16 run demonstrated that applying it after the pinned schema fails with duplicate policy "owner reads customers". The harness validates those exact baseline objects/policies instead of reapplying that historical migration. The harness sequence is: auth compatibility shim → pinned schema.sql → 20261019_inventory_catalog.sql (idempotent reconciliation) → baseline end-state assertions → 20261102_p0_idempotency.sql → invoice migration. This is explicit migration ordering, not a silent omission.
 
 Pinned historical file identities: inventory migration 1f72ad2c8d643ec2d536225d8c8c09992d53cdc3; reliability migration 6b6b51318a5b4d1f38880ec2007049409102931c (asserted as already represented in schema.sql); P0 migration 03c9cb2940799731d614e97a9b48da2d9418f707.
+
+
+## Validation Evidence — successful run
+
+**GitHub Actions run:** https://github.com/Hasnat26/DokanTools/actions/runs/42967300623  
+**Exact tested HEAD:** 541d1fac8001e2f761d2bb5ced6b0dde629aea95  
+**Database:** disposable PostgreSQL 16.15 service container; database `dokantools_invoice_test`; destroyed with the CI job.
+
+Observed successful checks:
+- Exact pinned baseline `9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1`, inventory reconciliation, P0 migration and invoice migration applied successfully.
+- Baseline assertions passed; historical reliability migration was not re-applied because its end-state is already in the consolidated baseline schema.
+- Runtime issue gate default-off rejection passed; local test fixture enabled it only as PostgreSQL administrator after proving the default gate.
+- Two-tenant invoice/line RLS, cross-tenant RPC denial, no anonymous invoice grants, immutable invoice/line triggers passed.
+- SECURITY DEFINER owner matched migration role `postgres`; `search_path=pg_catalog`; authenticated EXECUTE granted; anon/PUBLIC EXECUTE absent; internal table grants absent.
+- Nullable profile compatibility: missing required address/mobile rejected; absent and non-allow-listed Maps URLs snapshotted as NULL/non-clickable.
+- 20 concurrent distinct requests received contiguous per-shop bill numbers 2–21. Two concurrent identical requests returned the same invoice, exactly one replay and one idempotency row.
+- Injected line-insert failure after invoice-header insertion rolled back invoice header, lines, audit/status effects, idempotency claim and counter advancement.
+- Invoice-only down migration removed invoice objects while preserving baseline shops/catalog/transaction_requests and memo RPC.
+- Node test suite: 44 passed, 0 failed. Invoice SQL source assertions: 20 passed. ESLint, TypeScript typecheck and Next.js production build all passed.
+
+The CI run did not connect to hosted staging or production, change secrets, or activate public QR. Local reproduction: `npm run test:invoice:postgres` (requires Docker and the exact baseline commit in local Git history). In GitHub Actions the same script uses only the loopback-bound ephemeral PostgreSQL service and refuses non-loopback database hosts.
+
+**Remaining unverified:** end-to-end HTTP route behavior against real Supabase Auth/PostgREST; production migration-role ownership/ACL confirmation; catalog ownership/active eligibility/current-price enforcement (design only pending PO-06); PO approvals and customer-facing release gates.
