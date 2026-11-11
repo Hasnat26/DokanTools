@@ -1,6 +1,9 @@
 name: CH-4 Playwright browser acceptance
 
 on:
+  push:
+    branches:
+      - qa/ch4-playwright-browser-acceptance-2026-11-11
   workflow_dispatch:
   pull_request:
     branches:
