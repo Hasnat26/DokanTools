@@ -93,6 +93,7 @@ test("composer validation, decimal calculation and review render", async ({ page
   await expect(page.locator(".invoice-document h2")).toHaveText("খাবারের বিল");
   await expect(page.locator(".invoice-document__footer")).toHaveText("ধন্যবাদ, আবার আসবেন!");
   await expect(page.locator(".invoice-document__total")).toContainText("৳15.75");
+  await expect(page.getByText("Google Maps Location")).toHaveCount(0);
 });
 
 test("real Chromium IndexedDB saves, survives reload, reopens and deletes a local draft", async ({ page }) => {
@@ -198,7 +199,8 @@ test("catalogue and draft reads are scoped to the authenticated synthetic owner;
   });
   await login(page, OWNER_A);
   await expect(page.getByText("সাদা ভাত")).toBeVisible();
-  await expect(page.getByRole("button", { name: "বিল তৈরি করুন · PO approval pending" })).toHaveCount(0);
+  await addOneLine(page);
+  await page.getByRole("button", { name: "বিল পর্যালোচনা" }).click();
   await expect(page.locator('button[title="PO decisions pending"]')).toBeDisabled();
   expect(observed).toEqual([]);
 });
