@@ -393,6 +393,7 @@ export default function OwnerInvoicesPage() {
                 </div>
               ))}
               {drafts.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">এখনও কোনো local draft নেই।</p>}
+              <p className="pt-2 text-xs text-slate-500">এই তালিকা শুধু local drafts। Server-issued invoice history ও detail CH-3 owner API সংযুক্ত না হওয়া পর্যন্ত unavailable।</p>
             </div>
           </div>
           <div className="card mt-4">
@@ -406,7 +407,7 @@ export default function OwnerInvoicesPage() {
       {screen === "detail" && (
         <section className="mt-5 card">
           <p className="font-semibold">Invoice detail unavailable</p>
-          <p className="mt-2 text-sm text-slate-600">Issued invoice detail requires the authenticated owner detail API from CH-3. Local drafts are not invoice records.</p>
+          <p className="mt-2 text-sm text-slate-600">Issued invoice detail requires the authenticated owner detail API from CH-3. Local drafts are not invoice records. Public QR, customer verification and revocation are disabled.</p>
           <button type="button" className="btn-secondary mt-4" onClick={() => setScreen("history")}>ফিরে যান</button>
         </section>
       )}
