@@ -5,6 +5,7 @@ import {
   parsePositivePrice,
   calculateInvoicePreview,
   formatBDTFromMinor,
+  safeInvoiceMapUrl,
 } from "../src/lib/invoice-domain.mjs";
 
 test("quantity accepts positive decimal lexical values up to three fraction digits", () => {
@@ -72,4 +73,13 @@ test("invalid line and unsafe arithmetic fail closed", () => {
 test("BDT formatter does not produce negative or unsafe display values", () => {
   assert.equal(formatBDTFromMinor(12345), "123.45");
   assert.equal(formatBDTFromMinor(-1), "—");
+});
+
+test("nullable invoice mapUrl renders no link and never fabricates a Maps URL", () => {
+  assert.equal(safeInvoiceMapUrl(null), null);
+  assert.equal(safeInvoiceMapUrl(undefined), null);
+  assert.equal(safeInvoiceMapUrl(""), null);
+  assert.equal(safeInvoiceMapUrl("https://example.com/shop"), null);
+  assert.equal(safeInvoiceMapUrl("http://maps.google.com/?q=shop"), null);
+  assert.equal(safeInvoiceMapUrl("https://maps.google.com/?q=shop"), "https://maps.google.com/?q=shop");
 });
