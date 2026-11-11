@@ -1,0 +1,77 @@
+name: CH-4 Playwright browser acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - integration/ifmvp-controlled-2026-11-11
+    paths:
+      - ".github/workflows/ch4-playwright.yml"
+      - "qa/playwright/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ch4-playwright-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-acceptance:
+    name: Chromium acceptance (synthetic Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-anon-key-not-a-secret
+      CI: true
+    steps:
+      - name: Checkout exact event commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Record tested commit
+        run: |
+          echo "TESTED_SHA=$(git rev-parse HEAD)" | tee tested-sha.txt
+          echo "Expected immutable checkpoint: 7c746464b162e90e46bb24894f988ee45610b398"
+          git rev-parse HEAD
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install application dependencies
+        run: npm ci
+      - name: Install pinned Playwright runner
+        run: npm install --no-save --no-package-lock @playwright/test@1.56.1
+      - name: Install Chromium and OS dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Build application
+        run: npm run build
+      - name: Start application
+        run: |
+          npm run start > next-start.log 2>&1 &
+          echo $! > next-start.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
+              echo "Next.js is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          cat next-start.log
+          exit 1
+      - name: Run Chromium acceptance tests
+        run: npx playwright test --config=qa/playwright/playwright.config.ts
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ch4-playwright-evidence-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+            tested-sha.txt
+            next-start.log
+          if-no-files-found: warn
+          retention-days: 30
