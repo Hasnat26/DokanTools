@@ -117,6 +117,24 @@ jobs:
         shell: bash
         run: |
           OUT=pdf-fidelity.txt
+          if [ ! -f test-results/junit.xml ]; then
+            {
+              echo "Application SHA: ${APP_TESTED_SHA:-not-recorded}"
+              echo "QA harness SHA: ${QA_HARNESS_SHA:-not-recorded}"
+              echo "Browser acceptance did not execute; PDF Bengali fidelity NOT TESTED."
+              pdffonts -v 2>&1 | head -n 2
+              pdftotext -v 2>&1 | head -n 2
+            } > "$OUT"
+            exit 0
+          fi
+          if ! compgen -G "test-results/*/invoice-short.pdf" > /dev/null || ! compgen -G "test-results/*/invoice-long.pdf" > /dev/null; then
+            {
+              echo "Application SHA: ${APP_TESTED_SHA:-not-recorded}"
+              echo "QA harness SHA: ${QA_HARNESS_SHA:-not-recorded}"
+              echo "Short/long PDFs not generated; PDF Bengali fidelity NOT TESTED."
+            } > "$OUT"
+            exit 0
+          fi
           {
             echo "Application SHA: ${APP_TESTED_SHA:-not-recorded}"
             echo "QA harness SHA: ${QA_HARNESS_SHA:-not-recorded}"
@@ -132,14 +150,6 @@ jobs:
             done
           } > "$OUT" 2>&1
           cat "$OUT"
-          if [ ! -f test-results/junit.xml ]; then
-            echo "Browser test suite did not produce JUnit; PDF fidelity NOT TESTED." | tee -a "$OUT"
-            exit 0
-          fi
-          if ! compgen -G "test-results/*/invoice-short.pdf" > /dev/null || ! compgen -G "test-results/*/invoice-long.pdf" > /dev/null; then
-            echo "Expected generated short/long PDFs are missing; PDF fidelity NOT TESTED." | tee -a "$OUT"
-            exit 0
-          fi
           python - <<'PY'
           import glob, subprocess, sys
           pdfs = glob.glob("test-results/*/invoice-short.pdf") + glob.glob("test-results/*/invoice-long.pdf")
