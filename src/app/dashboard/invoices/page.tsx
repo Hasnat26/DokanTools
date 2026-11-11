@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase, invoiceApi, InvoiceCatalogItem, InvoiceDraft, InvoiceDraftLine, Shop } from "@/lib/supabase";
-import type { InvoiceCreateRequest, InvoiceDTO } from "@/lib/invoice-contract";
+import type { InvoiceDTO } from "@/lib/invoice-contract";
 import { calculateInvoicePreview, formatBDTFromMinor } from "@/lib/invoice-domain.mjs";
 import { deleteInvoiceDraft, listInvoiceDrafts, saveInvoiceDraft } from "@/lib/invoice-draft-store.mjs";
 import InvoiceDocument from "@/components/invoice/InvoiceDocument";
@@ -37,7 +37,7 @@ function formatTime(value: string) {
   }).format(date);
 }
 
-export default function OwnerInvoicesPage() {
+function OwnerInvoicesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [userId, setUserId] = useState("");
@@ -266,19 +266,6 @@ export default function OwnerInvoicesPage() {
     if (saved) setScreen("review");
   }
 
-  const pendingIssueDecisions = ["PO-02", "PO-04", "PO-05", "PO-06"] as const;
-
-  async function issueInvoice() {
-    if (!shop || !userId) return;
-    if (!preview.valid) {
-      setError("বিলের লাইন/পরিমাণ/মূল্য যাচাই করুন।");
-      return;
-    }
-    // Business semantics remain blocked until PO explicitly records decisions.
-    setError("");
-    setNotice(`ইস্যু বন্ধ: ${pendingIssueDecisions.join(", ")} এখনও pending। এই সিদ্ধান্তগুলো ছাড়া সার্ভার API call করা হবে না।`);
-  }
-
   if (loading) return <div className="container-page py-12">লোড হচ্ছে…</div>;
   if (!shop) return <div className="container-page py-12"><div className="card">দোকানের প্রোফাইল পাওয়া যায়নি। আগে দোকানের তথ্য সম্পন্ন করুন।</div></div>;
 
@@ -498,5 +485,13 @@ export default function OwnerInvoicesPage() {
         <Link href="/dashboard" className="text-sm font-semibold text-brand-700">ড্যাশবোর্ডে ফিরে যান</Link>
       </div>
     </div>
+  );
+}
+
+export default function OwnerInvoicesPage() {
+  return (
+    <Suspense fallback={<div className="container-page py-12">লোড হচ্ছে…</div>}>
+      <OwnerInvoicesContent />
+    </Suspense>
   );
 }
