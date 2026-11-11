@@ -94,7 +94,7 @@ create index if not exists invoice_lines_shop_invoice_idx on public.invoice_line
 create index if not exists invoice_audit_shop_created_idx on public.invoice_audit_events(shop_id,created_at desc);
 
 create or replace function public.reject_invoice_fact_mutation()
-returns trigger language plpgsql set search_path=pg_catalog,public as $$
+returns trigger language plpgsql set search_path=pg_catalog as $
 begin raise exception 'INVOICE_FACTS_IMMUTABLE' using errcode='55000'; end;
 $$;
 drop trigger if exists invoices_immutable on public.invoices;

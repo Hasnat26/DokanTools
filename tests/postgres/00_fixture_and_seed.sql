@@ -7,6 +7,20 @@ insert into public.shops(id,user_id,shop_name,phone,address,map_link) values
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Shop A','+8801700000001','Address A','https://maps.google.com/maps?q=shop-a'),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Shop B','+8801700000002','Address B','https://maps.google.com/maps?q=shop-b'),
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','cccccccc-cccc-4ccc-8ccc-cccccccccccc','Shop C',null,null,null);
+-- Verify the production-default gate rejects direct RPC calls before any write.
+set role authenticated;
+set request.jwt.claim.sub='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+do $ begin
+ begin
+  perform * from public.create_invoice_transaction(
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','invoice-create/v1','10000000-0000-4000-8000-000000000009',
+   '{"header":{"shopName":"Shop A","shopAddress":"Address A","shopPhone":"+8801700000001","mapUrl":"https://maps.google.com/maps?q=shop-a"},"lines":[{"catalogItemId":null,"itemName":"Tea","unit":"cup","quantity":"1","unitPrice":"10.00"}]}'::jsonb);
+  raise exception 'ISSUE_GATE_SHOULD_REJECT';
+ exception when sqlstate '55000' then
+  if sqlerrm<>'INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL' then raise; end if;
+ end;
+end $;
+reset role;
 -- Privileged test-only override. The committed migration default remains false.
 update public.invoice_runtime_controls set issue_enabled=true where control_key='invoice_issue';
 
