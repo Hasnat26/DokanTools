@@ -1,19 +1,19 @@
 # CH-3 Invoice-First backend contract
 
-## Scope delivered
+## Scope
 Invoice-only additive schema, authenticated server RPC, owner issue/history/detail API, transactional per-shop numbering, immutable snapshots, namespace-scoped idempotency and owner-only RLS. Public QR/verification is absent and disabled.
 
-## API contract
-Issue #36 comment 6787430943 proposes POST /api/invoices with shopId, requestId, idempotencyNamespace, header and lines; decimal inputs are strings. POST returns {invoice,replayed}; collection GET returns {invoices}; detail GET returns {invoice}. Responses are no-store. CH-2 contract confirmation is pending.
+## API contract confirmed by CH-2
+Issue #36 comment 6787539534 confirms the contract initially proposed in comment 6787430943. POST /api/invoices accepts shopId, requestId, idempotencyNamespace=invoice-create/v1, header and lines; decimal quantities and unit prices are strings. CH-2 adapter sends the Supabase access token as Authorization: Bearer. GET /api/invoices?shopId=...&limit=50 and GET /api/invoices/{invoiceId}?shopId=... provide private owner history/detail. POST returns {invoice,replayed}; history returns {invoices}; detail returns {invoice}. All responses use no-store.
 
-## Profile snapshot
-RPC authorizes and locks the requested shop through auth.uid() and FOR SHARE, reads profile fields from public.shops, and rejects if required fields are missing or the request's header differs from the stored profile. Header snapshots are database-derived, not browser-trusted.
+## Profile snapshot and idempotency
+RPC locks and authorizes the shop row using auth.uid() and FOR SHARE before reading the private idempotency registry. It fingerprints the exact request header/lines so exact retries still replay the persisted invoice after the live profile changes. For a new claim only, the RPC compares the supplied header against required current shop profile fields and stores the DB-derived values. A changed payload under the same key returns a generic conflict.
 
-## Atomicity/isolation
-The migration does not modify legacy transaction_requests, memo RPCs, stock, inventory, customers or baki tables. One PostgreSQL function transaction claims the namespaced key, advances the shop counter, writes invoice/lines/issued event/audit and completes the registry. Any exception rolls back all effects including the counter. Owner authorization precedes private registry comparison. Invoice facts and lines have UPDATE/DELETE rejection triggers and no client write grants.
+## Transaction/isolation
+The migration does not modify legacy transaction_requests, memo RPCs, stock/inventory, customers or baki tables. One PostgreSQL function transaction claims the namespaced key, advances the per-shop counter, writes invoice/lines/issued event/audit and completes the registry. Exceptions rollback all effects including the counter. Invoice facts and lines reject UPDATE/DELETE and have no client write grants. RLS exposes owner-only SELECT; no anon grants exist.
 
-## Migration strategy
-Forward-only additive migration 202611110001_invoice_first_foundation.sql. Apply only to an isolated disposable acceptance DB after baseline and previous migrations. Not applied to any DB. Destructive rollback requires separate review and data disposal confirmation; remove function and invoice objects in reverse FK order. Never delete issued invoices or decrement counters in a retained acceptance environment.
+## Migration
+Forward-only additive migration 202611110001_invoice_first_foundation.sql. It is intended only for a disposable isolated acceptance database after baseline schema and existing migrations. Not applied to any database. Rollback is destructive and requires separate approval/disposal confirmation: drop the RPC, triggers and invoice objects in reverse FK order. Never delete issued invoices or decrement counters where records/evidence must be retained.
 
-## Limitations
-PO-02/04/05/06/11/12/I11/I06A remain pending. Menu eligibility, quantity/unit policy, price-column meaning and cancellation policy are not decided. Public bill token/QR, HMAC/KMS, public DTO, revocation and verification are intentionally absent. Logo/tagline historical snapshots are deferred. No live DB, RLS, two-tenant, build or runtime tests are claimed.
+## Limitations / gates
+PO-02/04/05/06/11/12/I11/I06A remain pending. Menu eligibility, price-column semantics, unit/quantity policy and revocation are not decided. This RPC deliberately does not read item_catalog; catalogItemId is stored only as a provenance snapshot and must not be treated as verified menu eligibility. Public bill QR/token, HMAC/KMS, public DTO, revocation and customer verification are not implemented. Logo/tagline historical snapshots are deferred. No database migration, runtime RLS, concurrency or two-tenant DB test has been run.

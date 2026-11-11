@@ -1,46 +1,132 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { InvoiceCreateRequest, InvoiceDTO } from "@/lib/invoice-contract";
-export const runtime="nodejs"; export const dynamic="force-dynamic";
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const decimal=(scale:number)=>new RegExp("^(0|[1-9][0-9]*)(\\\\.[0-9]{1,"+scale+"})?$");
-const fail=(status:number,code:string)=>NextResponse.json({error:{code}},{status,headers:{"Cache-Control":"no-store","Pragma":"no-cache"}});
-const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==="object"&&!Array.isArray(v);
-function valid(v:unknown):v is InvoiceCreateRequest{
- if(!obj(v)||Object.keys(v).sort().join(",")!=="header,idempotencyNamespace,lines,requestId,shopId"||v.idempotencyNamespace!=="invoice-create/v1"||typeof v.shopId!=="string"||!UUID.test(v.shopId)||typeof v.requestId!=="string"||!UUID.test(v.requestId)||!obj(v.header)||!Array.isArray(v.lines)||v.lines.length<1||v.lines.length>100)return false;
- const h=v.header;
- if(Object.keys(h).sort().join(",")!=="mapUrl,shopAddress,shopName,shopPhone"||![h.shopName,h.shopAddress,h.shopPhone,h.mapUrl].every(x=>typeof x==="string"))return false;
- return v.lines.every(x=>obj(x)&&Object.keys(x).sort().join(",")==="catalogItemId,itemName,quantity,unit,unitPrice"&&(x.catalogItemId===null||(typeof x.catalogItemId==="string"&&UUID.test(x.catalogItemId)))&&typeof x.itemName==="string"&&(x.unit===null||typeof x.unit==="string")&&typeof x.quantity==="string"&&decimal(3).test(x.quantity)&&typeof x.unitPrice==="string"&&decimal(2).test(x.unitPrice));
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const decimal = (scale: number) => new RegExp("^(0|[1-9][0-9]*)([.][0-9]{1," + scale + "})?$");
+const fail = (status: number, code: string) => NextResponse.json({ error: { code } }, {
+  status, headers: { "Cache-Control": "no-store", "Pragma": "no-cache" },
+});
+const obj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+
+function valid(v: unknown): v is InvoiceCreateRequest {
+  if (!obj(v) || Object.keys(v).sort().join(",") !== "header,idempotencyNamespace,lines,requestId,shopId"
+    || v.idempotencyNamespace !== "invoice-create/v1"
+    || typeof v.shopId !== "string" || !UUID.test(v.shopId)
+    || typeof v.requestId !== "string" || !UUID.test(v.requestId)
+    || !obj(v.header) || !Array.isArray(v.lines) || v.lines.length < 1 || v.lines.length > 100) return false;
+  const h = v.header;
+  if (Object.keys(h).sort().join(",") !== "mapUrl,shopAddress,shopName,shopPhone"
+    || ![h.shopName, h.shopAddress, h.shopPhone, h.mapUrl].every(x => typeof x === "string")) return false;
+  return v.lines.every(line => obj(line)
+    && Object.keys(line).sort().join(",") === "catalogItemId,itemName,quantity,unit,unitPrice"
+    && (line.catalogItemId === null || (typeof line.catalogItemId === "string" && UUID.test(line.catalogItemId)))
+    && typeof line.itemName === "string"
+    && (line.unit === null || typeof line.unit === "string")
+    && typeof line.quantity === "string" && decimal(3).test(line.quantity)
+    && typeof line.unitPrice === "string" && decimal(2).test(line.unitPrice));
 }
-function dto(r:Record<string,any>,ls:Record<string,any>[]):InvoiceDTO{return {id:r.id,shopId:r.shop_id,billNumber:String(r.bill_number),issuedAt:r.issued_at,currency:"BDT",totalAmount:String(r.total_amount),header:{shopName:r.shop_name_snapshot,shopAddress:r.shop_address_snapshot,shopPhone:r.shop_phone_snapshot,mapUrl:r.map_url_snapshot},lines:ls.map(x=>({lineNo:x.line_no,catalogItemId:x.catalog_item_id_snapshot,itemName:x.item_name_snapshot,unit:x.unit_snapshot,quantity:String(x.quantity),unitPrice:String(x.unit_price),lineTotal:String(x.line_total)}))};}
-async function session(req:NextRequest){
- const url=process.env.NEXT_PUBLIC_SUPABASE_URL,anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,token=req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
- if(!url||!anon||!token||token.length>8192)return null;
- const auth=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});const {data,error}=await auth.auth.getUser(token);if(error||!data.user)return null;
- return createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:"Bearer "+token}}});
+
+function toDTO(row: Record<string, any>, lines: Record<string, any>[]): InvoiceDTO {
+  return {
+    id: row.id, shopId: row.shop_id, billNumber: String(row.bill_number),
+    issuedAt: row.issued_at, currency: "BDT", totalAmount: String(row.total_amount),
+    header: {
+      shopName: row.shop_name_snapshot, shopAddress: row.shop_address_snapshot,
+      shopPhone: row.shop_phone_snapshot, mapUrl: row.map_url_snapshot,
+    },
+    lines: lines.map(line => ({
+      lineNo: line.line_no, catalogItemId: line.catalog_item_id_snapshot,
+      itemName: line.item_name_snapshot, unit: line.unit_snapshot,
+      quantity: String(line.quantity), unitPrice: String(line.unit_price), lineTotal: String(line.line_total),
+    })),
+  };
 }
-async function load(client:ReturnType<typeof createClient>,shopId:string,id:string):Promise<InvoiceDTO|null>{
- const {data:r,error}=await client.from("invoices").select("id,shop_id,bill_number,issued_at,total_amount,shop_name_snapshot,shop_address_snapshot,shop_phone_snapshot,map_url_snapshot").eq("shop_id",shopId).eq("id",id).maybeSingle();if(error||!r)return null;
- const {data:l,error:le}=await client.from("invoice_lines").select("line_no,catalog_item_id_snapshot,item_name_snapshot,unit_snapshot,quantity,unit_price,line_total").eq("shop_id",shopId).eq("invoice_id",id).order("line_no",{ascending:true});if(le||!l)return null;
- return dto(r as Record<string,any>,l as Record<string,any>[]);
+
+async function authenticatedClient(req: NextRequest) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const token = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!url || !anon || !token || token.length > 8192) return null;
+  const authClient = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await authClient.auth.getUser(token);
+  if (error || !data.user) return null;
+  return createClient(url, anon, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: "Bearer " + token } },
+  });
 }
-export async function POST(req:NextRequest){
- const size=Number(req.headers.get("content-length")??0);if(size>65536)return fail(413,"PAYLOAD_TOO_LARGE");
- const client=await session(req);if(!client)return fail(401,"UNAUTHENTICATED");
- let body:unknown;try{body=await req.json();}catch{return fail(400,"INVALID_JSON");}
- if(!valid(body))return fail(400,"INVALID_INVOICE_REQUEST");
- const {data,error}=await client.rpc("create_invoice_transaction",{p_shop_id:body.shopId,p_idempotency_namespace:body.idempotencyNamespace,p_request_id:body.requestId,p_payload:{header:body.header,lines:body.lines}});
- if(error){if(error.code==="42501")return fail(403,"SHOP_ACCESS_DENIED");if(error.code==="23505")return fail(409,"IDEMPOTENCY_CONFLICT");if(error.code==="22023"||error.code==="22003")return fail(422,"INVOICE_VALIDATION_FAILED");return fail(503,"INVOICE_TEMPORARILY_UNAVAILABLE");}
- const result=Array.isArray(data)?data[0]:data;if(!result?.result_invoice_id)return fail(503,"INVOICE_RESULT_UNAVAILABLE");
- const invoice=await load(client,body.shopId,result.result_invoice_id);if(!invoice)return fail(503,"INVOICE_RESULT_UNAVAILABLE");
- return NextResponse.json({invoice,replayed:result.result_was_replay===true},{status:result.result_was_replay?200:201,headers:{"Cache-Control":"no-store","Pragma":"no-cache"}});
+
+async function loadInvoice(client: ReturnType<typeof createClient>, shopId: string, invoiceId: string) {
+  const { data: row, error } = await client.from("invoices")
+    .select("id,shop_id,bill_number,issued_at,total_amount,shop_name_snapshot,shop_address_snapshot,shop_phone_snapshot,map_url_snapshot")
+    .eq("shop_id", shopId).eq("id", invoiceId).maybeSingle();
+  if (error || !row) return null;
+  const { data: lines, error: lineError } = await client.from("invoice_lines")
+    .select("line_no,catalog_item_id_snapshot,item_name_snapshot,unit_snapshot,quantity,unit_price,line_total")
+    .eq("shop_id", shopId).eq("invoice_id", invoiceId).order("line_no", { ascending: true });
+  if (lineError || !lines) return null;
+  return toDTO(row as Record<string, any>, lines as Record<string, any>[]);
 }
-export async function GET(req:NextRequest){
- const client=await session(req);if(!client)return fail(401,"UNAUTHENTICATED");
- const shopId=req.nextUrl.searchParams.get("shopId");if(!shopId||!UUID.test(shopId))return fail(400,"INVALID_SHOP_ID");
- const limit=Number(req.nextUrl.searchParams.get("limit")??20);if(!Number.isInteger(limit)||limit<1||limit>50)return fail(400,"INVALID_LIMIT");
- const {data:rows,error}=await client.from("invoices").select("id,shop_id,bill_number,issued_at,total_amount,shop_name_snapshot,shop_address_snapshot,shop_phone_snapshot,map_url_snapshot").eq("shop_id",shopId).order("issued_at",{ascending:false}).order("bill_number",{ascending:false}).limit(limit);if(error)return fail(503,"INVOICE_HISTORY_UNAVAILABLE");
- const list=rows??[],ids=list.map(x=>x.id);const {data:lines,error:le}=ids.length?await client.from("invoice_lines").select("invoice_id,line_no,catalog_item_id_snapshot,item_name_snapshot,unit_snapshot,quantity,unit_price,line_total").eq("shop_id",shopId).in("invoice_id",ids).order("line_no",{ascending:true}):{data:[],error:null};if(le||!lines)return fail(503,"INVOICE_HISTORY_UNAVAILABLE");
- const grouped=new Map<string,Record<string,any>[]>();for(const x of lines)grouped.set(x.invoice_id,[...(grouped.get(x.invoice_id)??[]),x]);
- return NextResponse.json({invoices:list.map(x=>dto(x as Record<string,any>,grouped.get(x.id)??[]))},{headers:{"Cache-Control":"no-store","Pragma":"no-cache"}});
+
+export async function POST(req: NextRequest) {
+  // Read the body once and enforce a byte limit even when Content-Length is absent.
+  const raw = await req.text();
+  if (new TextEncoder().encode(raw).byteLength > 65536) return fail(413, "PAYLOAD_TOO_LARGE");
+  const client = await authenticatedClient(req);
+  if (!client) return fail(401, "UNAUTHENTICATED");
+  let input: unknown;
+  try { input = JSON.parse(raw); } catch { return fail(400, "INVALID_JSON"); }
+  if (!valid(input)) return fail(400, "INVALID_INVOICE_REQUEST");
+
+  const { data, error } = await client.rpc("create_invoice_transaction", {
+    p_shop_id: input.shopId,
+    p_idempotency_namespace: input.idempotencyNamespace,
+    p_request_id: input.requestId,
+    p_payload: { header: input.header, lines: input.lines },
+  });
+  if (error) {
+    if (error.code === "42501") return fail(403, "SHOP_ACCESS_DENIED");
+    if (error.code === "23505") return fail(409, "IDEMPOTENCY_CONFLICT");
+    if (error.code === "22023" || error.code === "22003") return fail(422, "INVOICE_VALIDATION_FAILED");
+    return fail(503, "INVOICE_TEMPORARILY_UNAVAILABLE");
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.result_invoice_id) return fail(503, "INVOICE_RESULT_UNAVAILABLE");
+  const invoice = await loadInvoice(client, input.shopId, result.result_invoice_id);
+  if (!invoice) return fail(503, "INVOICE_RESULT_UNAVAILABLE");
+  return NextResponse.json({ invoice, replayed: result.result_was_replay === true }, {
+    status: result.result_was_replay ? 200 : 201,
+    headers: { "Cache-Control": "no-store", "Pragma": "no-cache" },
+  });
+}
+
+export async function GET(req: NextRequest) {
+  const client = await authenticatedClient(req);
+  if (!client) return fail(401, "UNAUTHENTICATED");
+  const shopId = req.nextUrl.searchParams.get("shopId");
+  if (!shopId || !UUID.test(shopId)) return fail(400, "INVALID_SHOP_ID");
+  const limit = Number(req.nextUrl.searchParams.get("limit") ?? "20");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) return fail(400, "INVALID_LIMIT");
+
+  const { data: rows, error } = await client.from("invoices")
+    .select("id,shop_id,bill_number,issued_at,total_amount,shop_name_snapshot,shop_address_snapshot,shop_phone_snapshot,map_url_snapshot")
+    .eq("shop_id", shopId).order("issued_at", { ascending: false })
+    .order("bill_number", { ascending: false }).limit(limit);
+  if (error) return fail(503, "INVOICE_HISTORY_UNAVAILABLE");
+  const invoices = rows ?? [];
+  const ids = invoices.map(row => row.id);
+  const { data: lines, error: linesError } = ids.length
+    ? await client.from("invoice_lines")
+      .select("invoice_id,line_no,catalog_item_id_snapshot,item_name_snapshot,unit_snapshot,quantity,unit_price,line_total")
+      .eq("shop_id", shopId).in("invoice_id", ids).order("line_no", { ascending: true })
+    : { data: [], error: null };
+  if (linesError || !lines) return fail(503, "INVOICE_HISTORY_UNAVAILABLE");
+  const grouped = new Map<string, Record<string, any>[]>();
+  for (const line of lines) grouped.set(line.invoice_id, [...(grouped.get(line.invoice_id) ?? []), line]);
+  return NextResponse.json({ invoices: invoices.map(row => toDTO(row as Record<string, any>, grouped.get(row.id) ?? [])) }, {
+    headers: { "Cache-Control": "no-store", "Pragma": "no-cache" },
+  });
 }
