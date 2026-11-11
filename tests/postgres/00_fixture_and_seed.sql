@@ -23,7 +23,7 @@ do $$ begin
  exception when sqlstate '55000' then
   if sqlerrm<>'INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL' then raise; end if;
  end;
-end $;
+end $$;
 reset role;
 -- Privileged test-only override. The committed migration default remains false.
 update public.invoice_runtime_controls set issue_enabled=true where control_key='invoice_issue';
