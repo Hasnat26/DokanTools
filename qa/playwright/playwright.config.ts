@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
@@ -9,10 +10,10 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ["list"],
-    ["html", { outputFolder: "../../playwright-report", open: "never" }],
-    ["junit", { outputFile: "../../test-results/junit.xml" }],
+    ["html", { outputFolder: path.resolve(process.cwd(), "playwright-report"), open: "never" }],
+    ["junit", { outputFile: path.resolve(process.cwd(), "test-results/junit.xml") }],
   ],
-  outputDir: "../../test-results",
+  outputDir: path.resolve(process.cwd(), "test-results"),
   timeout: 45_000,
   expect: { timeout: 10_000 },
   use: {
