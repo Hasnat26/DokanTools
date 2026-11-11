@@ -108,11 +108,12 @@ jobs:
           exit 1
 
       - name: Run complete Chromium acceptance suite
+        id: browser_tests
         working-directory: qa-harness/qa/playwright
         run: npm test -- --config=playwright.config.mts
 
       - name: Verify Bengali PDF font embedding and extracted text
-        if: always()
+        if: success() || (failure() && steps.browser_tests.outcome == 'success')
         working-directory: qa-harness/qa/playwright
         shell: bash
         run: |
