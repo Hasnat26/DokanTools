@@ -102,23 +102,34 @@ async function login(page: Page, owner: typeof OWNER_A | typeof OWNER_B) {
   await expect(page.getByText(owner.id === OWNER_A.id ? SHOP_A.shop_name : SHOP_B.shop_name)).toBeVisible();
 }
 
-async function addOneLine(page: Page, name = "সাদা ভাত", qty = "1.5", price = "10.50") {
-  await page.locator("#item-name-0").fill(name);
+async function addOneLine(page: Page, name = "সাদা ভাত", qty = "1", price = "10.50") {
+  await page.getByRole("button", { name: /সাদা ভাত ৳10\.50/ }).click();
   await page.locator("#qty-0").fill(qty);
-  await page.locator("#price-0").fill(price);
+  if (name !== "সাদা ভাত") await page.locator("#item-name-0").fill(name);
+  if (price !== "10.50") await page.locator("#price-0").fill(price);
 }
 
-async function signOutThroughSupabaseStorageEvent(page: Page) {
-  const result = await page.evaluate(() => {
-    const key = Object.keys(localStorage).find(value => value.endsWith("-auth-token"));
-    if (!key) return { found: false };
-    const oldValue = localStorage.getItem(key);
-    localStorage.removeItem(key);
-    window.dispatchEvent(new StorageEvent("storage", { key, oldValue, newValue: null, storageArea: localStorage }));
-    return { found: true };
-  });
-  expect(result.found).toBeTruthy();
-  await expect(page).toHaveURL(/\/login$/);
+async function readDraftRecords(page: Page): Promise<Array<{ id: string; owner_id: string; lines: Array<{ item_name: string }> }>> {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open("dokantools-invoice-drafts", 1);
+    request.onsuccess = () => {
+      const db = request.result;
+      const get = db.transaction("drafts", "readonly").objectStore("drafts").getAll();
+      get.onsuccess = () => { const rows = get.result; db.close(); resolve(rows); };
+      get.onerror = () => { db.close(); reject(get.error); };
+    };
+    request.onerror = () => reject(request.error);
+  }));
+}
+
+async function signOutThroughSupabaseUi(page: Page) {
+  const logoutRequest = page.waitForRequest(request =>
+    request.url().endsWith("/auth/v1/logout") && request.method() === "POST");
+  await page.getByRole("button", { name: "লগআউট" }).click();
+  await logoutRequest;
+  await expect(page.getByRole("link", { name: "লগইন" })).toBeVisible();
+  await page.goto("/login");
+  await expect(page.locator('input[type="email"]')).toBeVisible();
 }
 
 test("login, authenticated owner/shop context, catalogue read-only and invoice route startup", async ({ page }) => {
@@ -140,18 +151,20 @@ test("composer validation, decimal calculation and Bangla review document", asyn
   await installSyntheticSupabase(page);
   await login(page, OWNER_A);
   await expect(page.getByRole("button", { name: "বিল পর্যালোচনা" })).toBeDisabled();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByText("বিল খালি।")).toBeVisible();
   await page.locator("#item-name-0").fill("   ");
   await page.locator("#qty-0").fill("1");
   await page.locator("#price-0").fill("10.00");
   await expect(page.getByRole("button", { name: "বিল পর্যালোচনা" })).toBeDisabled();
-  await addOneLine(page);
-  await expect(page.getByText("৳15.75").first()).toBeVisible();
+  await page.getByRole("button", { name: /সাদা ভাত ৳10\.50/ }).click();
+  await page.locator("#qty-0").fill("2");
+  await expect(page.getByText("৳21.00").first()).toBeVisible();
   await page.getByRole("button", { name: "বিল পর্যালোচনা" }).click();
   await expect(page.locator(".invoice-document")).toBeVisible();
   await expect(page.locator(".invoice-document h2")).toHaveText("খাবারের বিল");
   await expect(page.locator(".invoice-document__footer")).toHaveText("ধন্যবাদ, আবার আসবেন!");
-  await expect(page.locator(".invoice-document__total")).toContainText("৳15.75");
+  await expect(page.locator(".invoice-document__total")).toContainText("৳21.00");
   await expect(page.locator(".invoice-document__meta a")).toHaveCount(0);
 });
 
@@ -168,8 +181,16 @@ test("real Chromium IndexedDB saves, survives reload, reopens and deletes a loca
   await page.getByRole("button", { name: "খুলুন" }).click();
   await expect(page.locator("#item-name-0")).toHaveValue("সাদা ভাত");
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
+  const beforeDelete = await readDraftRecords(page);
+  expect(beforeDelete).toHaveLength(1);
+  const deletedId = beforeDelete[0].id;
   await page.getByRole("button", { name: "মুছুন" }).click();
+  await expect(page.getByRole("status")).toContainText("খসড়া মুছে ফেলা হয়েছে।");
+  await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await expect(page.getByText("এখনও কোনো local draft নেই।")).toBeVisible();
+  const afterDelete = await readDraftRecords(page);
+  expect(afterDelete.some(row => row.id === deletedId)).toBeFalsy();
+  expect(afterDelete).toHaveLength(0);
 });
 
 test("same browser context: A draft is retained but inaccessible to B after auth session switch", async ({ page }) => {
@@ -178,28 +199,16 @@ test("same browser context: A draft is retained but inaccessible to B after auth
   await addOneLine(page, "A-PRIVATE-DRAFT-ITEM", "1", "99.00");
   await page.getByRole("button", { name: "খসড়া সংরক্ষণ ও পর্যালোচনা" }).click();
   await expect(page.getByRole("status")).toContainText("খসড়া এই ডিভাইসে সংরক্ষিত হয়েছে");
-  await signOutThroughSupabaseStorageEvent(page);
+  await signOutThroughSupabaseUi(page);
   await login(page, OWNER_B);
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await expect(page.getByText("এখনও কোনো local draft নেই।")).toBeVisible();
   await expect(page.getByText("A-PRIVATE-DRAFT-ITEM")).toHaveCount(0);
   await expect(page.getByText(SHOP_A.shop_name)).toHaveCount(0);
   await expect(page.getByText(SHOP_B.shop_name)).toBeVisible();
-  const retainedA = await page.evaluate(() => new Promise<boolean>((resolve, reject) => {
-    const request = indexedDB.open("dokantools-invoice-drafts", 1);
-    request.onsuccess = () => {
-      const db = request.result;
-      const get = db.transaction("drafts", "readonly").objectStore("drafts").getAll();
-      get.onsuccess = () => {
-        const found = get.result.some((row: { owner_id: string; lines: Array<{ item_name: string }> }) =>
-          row.owner_id === "synthetic-owner-a" && row.lines?.[0]?.item_name === "A-PRIVATE-DRAFT-ITEM");
-        db.close(); resolve(found);
-      };
-      get.onerror = () => reject(get.error);
-    };
-    request.onerror = () => reject(request.error);
-  }));
-  expect(retainedA).toBeTruthy();
+  const retainedA = (await readDraftRecords(page)).some(row =>
+    row.owner_id === OWNER_A.id && row.lines?.[0]?.item_name === "A-PRIVATE-DRAFT-ITEM");
+    expect(retainedA).toBeTruthy();
 });
 
 test("stale User A history success cannot populate User B after session switch", async ({ page }) => {
@@ -214,7 +223,7 @@ test("stale User A history success cannot populate User B after session switch",
   await login(page, OWNER_A);
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await started.promise;
-  await signOutThroughSupabaseStorageEvent(page);
+  await signOutThroughSupabaseUi(page);
   await login(page, OWNER_B);
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await expect(page.getByText("সার্ভারে কোনো ইস্যু করা বিল পাওয়া যায়নি।")).toBeVisible();
@@ -239,7 +248,7 @@ test("stale User A detail success cannot populate User B after session switch", 
   await expect(page.getByText("A-0001")).toBeVisible();
   await page.getByRole("button", { name: "বিস্তারিত" }).click();
   await started.promise;
-  await signOutThroughSupabaseStorageEvent(page);
+  await signOutThroughSupabaseUi(page);
   await login(page, OWNER_B);
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await expect(page.getByText("সার্ভারে কোনো ইস্যু করা বিল পাওয়া যায়নি।")).toBeVisible();
@@ -261,7 +270,7 @@ test("stale User A history error cannot overwrite User B history state", async (
   await login(page, OWNER_A);
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await started.promise;
-  await signOutThroughSupabaseStorageEvent(page);
+  await signOutThroughSupabaseUi(page);
   await login(page, OWNER_B);
   await page.getByRole("button", { name: "খসড়া ও বিলের ইতিহাস" }).click();
   await expect(page.getByText("সার্ভারে কোনো ইস্যু করা বিল পাওয়া যায়নি।")).toBeVisible();
