@@ -1,5 +1,18 @@
 const roundToMinor = (value) => Math.round((value + Number.EPSILON) * 100);
 
+export function safeInvoiceMapUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return null;
+    const host = url.hostname.toLowerCase();
+    if (!["maps.app.goo.gl", "www.google.com", "google.com", "maps.google.com"].includes(host)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function parsePositiveQuantity(value) {
   const text = String(value ?? "").trim();
   if (!/^[0-9]+(?:\.[0-9]{1,3})?$/.test(text)) return null;
