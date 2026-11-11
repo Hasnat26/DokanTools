@@ -20,3 +20,5 @@ export function buildOwnerInvoiceShareMessage(invoice: {
   created_at: string;
   total_amount: number | string;
 }): string;
+
+export function safeInvoiceMapUrl(value: string | null | undefined): string | null;
