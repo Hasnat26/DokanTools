@@ -76,11 +76,6 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-async function flushPromiseMicrotasks() {
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 function switchToUserB(guard) {
   guard.invalidate();
   const request = guard.begin();
