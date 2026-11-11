@@ -1,5 +1,6 @@
 import React from "react";
 import type { Shop } from "@/lib/supabase";
+import { safeInvoiceMapUrl } from "@/lib/invoice-domain.mjs";
 
 export type InvoiceDocumentLine = {
   item_name: string;
@@ -32,25 +33,12 @@ function dateAndTime(value?: string | null) {
   };
 }
 
-function safeMapUrl(value: string | null) {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") return null;
-    const host = url.hostname.toLowerCase();
-    if (!["maps.app.goo.gl", "www.google.com", "google.com", "maps.google.com"].includes(host)) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 export default function InvoiceDocument({
   shop, title = "খাবারের বিল", billNumber, createdAt, lines, totalLabel,
   statusLabel, showIssueMetadata,
 }: InvoiceDocumentProps) {
   const date = dateAndTime(createdAt);
-  const mapUrl = safeMapUrl(shop.map_link);
+  const mapUrl = safeInvoiceMapUrl(shop.map_link);
 
   return (
     <article className="invoice-document" aria-label="Bangla food invoice">
