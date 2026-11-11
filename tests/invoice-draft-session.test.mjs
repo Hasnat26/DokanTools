@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createInvoiceDraftSessionGuard } from "../src/lib/invoice-draft-session.mjs";
+import { createInvoiceDraftSessionGuard, runSessionBoundRequest } from "../src/lib/invoice-draft-session.mjs";
 
 const draftA = {
   id: "draft-a",
