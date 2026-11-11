@@ -9,6 +9,7 @@ import {
 
 test("quantity accepts positive decimal lexical values up to three fraction digits", () => {
   assert.equal(parsePositiveQuantity("1"), 1);
+  assert.equal(parsePositiveQuantity("1.5"), 1.5);
   assert.equal(parsePositiveQuantity("1.125"), 1.125);
   assert.equal(parsePositiveQuantity("0.001"), 0.001);
   assert.equal(parsePositiveQuantity("0"), null);
@@ -33,12 +34,30 @@ test("empty bill cannot be reviewed as a valid invoice", () => {
 
 test("preview calculates positive line amounts and total in minor units", () => {
   const result = calculateInvoicePreview([
-    { quantity_text: "2", unit_price_text: "12.50" },
-    { quantity_text: "1.5", unit_price_text: "10.00" },
+    { item_name: "Rice", quantity_text: "2", unit_price_text: "12.50" },
+    { item_name: "Curry", quantity_text: "1.5", unit_price_text: "10.00" },
   ]);
   assert.equal(result.valid, true);
   assert.deepEqual(result.lineAmounts, [2500, 1500]);
   assert.equal(result.totalMinor, 4000);
+});
+
+test("unnamed or whitespace-only invoice lines are rejected before review", () => {
+  assert.deepEqual(calculateInvoicePreview([
+    { item_name: "", quantity_text: "1", unit_price_text: "10.00" },
+  ]), { valid: false, reason: "MISSING_ITEM_NAME", lineAmounts: [], totalMinor: 0 });
+  assert.equal(calculateInvoicePreview([
+    { item_name: "   ", quantity_text: "1", unit_price_text: "10.00" },
+  ]).reason, "MISSING_ITEM_NAME");
+});
+
+test("decimal quantity and price are accepted together and calculate correctly", () => {
+  const result = calculateInvoicePreview([
+    { item_name: "Rice", quantity_text: "1.5", unit_price_text: "10.50" },
+  ]);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.lineAmounts, [1575]);
+  assert.equal(result.totalMinor, 1575);
 });
 
 test("invalid line and unsafe arithmetic fail closed", () => {
