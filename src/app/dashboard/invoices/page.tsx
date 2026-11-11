@@ -7,7 +7,7 @@ import { supabase, invoiceApi, InvoiceCatalogItem, InvoiceDraft, InvoiceDraftLin
 import type { InvoiceDTO } from "@/lib/invoice-contract";
 import { calculateInvoicePreview, formatBDTFromMinor } from "@/lib/invoice-domain.mjs";
 import { deleteInvoiceDraft, listInvoiceDrafts, saveInvoiceDraft } from "@/lib/invoice-draft-store.mjs";
-import { createInvoiceDraftSessionGuard } from "@/lib/invoice-draft-session.mjs";
+import { createInvoiceDraftSessionGuard, runSessionBoundRequest } from "@/lib/invoice-draft-session.mjs";
 import InvoiceDocument from "@/components/invoice/InvoiceDocument";
 
 type Screen = "composer" | "review" | "history" | "detail";
@@ -48,6 +48,7 @@ function OwnerInvoicesContent() {
   const [issuedInvoices, setIssuedInvoices] = useState<InvoiceDTO[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDTO | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [lines, setLines] = useState<InvoiceDraftLine[]>([{ ...EMPTY_LINE }]);
   const [screen, setScreen] = useState<Screen>("composer");
@@ -165,6 +166,9 @@ function OwnerInvoicesContent() {
           setDrafts([]);
           setIssuedInvoices([]);
           setSelectedInvoice(null);
+          setHistoryLoading(false);
+          setDetailLoading(false);
+          setHistoryError("");
           setSelectedDraftId("");
           setLines([{ ...EMPTY_LINE }]);
           setScreen("composer");
@@ -185,6 +189,9 @@ function OwnerInvoicesContent() {
         setDrafts([]);
         setIssuedInvoices([]);
         setSelectedInvoice(null);
+        setHistoryLoading(false);
+        setDetailLoading(false);
+        setHistoryError("");
         setSelectedDraftId("");
         setLines([{ ...EMPTY_LINE }]);
         setScreen("composer");
@@ -199,34 +206,47 @@ function OwnerInvoicesContent() {
 
 
   const loadIssuedInvoices = useCallback(async () => {
-    if (!shop) return;
+    const snapshot = draftSession.current.capture(userId, shop?.id || "");
+    if (!snapshot) return;
+
     setHistoryLoading(true);
     setHistoryError("");
-    try {
-      const invoices = await invoiceApi.list(shop.id);
-      setIssuedInvoices(invoices);
-    } catch (e) {
-      setIssuedInvoices([]);
-      setHistoryError(e instanceof Error ? e.message : "INVOICE_HISTORY_UNAVAILABLE");
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [shop]);
+    await runSessionBoundRequest({
+      guard: draftSession.current,
+      snapshot,
+      request: () => invoiceApi.list(snapshot.shopId),
+      onSuccess: invoices => setIssuedInvoices(invoices),
+      onError: error => {
+        setIssuedInvoices([]);
+        setHistoryError(error instanceof Error ? error.message : "INVOICE_HISTORY_UNAVAILABLE");
+      },
+      onFinally: () => setHistoryLoading(false),
+    });
+  }, [shop, userId]);
 
   useEffect(() => {
     if (screen === "history" && shop) void loadIssuedInvoices();
   }, [screen, shop, loadIssuedInvoices]);
 
   async function openIssuedInvoice(invoiceId: string) {
-    if (!shop) return;
+    const snapshot = draftSession.current.capture(userId, shop?.id || "");
+    if (!snapshot) return;
+
     setHistoryError("");
-    try {
-      const invoice = await invoiceApi.get(shop.id, invoiceId);
-      setSelectedInvoice(invoice);
-      setScreen("detail");
-    } catch (e) {
-      setHistoryError(e instanceof Error ? e.message : "INVOICE_DETAIL_UNAVAILABLE");
-    }
+    setDetailLoading(true);
+    await runSessionBoundRequest({
+      guard: draftSession.current,
+      snapshot,
+      request: () => invoiceApi.get(snapshot.shopId, invoiceId),
+      onSuccess: invoice => {
+        setSelectedInvoice(invoice);
+        setScreen("detail");
+      },
+      onError: error => {
+        setHistoryError(error instanceof Error ? error.message : "INVOICE_DETAIL_UNAVAILABLE");
+      },
+      onFinally: () => setDetailLoading(false),
+    });
   }
 
   useEffect(() => {
@@ -524,7 +544,7 @@ function OwnerInvoicesContent() {
                     <p className="text-xs text-slate-500">{formatDate(invoice.issuedAt)} {formatTime(invoice.issuedAt)}</p>
                     <p className="text-sm font-semibold">মোট: ৳{invoice.totalAmount}</p>
                   </div>
-                  <button type="button" className="btn-secondary min-h-11" onClick={() => void openIssuedInvoice(invoice.id)}>বিস্তারিত</button>
+                  <button type="button" className="btn-secondary min-h-11" onClick={() => void openIssuedInvoice(invoice.id)} disabled={detailLoading}>{detailLoading ? "লোড হচ্ছে…" : "বিস্তারিত"}</button>
                 </div>
               ))}
               {!historyLoading && !historyError && issuedInvoices.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">সার্ভারে কোনো ইস্যু করা বিল পাওয়া যায়নি।</p>}
