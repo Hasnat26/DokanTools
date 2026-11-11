@@ -2,7 +2,7 @@ const roundToMinor = (value) => Math.round((value + Number.EPSILON) * 100);
 
 export function parsePositiveQuantity(value) {
   const text = String(value ?? "").trim();
-  if (!/^[0-9]+(?:\.[0-9]{1,3})?$/.test(text)) return null;
+  if (!/^[0-9]+(?:.[0-9]{1,3})?$/.test(text)) return null;
   const parsed = Number(text);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return parsed;
@@ -10,7 +10,7 @@ export function parsePositiveQuantity(value) {
 
 export function parsePositivePrice(value) {
   const text = String(value ?? "").trim();
-  if (!/^[0-9]+(?:\.[0-9]{1,2})?$/.test(text)) return null;
+  if (!/^[0-9]+(?:.[0-9]{1,2})?$/.test(text)) return null;
   const parsed = Number(text);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return parsed;
