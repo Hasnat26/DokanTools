@@ -12,8 +12,9 @@ git cat-file -e "${BASELINE}^{commit}" 2>/dev/null || { echo "ERROR: fetch full 
 [[ -f "$MIGRATION" ]] || { echo "ERROR: migration not found: $MIGRATION" >&2; exit 2; }
 
 if [[ -n "${DATABASE_URL:-}" ]]; then
+ [[ "${GITHUB_ACTIONS:-false}" == "true" ]] || { echo "ERROR: DATABASE_URL is accepted only for the isolated GitHub Actions service. Local runs must start their own Docker container." >&2; exit 2; }
  HOST="$(node -e 'console.log(new URL(process.argv[1]).hostname)' "$DATABASE_URL")"
- case "$HOST" in localhost|127.0.0.1|::1) ;; *) echo "ERROR: refusing non-local DATABASE_URL host '$HOST'." >&2; exit 2;; esac
+ case "$HOST" in 127.0.0.1|localhost) ;; *) echo "ERROR: refusing non-loopback DATABASE_URL host '$HOST'." >&2; exit 2;; esac
  ADMIN_URL="$DATABASE_URL"
 else
  command -v docker >/dev/null || { echo "ERROR: Docker required when DATABASE_URL is unset." >&2; exit 2; }
