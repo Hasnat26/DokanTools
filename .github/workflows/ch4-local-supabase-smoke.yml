@@ -203,10 +203,14 @@ jobs:
             if (!fs.existsSync(path+name)) failures++;
           }
           const cleanup=fs.existsSync(path+"cleanup-report.txt") ? fs.readFileSync(path+"cleanup-report.txt","utf8") : "missing";
+          const cleanupUsers=fs.existsSync(path+"cleanup-users.json") ? JSON.parse(fs.readFileSync(path+"cleanup-users.json","utf8")) : [];
+          const verifiedUsers=cleanupUsers.filter(x=>x.deletionStatus==="VERIFIED"||x.deletionVerified===true).length;
+          const unverifiedUsers=cleanupUsers.filter(x=>x.deletionStatus==="NOT_VERIFIED_STACK_DISPOSAL_REQUIRED"||x.disposition==="NOT_VERIFIED_STACK_DISPOSAL_REQUIRED").length;
           fs.writeFileSync(path+"test-counts.json",JSON.stringify({executed,skipped,todo,failures},null,2)+"\n");
           const failedSuites=cases.filter(k=>values[k]!=="success");
-          const complete=failedSuites.length===0 && skipped===0 && todo===0 && failures===0 && executed>0 && cleanup.includes("supabase_stop_exit=0");
-          const summary="# CH-4 run summary\n\n"+cases.map(k=>"- "+k+": "+values[k]).join("\n")+"\n\nExecuted: "+executed+"\nSkipped: "+skipped+"\nTODO: "+todo+"\nJUnit failures/errors: "+failures+"\n\nOverall: "+(complete?"COMPLETE":"INCOMPLETE")+"\n";
+          const cleanupComplete=cleanup.includes("supabase_stop_exit=0") && cleanup.includes("fixture_lifecycle=entire_disposable_database_destroyed");
+          const complete=failedSuites.length===0 && skipped===0 && todo===0 && failures===0 && executed>0 && cleanupComplete;
+          const summary="# CH-4 run summary\n\n"+cases.map(k=>"- "+k+": "+values[k]).join("\n")+"\n\nExecuted: "+executed+"\nSkipped: "+skipped+"\nTODO: "+todo+"\nJUnit failures/errors: "+failures+"\nIndividual GoTrue user deletion: "+verifiedUsers+" verified, "+unverifiedUsers+" NOT VERIFIED (FK references preserved; disposable database teardown is authoritative)\nDisposable stack teardown: "+(cleanupComplete?"PASS":"FAIL")+"\n\nOverall: "+(complete?"COMPLETE":"INCOMPLETE")+"\n";
           fs.writeFileSync(path+"summary.md",summary);
           if (!complete) process.exitCode=1;
           NODE
