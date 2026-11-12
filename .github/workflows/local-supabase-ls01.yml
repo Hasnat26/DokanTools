@@ -34,6 +34,12 @@ jobs:
           version: 3.1.0
       - name: Start disposable local Supabase services
         run: supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector
+      - name: Capture exact CLI and service image versions
+        run: |
+          mkdir -p artifacts/ls01
+          supabase --version > artifacts/ls01/supabase-cli-version.txt
+          supabase services > artifacts/ls01/supabase-service-versions.txt
+          docker ps --format '{{.Names}} {{.Image}}' | sort > artifacts/ls01/docker-service-images.txt
       - name: Export local-only Supabase connection details
         shell: bash
         run: |
