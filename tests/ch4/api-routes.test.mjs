@@ -28,8 +28,8 @@ test("actual Next.js invoice history/detail routes with two real tenant JWTs and
  const histA=await get("/api/invoices?shopId="+shopA,a.token),bodyA=await histA.json();assert.equal(histA.status,200);assert.equal(bodyA.invoices.length,1);assert.equal(bodyA.invoices[0].id,invA);assert.equal(bodyA.invoices[0].currency,"BDT");assert.equal(bodyA.invoices[0].lines.length,1);assert.ok(histA.headers.get("cache-control")?.includes("no-store"));
  const histB=await get("/api/invoices?shopId="+shopB,b.token),bodyB=await histB.json();assert.equal(histB.status,200);assert.deepEqual(bodyB.invoices.map(x=>x.id),[invB]);
  const crossHistory=await get("/api/invoices?shopId="+shopB,a.token);assert.equal(crossHistory.status,200);assert.deepEqual((await crossHistory.json()).invoices,[]);
- const detailA=await get("/api/invoices/"+invA+"?shopId="+shopA,a.token),da=await detailA.json();assert.equal(detailA.status,200);assert.equal(da.invoice.id,invA);assert.equal(da.invoice.lines[0].itemName,"Route A item");
- const detailB=await get("/api/invoices/"+invB+"?shopId="+shopB,b.token),db=await detailB.json();assert.equal(detailB.status,200);assert.equal(db.invoice.id,invB);
+ const detailA=await get("/api/invoices/"+invA+"?shopId="+shopA,a.token),da=await detailA.json();assert.equal(detailA.status,200);assert.equal(da.invoice.id,invA);assert.equal(da.invoice.lines[0].itemName,"Route A item");assert.ok(detailA.headers.get("cache-control")?.includes("no-store"));
+ const detailB=await get("/api/invoices/"+invB+"?shopId="+shopB,b.token),db=await detailB.json();assert.equal(detailB.status,200);assert.equal(db.invoice.id,invB);assert.ok(detailB.headers.get("cache-control")?.includes("no-store"));
  const crossDetail=await get("/api/invoices/"+invB+"?shopId="+shopB,a.token);assert.equal(crossDetail.status,404);assert.deepEqual(await crossDetail.json(),{error:{code:"INVOICE_NOT_FOUND"}});
  const missing=await get("/api/invoices?shopId="+shopA);assert.equal(missing.status,401);
  const invalid=await get("/api/invoices?shopId="+shopA,"not.a.jwt");assert.equal(invalid.status,401);
