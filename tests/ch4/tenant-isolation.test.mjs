@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac } from "node:crypto";
 
 const API=process.env.SUPABASE_URL, ANON=process.env.SUPABASE_ANON_KEY, SERVICE=process.env.SUPABASE_SERVICE_ROLE_KEY, DB=process.env.SUPABASE_DB_URL;
 const pw="Ch4-"+randomUUID()+"-Aa9!";
@@ -34,6 +34,7 @@ async function adminUser(label){
  return {id:u.id,email,password:pw};
 }
 function redact(s){return String(s).replace(/eyJ[A-Za-z0-9._-]+/g,"[JWT]").replace(/sb_secret_[A-Za-z0-9_-]+/g,"[SECRET]").slice(0,1000);}
+function expiredJwt(subject){const secret=process.env.CH4_LOCAL_JWT_SECRET;assert.ok(secret&&secret.length>=32);const b=x=>Buffer.from(JSON.stringify(x)).toString("base64url"),now=Math.floor(Date.now()/1000),head=b({alg:"HS256",typ:"JWT"}),payload=b({iss:"supabase",aud:"authenticated",role:"authenticated",sub:subject,iat:now-7200,exp:now-3600}),input=head+"."+payload;return input+"."+createHmac("sha256",secret).update(input).digest("base64url");}
 async function token(u){const r=await fetch(API+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:ANON,"Content-Type":"application/json"},body:JSON.stringify({email:u.email,password:u.password})});assert.equal(r.status,200);return (await r.json()).access_token;}
 async function sql(q){const {execFileSync}=await import("node:child_process");return execFileSync("psql",[DB,"-X","-v","ON_ERROR_STOP=1","-Atc",q],{encoding:"utf8"}).trim();}
 async function rest(path,tok,method="GET",body){const h={apikey:ANON,Authorization:"Bearer "+tok};if(body){h["Content-Type"]="application/json";h.Prefer="return=representation";}const r=await fetch(API+"/rest/v1/"+path,{method,headers:h,body:body?JSON.stringify(body):undefined});httpTranscript.push({method,path,status:r.status,body:(await r.clone().text()).slice(0,800)});return r;}
@@ -66,6 +67,14 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
   const body=redact(await response.text());anonymousReads.push({table,status:response.status,body});
   assert.ok([401,403].includes(response.status),"anonymous "+table+" access must be denied");
  }
+ const invalidJwt=await rest("invoices?select=id","not.a.jwt");
+ assert.ok([401,403].includes(invalidJwt.status),"malformed JWT must be rejected by PostgREST");
+ const invalidSignatureToken=ta.slice(0,-4)+"xxxx";
+ const invalidSignature=await rest("invoices?select=id",invalidSignatureToken);
+ assert.ok([401,403].includes(invalidSignature.status),"invalid signature JWT must be rejected by PostgREST");
+ const expired=await rest("invoices?select=id",expiredJwt(a.id));
+ assert.ok([401,403].includes(expired.status),"genuinely expired JWT must be rejected by PostgREST");
+ httpTranscript.push({case:"invalid-jwt-matrix",malformedStatus:invalidJwt.status,invalidSignatureStatus:invalidSignature.status,expiredStatus:expired.status,expiredSignedWithLocalConfig:true});
  const privateReads=[];
  for(const table of ["invoice_counters","invoice_idempotency","invoice_status_events","invoice_audit_events","invoice_runtime_controls"]){
   const response=await rest(table+"?select=*",ta);const body=redact(await response.text());
@@ -83,11 +92,12 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
  const before=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
  const mutationEvidence=[];
  for(const [name,fn] of mutationCases){
+   const stateBefore=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
    const response=await fn(); const body=redact(await response.text());
-   mutationEvidence.push({name,status:response.status,body});
+   const stateAfter=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
    assert.equal(response.status,403,name+" must be denied by grants");
-   const state=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
-   assert.equal(state,before,name+" must not alter database fixtures");
+   assert.equal(stateAfter,stateBefore,name+" must not alter database fixtures");
+   mutationEvidence.push({name,status:response.status,body,stateBefore,stateAfter,unchanged:stateAfter===stateBefore});
  }
  const roleProbeOutput=await sql(`begin; set local role authenticated; set local request.jwt.claims='{"sub":"${a.id}","role":"authenticated"}'; select auth.uid(); rollback;`);
  const roleProbe=roleProbeOutput.split(/\r?\n/).find(x=>x===a.id);
