@@ -1,0 +1,63 @@
+name: LS-01 Disposable Local Supabase
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - 'scripts/**'
+      - 'tests/postgres/**'
+      - 'docs/implementation/LS01_EXPECTED_STATE.json'
+      - '.github/workflows/local-supabase-ls01.yml'
+  push:
+    branches: [feat/ifmvp-backend-foundation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-supabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.1.0
+      - name: Start disposable local Supabase services
+        run: supabase start -x studio,storage-api,realtime,imgproxy,inbucket,edge-runtime,logflare,vector
+      - name: Export local-only Supabase connection details
+        shell: bash
+        run: |
+          supabase status -o env > "$RUNNER_TEMP/ls01-supabase.env"
+          set -a
+          source "$RUNNER_TEMP/ls01-supabase.env"
+          set +a
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "SUPABASE_DB_URL=$DB_URL"
+            echo "SUPABASE_ANON_KEY=$ANON_KEY"
+          } >> "$GITHUB_ENV"
+      - name: Run endpoint guard negative and positive tests
+        run: node --test tests/local-supabase-guard.test.mjs
+      - name: Run genuine local Supabase migration and smoke suite
+        run: bash scripts/test-local-supabase.sh
+      - name: Upload redacted LS-01 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ls01-local-supabase-evidence
+          path: artifacts/ls01/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Stop and remove disposable Supabase stack
+        if: always()
+        run: supabase stop --no-backup || true
