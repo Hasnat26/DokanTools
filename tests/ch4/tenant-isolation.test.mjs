@@ -5,6 +5,10 @@ import { randomUUID } from "node:crypto";
 const API=process.env.SUPABASE_URL, ANON=process.env.SUPABASE_ANON_KEY, SERVICE=process.env.SUPABASE_SERVICE_ROLE_KEY, DB=process.env.SUPABASE_DB_URL;
 const pw="Ch4-"+randomUUID()+"-Aa9!";
 let cleanupContext;
+const cleanupEvidence=[];
+const httpTranscript=[];
+const evidenceDir=process.env.CH4_EVIDENCE_DIR||"artifacts/ch4";
+async function saveEvidence(name,value){const fs=await import("node:fs");fs.mkdirSync(evidenceDir,{recursive:true});fs.writeFileSync(evidenceDir+"/"+name,JSON.stringify(value,null,2)+"\n");}
 async function adminUser(label){
  const email="ch4-"+label+"-"+randomUUID()+"@example.test";
  const r=await fetch(API+"/auth/v1/admin/users",{method:"POST",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE,"Content-Type":"application/json"},body:JSON.stringify({email,password:pw,email_confirm:true})});
@@ -22,9 +26,9 @@ async function adminUser(label){
      if(g.status!==404 && g.status!==200) networkError="Admin GET returned unexpected status";
      cleanupEvidence.push({userId:u.id,deleteStatus:responseStatus,deleteBody:redact(responseBody),verifyStatus,exists});
      const deletionVerified=[200,204].includes(responseStatus) && exists===false || responseStatus===404 && exists===false;
-     cleanupEvidence.push({userId:u.id,deletionVerified,disposition:deletionVerified?"VERIFIED":"NOT_VERIFIED_STACK_DISPOSAL_REQUIRED"});
+     cleanupEvidence.push({userId:u.id,deletionVerified,disposition:deletionVerified?"VERIFIED":"NOT_VERIFIED_STACK_DISPOSAL_REQUIRED"}); await saveEvidence("cleanup-postgrest-users.json",cleanupEvidence);
    } catch(e) {
-     cleanupEvidence.push({userId:u.id,deleteStatus:responseStatus,deleteBody:redact(responseBody),verifyStatus,exists,networkError:String(e),disposition:"NOT_VERIFIED_STACK_DISPOSAL_REQUIRED"});
+     cleanupEvidence.push({userId:u.id,deleteStatus:responseStatus,deleteBody:redact(responseBody),verifyStatus,exists,networkError:String(e),disposition:"NOT_VERIFIED_STACK_DISPOSAL_REQUIRED"}); await saveEvidence("cleanup-postgrest-users.json",cleanupEvidence);
    }
  });}
  return {id:u.id,email,password:pw};
@@ -32,7 +36,7 @@ async function adminUser(label){
 function redact(s){return String(s).replace(/eyJ[A-Za-z0-9._-]+/g,"[JWT]").replace(/sb_secret_[A-Za-z0-9_-]+/g,"[SECRET]").slice(0,1000);}
 async function token(u){const r=await fetch(API+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:ANON,"Content-Type":"application/json"},body:JSON.stringify({email:u.email,password:u.password})});assert.equal(r.status,200);return (await r.json()).access_token;}
 async function sql(q){const {execFileSync}=await import("node:child_process");return execFileSync("psql",[DB,"-X","-v","ON_ERROR_STOP=1","-Atc",q],{encoding:"utf8"}).trim();}
-async function rest(path,tok,method="GET",body){const h={apikey:ANON,Authorization:"Bearer "+tok};if(body){h["Content-Type"]="application/json";h.Prefer="return=representation";}return fetch(API+"/rest/v1/"+path,{method,headers:h,body:body?JSON.stringify(body):undefined});}
+async function rest(path,tok,method="GET",body){const h={apikey:ANON,Authorization:"Bearer "+tok};if(body){h["Content-Type"]="application/json";h.Prefer="return=representation";}const r=await fetch(API+"/rest/v1/"+path,{method,headers:h,body:body?JSON.stringify(body):undefined});httpTranscript.push({method,path,status:r.status,body:(await r.clone().text()).slice(0,800)});return r;}
 test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and mutation denial",async t=>{
  cleanupContext=t;
  assert.ok(DB&&API&&ANON&&SERVICE);const a=await adminUser("a"),b=await adminUser("b"),[ta,tb]=await Promise.all([token(a),token(b)]);
@@ -79,5 +83,5 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
  assert.equal(roleProbe,a.id,"auth.uid() must resolve authenticated JWT subject");
  const roleProbeB=await sql(`begin; set local role authenticated; set local request.jwt.claims='{"sub":"${b.id}","role":"authenticated"}'; select auth.uid(); rollback;`);
  assert.equal(roleProbeB,b.id,"auth.uid() must resolve Owner B authenticated JWT subject");
- console.log("CH4_TENANT_EVIDENCE="+JSON.stringify({ownerA:{visibleInvoiceIds:[invoiceA],foreignInvoiceIds:[]},ownerB:{visibleInvoiceIds:[invoiceB],foreignInvoiceIds:[]},crossTenantDisclosures:0,crossLineDisclosures:0,mutationEvidence,before,after:await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`),authUidSubjectA:roleProbe,authUidSubjectB:roleProbeB}));
+ const tenantEvidence={ownerA:{visibleInvoiceIds:[invoiceA],foreignInvoiceIds:[]},ownerB:{visibleInvoiceIds:[invoiceB],foreignInvoiceIds:[]},crossTenantDisclosures:0,crossLineDisclosures:0,mutationEvidence,before,after:await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`),authUidSubjectA:roleProbe,authUidSubjectB:roleProbeB}; await saveEvidence("tenant-isolation.json",tenantEvidence); await saveEvidence("http-transcript-postgrest.json",httpTranscript); console.log("CH4_TENANT_EVIDENCE="+JSON.stringify(tenantEvidence));
 });
