@@ -162,6 +162,17 @@ jobs:
           for(const n of clean){if(fs.existsSync("artifacts/ch4/"+n)){try{evidence.push(...JSON.parse(fs.readFileSync("artifacts/ch4/"+n,"utf8")));}catch(e){evidence.push({source:n,parseError:String(e)});}}}
           fs.writeFileSync("artifacts/ch4/cleanup-users.json",JSON.stringify(evidence,null,2)+"\n");
           NODE
+      - name: Cleanup disposable stack and immutable fixtures
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -f "$RUNNER_TEMP/next.pid" ]; then kill "$(cat "$RUNNER_TEMP/next.pid")" 2>/dev/null; fi
+          if [ -f "$RUNNER_TEMP/ch4-proxy.pid" ]; then kill "$(cat "$RUNNER_TEMP/ch4-proxy.pid")" 2>/dev/null; fi
+          supabase stop --no-backup
+          stop_rc=$?
+          printf "supabase_stop_exit=%s\nfixture_lifecycle=entire_disposable_database_destroyed\nfixture_user_deletion=recorded_in_test_evidence\n" "$stop_rc" > artifacts/ch4/cleanup-report.txt
+          exit "$stop_rc"
       - name: Assemble failure matrix and completion summary
         if: always()
         env:
@@ -199,17 +210,6 @@ jobs:
           fs.writeFileSync(path+"summary.md",summary);
           if (!complete) process.exitCode=1;
           NODE
-      - name: Cleanup disposable stack and immutable fixtures
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          if [ -f "$RUNNER_TEMP/next.pid" ]; then kill "$(cat "$RUNNER_TEMP/next.pid")" 2>/dev/null; fi
-          if [ -f "$RUNNER_TEMP/ch4-proxy.pid" ]; then kill "$(cat "$RUNNER_TEMP/ch4-proxy.pid")" 2>/dev/null; fi
-          supabase stop --no-backup
-          stop_rc=$?
-          printf "supabase_stop_exit=%s\nfixture_lifecycle=entire_disposable_database_destroyed\nfixture_user_deletion=recorded_in_test_evidence\n" "$stop_rc" > artifacts/ch4/cleanup-report.txt
-          exit "$stop_rc"
       - name: Upload redacted evidence
         if: always()
         uses: actions/upload-artifact@v4
