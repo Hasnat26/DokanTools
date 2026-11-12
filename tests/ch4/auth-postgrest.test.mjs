@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 const API=process.env.SUPABASE_URL, ANON=process.env.SUPABASE_ANON_KEY, SERVICE=process.env.SUPABASE_SERVICE_ROLE_KEY;
 const pw="Ch4-"+randomUUID()+"-Aa9!";
-const users=[];
+const users=[];\nlet cleanupContext;
 async function req(path, {method="GET",token,body,headers={}}={}) {
  const h={apikey:ANON,...headers}; if(token)h.Authorization="Bearer "+token;
  if(body!==undefined)h["Content-Type"]="application/json";
@@ -14,7 +14,7 @@ async function createUser(label) {
  const email="ch4-"+label+"-"+randomUUID()+"@example.test";
  const r=await fetch(API+"/auth/v1/admin/users",{method:"POST",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE,"Content-Type":"application/json"},body:JSON.stringify({email,password:pw,email_confirm:true})});
  assert.equal(r.status,200,"GoTrue admin user creation must succeed");
- const u=await r.json(); users.push(u.id); return {id:u.id,email,password:pw};
+ const u=await r.json(); users.push(u.id);\n if(cleanupContext){cleanupContext.after(async()=>{const d=await fetch(API+"/auth/v1/admin/users/"+u.id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});assert.ok([200,204,404].includes(d.status),"Owner cleanup failed");});}\n return {id:u.id,email,password:pw};
 }
 async function signin(u) {
  const r=await req("/auth/v1/token?grant_type=password",{method:"POST",body:{email:u.email,password:u.password}});
@@ -22,7 +22,7 @@ async function signin(u) {
  assert.ok(j.access_token && j.access_token.split(".").length===3); return j.access_token;
 }
 test("real GoTrue users, signed JWTs, token validation, signout and account switch",async t=>{
- assert.ok(API&&ANON&&SERVICE); assert.match(API,/^http:\/\/127\.0\.0\.1:54321$/);
+ cleanupContext=t;\n assert.ok(API&&ANON&&SERVICE); assert.match(API,/^http:\/\/127\.0\.0\.1:54321$/);
  const a=await createUser("a"), b=await createUser("b");
  const [ta,tb]=await Promise.all([signin(a),signin(b)]);
  const ua=await req("/auth/v1/user",{token:ta}), ub=await req("/auth/v1/user",{token:tb});
@@ -35,5 +35,5 @@ test("real GoTrue users, signed JWTs, token validation, signout and account swit
  const anon=await req("/rest/v1/invoices?select=id"); assert.ok([401,403].includes(anon.status));
  const switched=await req("/auth/v1/user",{token:tb}); assert.equal((await switched.json()).id,b.id);
  const out=await req("/auth/v1/logout",{method:"POST",token:ta}); assert.ok([200,204].includes(out.status));
- t.after(async()=>{for(const id of users){await fetch(API+"/auth/v1/admin/users/"+id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}}).catch(()=>{});}});
+
 });
