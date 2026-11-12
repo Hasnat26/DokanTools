@@ -7,6 +7,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const APP_DIR = resolve(process.env.APP_DIR || "app");
+const NO_CONFIG_APP_DIR = resolve(process.env.NO_CONFIG_APP_DIR || process.env.APP_DIR || "app");
 const EVIDENCE_DIR = resolve(process.env.EVIDENCE_DIR || "route-runtime-evidence");
 const ROUTE_APP_SHA = process.env.ROUTE_APP_SHA;
 const QA_HARNESS_SHA = process.env.QA_HARNESS_SHA;
@@ -99,8 +100,8 @@ async function mockHandler(req, res) {
   res.writeHead(404); res.end(JSON.stringify({ message: "unknown mock endpoint" }));
 }
 
-function startNext(port, withConfig) {
-  const nextBin = resolve(APP_DIR, "node_modules/next/dist/bin/next");
+function startNext(port, withConfig, appDir = APP_DIR) {
+  const nextBin = resolve(appDir, "node_modules/next/dist/bin/next");
   const env = { ...process.env, PORT: String(port), HOSTNAME: "127.0.0.1", NODE_ENV: "production" };
   delete env.SUPABASE_URL;
   delete env.SUPABASE_ANON_KEY;
@@ -112,7 +113,7 @@ function startNext(port, withConfig) {
     delete env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   }
   const child = spawn(process.execPath, [nextBin, "start", "-p", String(port), "-H", "127.0.0.1"], {
-    cwd: APP_DIR, env, stdio: ["ignore", "pipe", "pipe"],
+    cwd: appDir, env, stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
   child.stdout.on("data", chunk => { output += chunk.toString(); });
@@ -164,7 +165,7 @@ before(async () => {
   assert.equal(mockServer.address().address, MOCK_HOST, "Supabase mock must bind only to IPv4 loopback");
   configuredApp = startNext(APP_PORT, true);
   await waitForApp(APP_PORT, configuredApp);
-  noConfigApp = startNext(NO_CONFIG_PORT, false);
+  noConfigApp = startNext(NO_CONFIG_PORT, false, NO_CONFIG_APP_DIR);
   await waitForApp(NO_CONFIG_PORT, noConfigApp);
 });
 
