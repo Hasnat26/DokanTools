@@ -34,9 +34,9 @@ begin
     ) as unexpected
   ) q where unexpected;
   if v_bad<>0 then raise exception 'LS01: unexpected invoice client privileges'; end if;
-  select count(*) into v_bad from unnest(array['invoice_counters','invoice_idempotency','invoice_status_events','invoice_audit_events','invoice_runtime_controls']) t
-   where has_table_privilege('anon','public.'||t,'SELECT')
-      or has_table_privilege('authenticated','public.'||t,'SELECT');
+  select count(*) into v_bad from unnest(array['invoice_counters','invoice_idempotency','invoice_status_events','invoice_audit_events','invoice_runtime_controls']) as x(table_name)
+   where has_table_privilege('anon','public.'||table_name,'SELECT')
+      or has_table_privilege('authenticated','public.'||table_name,'SELECT');
   if v_bad<>0 then raise exception 'LS01: internal invoice table SELECT grant detected'; end if;
   select prosecdef, proconfig into v_issue, v_cfg from pg_proc
    where oid='public.create_invoice_transaction(uuid,text,uuid,jsonb)'::regprocedure;
@@ -44,6 +44,8 @@ begin
     raise exception 'LS01: RPC must remain SECURITY DEFINER with search_path=pg_catalog';
   end if;
   if has_function_privilege('anon','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')
+     or has_function_privilege('anon','public.reject_invoice_fact_mutation()','EXECUTE')
+     or has_function_privilege('authenticated','public.reject_invoice_fact_mutation()','EXECUTE')
      or not has_function_privilege('authenticated','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')
      or exists (
        select 1 from pg_proc p, lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
