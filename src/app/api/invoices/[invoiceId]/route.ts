@@ -9,7 +9,7 @@ export async function GET(req:NextRequest,ctx:{params:Promise<{invoiceId:string}
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL,anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,token=req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
  if(!url||!anon||!token||token.length>8192)return json({error:{code:"UNAUTHENTICATED"}},401);
  const client=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:"Bearer "+token}}});
- const {data:user,error:ue}=await client.auth.getUser(token);if(ue||!user.user)return NextResponse.json({error:{code:"UNAUTHENTICATED"}},{status:401});
+ const {data:user,error:ue}=await client.auth.getUser(token);if(ue||!user.user)return json({error:{code:"UNAUTHENTICATED"}},401);
  const shopId=req.nextUrl.searchParams.get("shopId");if(!shopId||!UUID.test(shopId))return json({error:{code:"INVALID_SHOP_ID"}},400);
  const {data:r,error}=await client.from("invoices").select("id,shop_id,bill_number,issued_at,total_amount,shop_name_snapshot,shop_address_snapshot,shop_phone_snapshot,map_url_snapshot").eq("shop_id",shopId).eq("id",invoiceId).maybeSingle();if(error||!r)return json({error:{code:"INVOICE_NOT_FOUND"}},404);
  const {data:l,error:le}=await client.from("invoice_lines").select("line_no,catalog_item_id_snapshot,item_name_snapshot,unit_snapshot,quantity,unit_price,line_total").eq("shop_id",shopId).eq("invoice_id",invoiceId).order("line_no",{ascending:true});if(le||!l)return json({error:{code:"INVOICE_UNAVAILABLE"}},503);

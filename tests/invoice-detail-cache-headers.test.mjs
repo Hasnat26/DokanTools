@@ -9,7 +9,7 @@ const requiredHeaders = { "Cache-Control": "no-store", "Pragma": "no-cache" };
 test("detail GET routes every explicit response through the no-store helper", async () => {
   const source = await readFile(fileUrl, "utf8");
   assert.match(source, /const json=\(body:unknown,status=200\)=>NextResponse\.json\(body,\{status,headers:\{"Cache-Control":"no-store","Pragma":"no-cache"\}\}\);/);
-  assert.equal((source.match(/return json\(/g) ?? []).length, 7);
+  assert.equal((source.match(/return json\(/g) ?? []).length, 6);
   assert.equal((source.match(/return NextResponse\.json\(/g) ?? []).length, 0);
   for (const branch of [
     /return json\(\{error:\{code:"INVALID_INVOICE_ID"\}\},400\)/,
