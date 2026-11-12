@@ -15,17 +15,23 @@ begin
      and cmd='SELECT' and roles @> array['authenticated']::name[];
   if v_owner_select<>2 then raise exception 'LS01: expected owner SELECT policies missing'; end if;
   select count(*) into v_bad from (
-    select has_table_privilege('anon','public.invoices','SELECT') or
-           has_table_privilege('anon','public.invoice_lines','SELECT') or
-           has_table_privilege('anon','public.invoices','INSERT') or
-           has_table_privilege('anon','public.invoice_lines','INSERT') or
-           has_table_privilege('authenticated','public.invoices','INSERT') or
-           has_table_privilege('authenticated','public.invoice_lines','INSERT') or
-           has_table_privilege('authenticated','public.invoices','UPDATE') or
-           has_table_privilege('authenticated','public.invoice_lines','UPDATE') or
-           has_table_privilege('authenticated','public.invoices','DELETE') or
-           has_table_privilege('authenticated','public.invoice_lines','DELETE')
-  ) x where x;
+    select (
+      has_table_privilege('anon','public.invoices','SELECT') or
+      has_table_privilege('anon','public.invoice_lines','SELECT') or
+      has_table_privilege('anon','public.invoices','INSERT') or
+      has_table_privilege('anon','public.invoice_lines','INSERT') or
+      has_table_privilege('anon','public.invoices','UPDATE') or
+      has_table_privilege('anon','public.invoice_lines','UPDATE') or
+      has_table_privilege('anon','public.invoices','DELETE') or
+      has_table_privilege('anon','public.invoice_lines','DELETE') or
+      has_table_privilege('authenticated','public.invoices','INSERT') or
+      has_table_privilege('authenticated','public.invoice_lines','INSERT') or
+      has_table_privilege('authenticated','public.invoices','UPDATE') or
+      has_table_privilege('authenticated','public.invoice_lines','UPDATE') or
+      has_table_privilege('authenticated','public.invoices','DELETE') or
+      has_table_privilege('authenticated','public.invoice_lines','DELETE')
+    ) as unexpected
+  ) q where unexpected;
   if v_bad<>0 then raise exception 'LS01: unexpected invoice client privileges'; end if;
   select count(*) into v_bad from unnest(array['invoice_counters','invoice_idempotency','invoice_status_events','invoice_audit_events','invoice_runtime_controls']) t
    where has_table_privilege('anon','public.'||t,'SELECT')
