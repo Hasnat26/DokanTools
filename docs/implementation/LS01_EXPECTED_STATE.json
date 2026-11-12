@@ -7,7 +7,7 @@
   "environment": {
     "kind": "disposable-local-only",
     "supabase_cli": "3.1.0",
-    "postgres_major": 16,
+    "postgres_major": 17,
     "api_gateway": "Kong (Supabase local stack)",
     "auth": "GoTrue",
     "rest": "PostgREST",
