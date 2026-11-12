@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
-const API=process.env.SUPABASE_URL,ANON=process.env.SUPABASE_ANON_KEY,SERVICE=process.env.SUPABASE_SERVICE_ROLE_KEY;\nconst created=[];
+const API=process.env.SUPABASE_URL,ANON=process.env.SUPABASE_ANON_KEY,SERVICE=process.env.SUPABASE_SERVICE_ROLE_KEY;
+const created=[];
 async function admin(){const email="ch4-route-"+randomUUID()+"@example.test",password="Route-"+randomUUID()+"Aa!";const r=await fetch(API+"/auth/v1/admin/users",{method:"POST",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE,"Content-Type":"application/json"},body:JSON.stringify({email,password,email_confirm:true})});assert.equal(r.status,200);const u=await r.json();created.push(u.id);const s=await fetch(API+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:ANON,"Content-Type":"application/json"},body:JSON.stringify({email,password})});assert.equal(s.status,200);return {u,token:(await s.json()).access_token};}
 test("Next.js invoice GET routes reject missing/invalid bearer and invalid UUID; cache no-store",async()=>{
  const {u,token}=await admin();
