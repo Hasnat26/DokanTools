@@ -1,0 +1,71 @@
+name: CH-4 Local Supabase Integration Harness
+on:
+  pull_request:
+    branches: [integration/ifmvp-controlled-candidate-2026-11-11]
+  push:
+    branches: [qa/ch4-local-supabase-integration-2026-11-12]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-supabase-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.1.0
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify tested source SHAs
+        run: |
+          test "$(git rev-parse HEAD^)" = "6cc0ce8535423a9367ed05f17ecf15e5e1d34c20"
+          printf 'qa_harness_sha=%s\napplication_sha=%s\n' "$(git rev-parse HEAD)" "6cc0ce8535423a9367ed05f17ecf15e5e1d34c20" > artifacts-tested-sha.txt
+      - name: Verify candidate baseline blobs
+        run: |
+          test "$(git hash-object supabase/schema.sql)" = "e859b6de9660533962eddb6f9f3d17ad8a4c1cca"
+          test "$(git hash-object supabase/migrations/20261019_inventory_catalog.sql)" = "1f72ad2c8d643ec2d536225d8c8c09992d53cdc3"
+          test "$(git hash-object supabase/migrations/20261102_p0_idempotency.sql)" = "03c9cb2940799731d614e97a9b48da2d9418f707"
+          test "$(git hash-object supabase/migrations/202611110001_invoice_first_foundation.sql)" = "c7dfb445b02d3fdba196ed26f2d814674f4c9f11"
+      - name: Start disposable local Supabase
+        run: |
+          mkdir -p artifacts/ch4
+          supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector > "$RUNNER_TEMP/ch4-start.log" 2>&1 || { sed -E 's/eyJ[A-Za-z0-9._-]+/[REDACTED_JWT]/g; s/sb_secret_[A-Za-z0-9_-]+/[REDACTED_SECRET]/g' "$RUNNER_TEMP/ch4-start.log"; exit 1; }
+      - name: Export local-only environment
+        shell: bash
+        run: |
+          supabase --version > artifacts/ch4/cli-version.txt
+          supabase services > artifacts/ch4/service-versions.txt
+          docker ps --format '{{.Names}} {{.Image}}' | sort > artifacts/ch4/docker-images.txt
+          supabase status -o env > "$RUNNER_TEMP/ch4-local.env"
+          set -a; source "$RUNNER_TEMP/ch4-local.env"; set +a
+          printf 'SUPABASE_URL=%s\nSUPABASE_DB_URL=%s\nSUPABASE_ANON_KEY=%s\n' "$API_URL" "$DB_URL" "$ANON_KEY" >> "$GITHUB_ENV"
+          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$API_URL" "$ANON_KEY" >> "$GITHUB_ENV"
+      - name: Run endpoint safety tests
+        run: node --test tests/local-supabase-guard.test.mjs
+      - name: Run actual Supabase migration and catalog smoke
+        run: bash scripts/test-local-supabase.sh
+      - name: Stop disposable stack
+        if: always()
+        run: |
+          supabase stop --no-backup
+          echo "supabase_stop_exit=$?" > artifacts/ch4/cleanup-report.txt
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ch4-local-supabase-smoke-evidence
+          path: artifacts/ch4/
+          if-no-files-found: warn
+          retention-days: 14
