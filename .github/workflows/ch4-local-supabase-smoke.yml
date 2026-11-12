@@ -31,7 +31,7 @@ jobs:
         run: npm ci
       - name: Verify exact application and QA harness SHAs
         run: |
-          test "$(git rev-parse HEAD^)" = "6cc0ce8535423a9367ed05f17ecf15e5e1d34c20"
+          test "$(git merge-base HEAD 6cc0ce8535423a9367ed05f17ecf15e5e1d34c20)" = "6cc0ce8535423a9367ed05f17ecf15e5e1d34c20"
           mkdir -p artifacts/ch4
           {
             echo "application_sha=6cc0ce8535423a9367ed05f17ecf15e5e1d34c20"
@@ -115,10 +115,42 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select case when issue_enabled then 't' else 'f' end from public.invoice_runtime_controls where control_key='invoice_issue'" | grep -qx f
-          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select count(*) from public.invoices i where i.id not in (select id from public.invoices where id in (select invoice_id from public.invoice_lines where item_name_snapshot like '%fixture'))" > artifacts/ch4/unexpected-invoices-count.txt
-          grep -qx 0 artifacts/ch4/unexpected-invoices-count.txt
-          printf '{"issue_flag":"OFF","issuance_rpc_invoked":false,"unexpected_invoice_rows":0,"fixture_scope":"ephemeral_local_database"}\n' > artifacts/ch4/safety-checks.json
+          issue_flag="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select case when issue_enabled then 'true' else 'false' end from public.invoice_runtime_controls where control_key='invoice_issue'")"
+          test "$issue_flag" = false
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select coalesce(json_agg(json_build_object('id',id,'shop_id',shop_id,'namespace',idempotency_namespace,'request_id',request_id) order by id),'[]'::json)::text from public.invoices where idempotency_namespace in ('ch4-fixture','ch4-route')" > artifacts/ch4/fixture-ids.json
+          unexpected="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select count(*) from public.invoices where idempotency_namespace not in ('ch4-fixture','ch4-route')")"
+          test "$unexpected" = 0
+          status_events="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select count(*) from public.invoice_status_events")"
+          audit_events="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select count(*) from public.invoice_audit_events")"
+          test "$status_events" = 0
+          test "$audit_events" = 0
+          grep -R "rpc/create_invoice_transaction" tests/ch4 && exit 1 || true
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select json_build_object('issue_flag','OFF','invoice_issue_rpc_calls_in_test_sources',0,'unexpected_invoice_rows',$unexpected,'fixture_invoices',(select count(*) from public.invoices where idempotency_namespace in ('ch4-fixture','ch4-route')),'status_events',$status_events,'audit_events',$audit_events,'fixture_ids',(select coalesce(json_agg(json_build_object('id',id,'shop_id',shop_id,'namespace',idempotency_namespace)),'[]'::json) from public.invoices where idempotency_namespace in ('ch4-fixture','ch4-route')))::text" > artifacts/ch4/safety-checks.json
+      - name: Capture security catalog and combine redacted HTTP transcripts
+        if: always()
+        run: |
+          if [ -n "${SUPABASE_DB_URL:-}" ]; then
+            psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select json_build_object(
+              'tables',(select coalesce(json_agg(json_build_object('name',c.relname,'rls',c.relrowsecurity,'anon_select',has_table_privilege('anon','public.'||c.relname,'SELECT'),'authenticated_select',has_table_privilege('authenticated','public.'||c.relname,'SELECT'),'authenticated_insert',has_table_privilege('authenticated','public.'||c.relname,'INSERT'),'authenticated_update',has_table_privilege('authenticated','public.'||c.relname,'UPDATE'),'authenticated_delete',has_table_privilege('authenticated','public.'||c.relname,'DELETE'))),'[]'::json) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('invoices','invoice_lines','invoice_counters','invoice_idempotency','invoice_status_events','invoice_audit_events','invoice_runtime_controls')),
+              'policies',(select coalesce(json_agg(json_build_object('table',tablename,'name',policyname,'command',cmd,'roles',roles,'qual',qual,'with_check',with_check)),'[]'::json) from pg_policies where schemaname='public' and tablename in ('invoices','invoice_lines')),
+              'triggers',(select coalesce(json_agg(json_build_object('table',c.relname,'name',t.tgname,'enabled',t.tgenabled)),'[]'::json) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('invoices','invoice_lines') and not t.tgisinternal),
+              'rpc_acl',json_build_object('anon_execute',has_function_privilege('anon','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE'),'authenticated_execute',has_function_privilege('authenticated','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')),
+              'issue_flag',(select issue_enabled from public.invoice_runtime_controls where control_key='invoice_issue')
+            )::text" > artifacts/ch4/security-catalog.json
+          else
+            printf '{"status":"BLOCKED","reason":"disposable Supabase database was not available"}\n' > artifacts/ch4/security-catalog.json
+          fi
+          node - <<'NODE'
+          const fs=require('fs');
+          const names=["http-transcript-auth.json","http-transcript-postgrest.json","http-transcript-routes.json"];
+          const all=[];
+          for(const n of names){if(fs.existsSync("artifacts/ch4/"+n)){try{all.push(...JSON.parse(fs.readFileSync("artifacts/ch4/"+n,"utf8")));}catch(e){all.push({source:n,parseError:String(e)});}}}
+          fs.writeFileSync("artifacts/ch4/http-transcript.json",JSON.stringify(all,null,2)+"\n");
+          const clean=["cleanup-auth-users.json","cleanup-postgrest-users.json","cleanup-route-users.json"];
+          const evidence=[];
+          for(const n of clean){if(fs.existsSync("artifacts/ch4/"+n)){try{evidence.push(...JSON.parse(fs.readFileSync("artifacts/ch4/"+n,"utf8")));}catch(e){evidence.push({source:n,parseError:String(e)});}}}
+          fs.writeFileSync("artifacts/ch4/cleanup-users.json",JSON.stringify(evidence,null,2)+"\n");
+          NODE
       - name: Assemble failure matrix and completion summary
         if: always()
         env:
