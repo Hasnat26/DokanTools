@@ -39,7 +39,9 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
  const privateRead=await rest("invoice_counters?select=shop_id",ta);assert.ok([401,403].includes(privateRead.status));
  const before=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
  const attempts=await Promise.all([rest("invoices?id=eq."+invoiceA,ta,"PATCH",{bill_number:99}),rest("invoice_lines?invoice_id=eq."+invoiceA,ta,"DELETE"),rest("invoices",ta,"POST",{id:randomUUID(),shop_id:shopA})]);
- assert.ok(attempts.every(x=>[401,403,404].includes(x.status)));
+ assert.equal(attempts[0].status,403,"invoice UPDATE is denied by table privileges");
+ assert.equal(attempts[1].status,403,"invoice-line DELETE is denied by table privileges");
+ assert.equal(attempts[2].status,403,"invoice INSERT is denied by table privileges");
  const after=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
  assert.equal(after,before,"mutation-denial must leave DB fixture counts unchanged");
 });
