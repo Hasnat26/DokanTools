@@ -33,7 +33,7 @@ jobs:
         with:
           version: 3.1.0
       - name: Start disposable local Supabase services
-        run: supabase start -x studio,storage-api,realtime,imgproxy,inbucket,edge-runtime,logflare,vector
+        run: supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector
       - name: Export local-only Supabase connection details
         shell: bash
         run: |
