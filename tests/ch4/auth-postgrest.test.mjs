@@ -14,7 +14,7 @@ async function createUser(label){
  cleanupContext.after(async()=>{let ds=null,db="",gs=null,exists=null;try{const d=await fetch(API+"/auth/v1/admin/users/"+u.id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});ds=d.status;db=redact(await d.text());const g=await fetch(API+"/auth/v1/admin/users/"+u.id,{headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});gs=g.status;exists=g.status===200;console.log("CH4_AUTH_CLEANUP="+JSON.stringify({deleteStatus:ds,deleteBody:db,verifyStatus:gs,exists}));assert.equal(exists,false,"GoTrue Admin GET confirms user removal");assert.ok([200,204,404].includes(ds),"Unexpected GoTrue DELETE status");}catch(e){console.log("CH4_AUTH_CLEANUP="+JSON.stringify({deleteStatus:ds,deleteBody:db,verifyStatus:gs,exists,error:String(e)}));throw e;}});
  return {id:u.id,email,password:pw};
 }
-async function signin(u){const r=await req("/auth/v1/token?grant_type=password",{method:"POST",body:{email:u.email,password:u.password}});assert.equal(r.status,200);const j=await r.json();assert.ok(j.access_token&&j.access_token.split(".").length===3);return j.access_token;}
+async function signin(u){const r=await req("/auth/v1/token?grant_type=password",{method:"POST",body:{email:u.email,password:u.password}});assert.equal(r.status,200);const j=await r.json();assert.ok(j.access_token&&j.access_token.split(".").length===3);assert.ok(j.refresh_token);return {access:j.access_token,refresh:j.refresh_token};}
 function expiredToken(secret,subject){
  const b64=x=>Buffer.from(JSON.stringify(x)).toString("base64url");
  const head=b64({alg:"HS256",typ:"JWT"}), now=Math.floor(Date.now()/1000);
@@ -23,7 +23,8 @@ function expiredToken(secret,subject){
 }
 test("real GoTrue identities, JWT rejection, logout and account switch",async t=>{
  cleanupContext=t;assert.ok(API&&ANON&&SERVICE);assert.match(API,/^http:\/\/127\.0\.0\.1:54321$/);
- const a=await createUser("auth-a"),b=await createUser("auth-b"),[ta,tb]=await Promise.all([signin(a),signin(b)]);
+ const a=await createUser("auth-a"),b=await createUser("auth-b"),[sa,sb]=await Promise.all([signin(a),signin(b)]);
+ const ta=sa.access,tb=sb.access;
  const ua=await req("/auth/v1/user",{token:ta}),ub=await req("/auth/v1/user",{token:tb});
  assert.equal(ua.status,200);assert.equal((await ua.json()).id,a.id);assert.equal(ub.status,200);assert.equal((await ub.json()).id,b.id);
  for(const [label,token] of [["malformed","not.a.jwt"],["invalid-signature",ta.slice(0,-3)+"xyz"]]){const x=await req("/auth/v1/user",{token});assert.ok([401,403].includes(x.status),label+" rejected");console.log("CH4_AUTH_NEGATIVE="+JSON.stringify({case:label,status:x.status,body:redact(await x.text())}));}
@@ -33,4 +34,8 @@ test("real GoTrue identities, JWT rejection, logout and account switch",async t=
  const expired=expiredToken(secret,a.id),ex=await req("/auth/v1/user",{token:expired});console.log("CH4_EXPIRED_JWT="+JSON.stringify({status:ex.status,body:redact(await ex.text()),expired:true,signedWithLocalConfig:true}));assert.ok([401,403].includes(ex.status),"genuinely expired JWT rejected");
  const switched=await req("/auth/v1/user",{token:tb});assert.equal((await switched.json()).id,b.id);
  const out=await req("/auth/v1/logout",{method:"POST",token:ta});assert.ok([200,204].includes(out.status));
+ const refreshAfterLogout=await req("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:{refresh_token:sa.refresh}});
+ assert.ok([400,401,403].includes(refreshAfterLogout.status),"signed-out refresh token must be rejected");
+ const accessAfterLogout=await req("/auth/v1/user",{token:ta});
+ console.log("CH4_SIGNOUT_EVIDENCE="+JSON.stringify({logoutStatus:out.status,refreshAfterLogoutStatus:refreshAfterLogout.status,accessTokenAfterLogoutStatus:accessAfterLogout.status}));
 });
