@@ -46,4 +46,5 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
  assert.equal(attempts[2].status,403,"invoice INSERT is denied by table privileges");
  const after=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
  assert.equal(after,before,"mutation-denial must leave DB fixture counts unchanged");
+ console.log("CH4_TENANT_EVIDENCE="+JSON.stringify({ownerA:{visibleInvoiceIds:[invoiceA],foreignInvoiceIds:[]},ownerB:{visibleInvoiceIds:[invoiceB],foreignInvoiceIds:[]},crossTenantDisclosures:0,mutationStatuses:attempts.map(x=>x.status),before,after}));
 });
