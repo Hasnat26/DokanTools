@@ -82,18 +82,16 @@ jobs:
         run: |
           psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select case when issue_enabled then 't' else 'f' end from public.invoice_runtime_controls where control_key='invoice_issue'" | grep -qx f
           psql "$SUPABASE_DB_URL" -X -Atc "select count(*) from public.invoices" | grep -qx 0
-      - name: Cleanup local users and disposable stack
+      - name: Cleanup disposable stack and immutable fixtures
         if: always()
         shell: bash
         run: |
           set +e
-          source "$RUNNER_TEMP/ch4-local.env" 2>/dev/null
-          if [ -n "$API_URL" ] && [ -n "$ANON_KEY" ]; then curl --silent --fail -X POST "$API_URL/auth/v1/logout" -H "apikey: $ANON_KEY" >/dev/null; fi
           if [ -f "$RUNNER_TEMP/next.pid" ]; then kill "$(cat "$RUNNER_TEMP/next.pid")" 2>/dev/null; fi
           supabase stop --no-backup
-          rc=$?
-          echo "supabase_stop_exit=$rc" > artifacts/ch4/cleanup-report.txt
-          exit "$rc"
+          stop_rc=$?
+          printf "supabase_stop_exit=%s\\nfixture_lifecycle=entire_disposable_database_destroyed\\n" "$stop_rc" > artifacts/ch4/cleanup-report.txt
+          exit "$stop_rc"
       - name: Upload redacted evidence
         if: always()
         uses: actions/upload-artifact@v4
