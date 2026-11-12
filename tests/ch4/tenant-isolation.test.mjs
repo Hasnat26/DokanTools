@@ -79,9 +79,13 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
    const state=await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`);
    assert.equal(state,before,name+" must not alter database fixtures");
  }
- const roleProbe=await sql(`begin; set local role authenticated; set local request.jwt.claims='{"sub":"${a.id}","role":"authenticated"}'; select auth.uid(); rollback;`);
- assert.equal(roleProbe,a.id,"auth.uid() must resolve authenticated JWT subject");
- const roleProbeB=await sql(`begin; set local role authenticated; set local request.jwt.claims='{"sub":"${b.id}","role":"authenticated"}'; select auth.uid(); rollback;`);
+ const roleProbeOutput=await sql(`begin; set local role authenticated; set local request.jwt.claims='{"sub":"${a.id}","role":"authenticated"}'; select auth.uid(); rollback;`);
+ const roleProbe=roleProbeOutput.split(/\\r?\\n/).find(x=>x===a.id);
+ assert.equal(roleProbe,a.id,"auth.uid() must resolve Owner A authenticated JWT subject");
+ const roleProbeBOutput=await sql(`begin; set local role authenticated; set local request.jwt.claims='{"sub":"${b.id}","role":"authenticated"}'; select auth.uid(); rollback;`);
+ const roleProbeB=roleProbeBOutput.split(/\\r?\\n/).find(x=>x===b.id);
  assert.equal(roleProbeB,b.id,"auth.uid() must resolve Owner B authenticated JWT subject");
- const tenantEvidence={ownerA:{visibleInvoiceIds:[invoiceA],foreignInvoiceIds:[]},ownerB:{visibleInvoiceIds:[invoiceB],foreignInvoiceIds:[]},crossTenantDisclosures:0,crossLineDisclosures:0,mutationEvidence,before,after:await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`),authUidSubjectA:roleProbe,authUidSubjectB:roleProbeB}; await saveEvidence("tenant-isolation.json",tenantEvidence); await saveEvidence("http-transcript-postgrest.json",httpTranscript); console.log("CH4_TENANT_EVIDENCE="+JSON.stringify(tenantEvidence));
+ const rpcAcl=await sql(`select has_function_privilege('anon','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')::text||':'||exists(select 1 from pg_proc p,lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where p.oid='public.create_invoice_transaction(uuid,text,uuid,jsonb)'::regprocedure and a.grantee=0 and a.privilege_type='EXECUTE')::text||':'||has_function_privilege('authenticated','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')::text`);
+ assert.equal(rpcAcl,"false:false:true","invoice issue RPC ACL must deny anon/PUBLIC and grant authenticated; RPC is not invoked");
+ const tenantEvidence={ownerA:{visibleInvoiceIds:[invoiceA],foreignInvoiceIds:[]},ownerB:{visibleInvoiceIds:[invoiceB],foreignInvoiceIds:[]},crossTenantDisclosures:0,crossLineDisclosures:0,mutationEvidence,before,after:await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`),authUidSubjectA:roleProbe,authUidSubjectB:roleProbeB}; await saveEvidence("tenant-isolation.json",tenantEvidence); await saveEvidence("http-transcript-postgrest.json",httpTranscript); tenantEvidence.rpcAcl=rpcAcl; console.log("CH4_TENANT_EVIDENCE="+JSON.stringify(tenantEvidence));
 });
