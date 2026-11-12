@@ -38,5 +38,22 @@ test("actual Next.js invoice history/detail routes with two real tenant JWTs and
  const absent=await get("/api/invoices/"+randomUUID()+"?shopId="+shopA,a.token);assert.equal(absent.status,404);assert.deepEqual(await absent.json(),{error:{code:"INVOICE_NOT_FOUND"}});
  const wrongShop=await get("/api/invoices/"+invA+"?shopId="+shopB,a.token);assert.equal(wrongShop.status,404);
  const badShop=await get("/api/invoices?shopId=bad",a.token);assert.equal(badShop.status,400);
- const routeEvidence={ownerAHistory:histA.status,ownerBHistory:histB.status,ownerADetail:detailA.status,ownerBDetail:detailB.status,crossOwnerHistory:crossHistory.status,crossOwnerDetail:crossDetail.status,missingBearer:missing.status,invalidBearer:invalid.status,expiredBearer:expired.status,malformedUuid:malformed.status,notFound:absent.status,wrongShop:wrongShop.status,historyDtoKeys:Object.keys(bodyA.invoices[0]),detailDtoKeys:Object.keys(da.invoice)}; await saveEvidence("route-evidence.json",routeEvidence); await saveEvidence("http-transcript-routes.json",httpTranscript); console.log("CH4_ROUTE_EVIDENCE="+JSON.stringify(routeEvidence));
+ // Capture the upstream PostgREST result independently from the application response.
+ const upstreamA=await fetch(API+"/rest/v1/invoices?select=id&id=eq."+invA,{headers:{apikey:ANON,Authorization:"Bearer "+a.token}});
+ const upstreamABody=await upstreamA.json();assert.equal(upstreamA.status,200);assert.equal(upstreamABody[0].id,invA);
+ // Inject an actual PostgREST 500 through the local-only proxy; Auth continues to use real GoTrue.
+ const setFault=async mode=>{const x=await fetch("http://127.0.0.1:54329/__ch4/fault",{method:"POST",body:mode});assert.equal(x.status,200);};
+ await setFault("invoice-query");
+ const invoiceQueryFailure=await get("/api/invoices/"+invA+"?shopId="+shopA,a.token),invoiceFailureBody=await invoiceQueryFailure.json();
+ assert.equal(invoiceQueryFailure.status,404);assert.deepEqual(invoiceFailureBody,{error:{code:"INVOICE_NOT_FOUND"}});
+ await setFault("invoice-lines-query");
+ const lineQueryFailure=await get("/api/invoices/"+invA+"?shopId="+shopA,a.token),lineFailureBody=await lineQueryFailure.json();
+ assert.equal(lineQueryFailure.status,503);assert.deepEqual(lineFailureBody,{error:{code:"INVOICE_UNAVAILABLE"}});
+ const historyLinesFailure=await get("/api/invoices?shopId="+shopA,a.token);assert.equal(historyLinesFailure.status,503);assert.deepEqual(await historyLinesFailure.json(),{error:{code:"INVOICE_HISTORY_UNAVAILABLE"}});
+ await setFault("off");
+ const proxyEvidenceResponse=await fetch("http://127.0.0.1:54329/__ch4/evidence"),proxyEvidence=await proxyEvidenceResponse.json();
+ assert.deepEqual(proxyEvidence.injections.map(x=>x.upstreamStatus),[500,500,500]);
+ const unexpectedTraffic=proxyEvidence.traffic.filter(x=>x.method!=="GET"&&(x.path.startsWith("/rest/v1/invoices")||x.path.startsWith("/rest/v1/invoice_lines")||x.path.includes("/rpc/")));
+ assert.equal(unexpectedTraffic.length,0,"No invoice mutation, issuance RPC or unexpected POST reached PostgREST");
+ const routeEvidence={ownerAHistory:histA.status,ownerBHistory:histB.status,ownerADetail:detailA.status,ownerBDetail:detailB.status,crossOwnerHistory:crossHistory.status,crossOwnerDetail:crossDetail.status,missingBearer:missing.status,invalidBearer:invalid.status,expiredBearer:expired.status,malformedUuid:malformed.status,notFound:absent.status,wrongShop:wrongShop.status,historyDtoKeys:Object.keys(bodyA.invoices[0]),detailDtoKeys:Object.keys(da.invoice),upstreamPostgrest:{status:upstreamA.status,invoiceId:upstreamABody[0].id},injectedFailures:proxyEvidence.injections,unexpectedMutationTraffic:unexpectedTraffic}; await saveEvidence("route-evidence.json",routeEvidence); await saveEvidence("proxy-traffic.json",proxyEvidence); await saveEvidence("http-transcript-routes.json",httpTranscript); console.log("CH4_ROUTE_EVIDENCE="+JSON.stringify(routeEvidence));
 });
