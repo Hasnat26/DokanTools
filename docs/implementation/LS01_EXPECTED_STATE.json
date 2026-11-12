@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "work_order": "LS-01",
   "project": "DokanTools",
-  "baseline_commit": "79162f2361dd4de9ed03fa31f8e65be82e20d7cd",
+  "baseline_commit": "50305a1fbbfca147abca1c1495720b11c238db05",
   "pinned_baseline_schema_commit": "9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1",
   "environment": {
     "kind": "disposable-local-only",
@@ -67,5 +67,6 @@
     "PO-06 catalog eligibility and authoritative price policy remains unresolved; no policy is introduced.",
     "Production ACL and migration-role ownership remain unverified and are outside LS-01.",
     "No production or hosted Supabase access is permitted."
-  ]
+  ],
+  "note": "The selected QA branch is rooted at application candidate 6cc0ce8535423a9367ed05f17ecf15e5e1d34c20 and does not contain the PR #39 commit graph. Pinned schema.sql, inventory migration and P0 migration were independently SHA-compared against baseline 9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1 and are byte-identical. The runner applies the candidate-tree blobs directly; it does not merge or cherry-pick PR #39."
 }
