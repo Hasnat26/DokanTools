@@ -4,6 +4,7 @@ declare
   v_count integer;
   v_issue boolean;
   v_cfg text[];
+  v_function_owner text;
   v_owner_select integer;
   v_bad integer;
 begin
@@ -38,10 +39,14 @@ begin
    where has_table_privilege('anon','public.'||table_name,'SELECT')
       or has_table_privilege('authenticated','public.'||table_name,'SELECT');
   if v_bad<>0 then raise exception 'LS01: internal invoice table SELECT grant detected'; end if;
-  select prosecdef, proconfig into v_issue, v_cfg from pg_proc
+  select prosecdef, proconfig, pg_get_userbyid(proowner)
+    into v_issue, v_cfg, v_function_owner from pg_proc
    where oid='public.create_invoice_transaction(uuid,text,uuid,jsonb)'::regprocedure;
   if not coalesce(v_issue,false) or not ('search_path=pg_catalog'=any(coalesce(v_cfg,array[]::text[]))) then
     raise exception 'LS01: RPC must remain SECURITY DEFINER with search_path=pg_catalog';
+  end if;
+  if v_function_owner is distinct from current_user then
+    raise exception 'LS01: RPC owner must match the local migration executor; actual owner=% current_user=%',v_function_owner,current_user;
   end if;
   if has_function_privilege('anon','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')
      or has_function_privilege('anon','public.reject_invoice_fact_mutation()','EXECUTE')
