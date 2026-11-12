@@ -44,7 +44,7 @@
     },
     {
       "id": "rpc_security",
-      "expect": "create_invoice_transaction is SECURITY DEFINER with search_path=pg_catalog"
+      "expect": "create_invoice_transaction is SECURITY DEFINER with search_path=pg_catalog and owner equal to the local migration executor"
     },
     {
       "id": "rpc_acl",
