@@ -162,6 +162,13 @@ jobs:
           for(const n of clean){if(fs.existsSync("artifacts/ch4/"+n)){try{evidence.push(...JSON.parse(fs.readFileSync("artifacts/ch4/"+n,"utf8")));}catch(e){evidence.push({source:n,parseError:String(e)});}}}
           fs.writeFileSync("artifacts/ch4/cleanup-users.json",JSON.stringify(evidence,null,2)+"\n");
           NODE
+      - name: Intentional failure-path probe before unconditional cleanup
+        id: cleanup_failure_probe
+        if: always()
+        continue-on-error: true
+        run: |
+          echo "CH4_EXPECTED_FAILURE_PROBE=exit-73"
+          exit 73
       - name: Cleanup disposable stack and immutable fixtures
         if: always()
         shell: bash
@@ -181,12 +188,14 @@ jobs:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           ROUTES_OUTCOME: ${{ steps.routes.outcome }}
           SAFETY_OUTCOME: ${{ steps.safety.outcome }}
+          CLEANUP_FAILURE_PROBE_OUTCOME: ${{ steps.cleanup_failure_probe.outcome }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
           const path = "artifacts/ch4/";
           const cases = ["auth","postgrest","build","routes","safety"];
           const values = Object.fromEntries(cases.map(k => [k, process.env[k.toUpperCase()+"_OUTCOME"] || "missing"]));
+          values.cleanupFailurePathProbe = process.env.CLEANUP_FAILURE_PROBE_OUTCOME === "failure" ? "expected-failure-observed" : (process.env.CLEANUP_FAILURE_PROBE_OUTCOME || "missing");
           fs.writeFileSync(path+"failure-matrix.json", JSON.stringify(values,null,2)+"\n");
           let executed=0, skipped=0, todo=0, failures=0;
           for (const name of ["auth-test-results.xml","postgrest-rls-results.xml","api-route-results.xml"]) {
@@ -209,7 +218,8 @@ jobs:
           fs.writeFileSync(path+"test-counts.json",JSON.stringify({executed,skipped,todo,failures},null,2)+"\n");
           const failedSuites=cases.filter(k=>values[k]!=="success");
           const cleanupComplete=cleanup.includes("supabase_stop_exit=0") && cleanup.includes("fixture_lifecycle=entire_disposable_database_destroyed");
-          const complete=failedSuites.length===0 && skipped===0 && todo===0 && failures===0 && executed>0 && cleanupComplete;
+          const failurePathVerified=process.env.CLEANUP_FAILURE_PROBE_OUTCOME==="failure";
+          const complete=failedSuites.length===0 && skipped===0 && todo===0 && failures===0 && executed>0 && cleanupComplete && failurePathVerified;
           const summary="# CH-4 run summary\n\n"+cases.map(k=>"- "+k+": "+values[k]).join("\n")+"\n\nExecuted: "+executed+"\nSkipped: "+skipped+"\nTODO: "+todo+"\nJUnit failures/errors: "+failures+"\nIndividual GoTrue user deletion: "+verifiedUsers+" verified, "+unverifiedUsers+" NOT VERIFIED (FK references preserved; disposable database teardown is authoritative)\nDisposable stack teardown: "+(cleanupComplete?"PASS":"FAIL")+"\n\nOverall: "+(complete?"COMPLETE":"INCOMPLETE")+"\n";
           fs.writeFileSync(path+"summary.md",summary);
           if (!complete) process.exitCode=1;
@@ -230,9 +240,11 @@ jobs:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           ROUTES_OUTCOME: ${{ steps.routes.outcome }}
           SAFETY_OUTCOME: ${{ steps.safety.outcome }}
+          CLEANUP_FAILURE_PROBE_OUTCOME: ${{ steps.cleanup_failure_probe.outcome }}
         run: |
           test "$AUTH_OUTCOME" = success
           test "$POSTGREST_OUTCOME" = success
           test "$BUILD_OUTCOME" = success
           test "$ROUTES_OUTCOME" = success
           test "$SAFETY_OUTCOME" = success
+          test "$CLEANUP_FAILURE_PROBE_OUTCOME" = failure
