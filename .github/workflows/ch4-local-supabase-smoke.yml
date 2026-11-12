@@ -1,4 +1,4 @@
-name: CH-4 Local Supabase Integration Harness
+name: CH-4 Genuine Local Supabase Integration
 on:
   pull_request:
     branches: [integration/ifmvp-controlled-candidate-2026-11-11]
@@ -8,9 +8,9 @@ on:
 permissions:
   contents: read
 jobs:
-  local-supabase-smoke:
+  integration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,6 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
@@ -28,44 +29,76 @@ jobs:
           version: 3.1.0
       - name: Install dependencies
         run: npm ci
-      - name: Verify tested source SHAs
+      - name: Verify exact application and QA harness SHAs
         run: |
           test "$(git rev-parse HEAD^)" = "6cc0ce8535423a9367ed05f17ecf15e5e1d34c20"
-          printf 'qa_harness_sha=%s\napplication_sha=%s\n' "$(git rev-parse HEAD)" "6cc0ce8535423a9367ed05f17ecf15e5e1d34c20" > artifacts-tested-sha.txt
-      - name: Verify candidate baseline blobs
+          mkdir -p artifacts/ch4
+          {
+            echo "application_sha=6cc0ce8535423a9367ed05f17ecf15e5e1d34c20"
+            echo "qa_harness_sha=$(git rev-parse HEAD)"
+            echo "pr39_ls01_source_sha=50305a1fbbfca147abca1c1495720b11c238db05"
+          } > artifacts/ch4/tested-sha.txt
+      - name: Verify candidate schema and migration identities
         run: |
           test "$(git hash-object supabase/schema.sql)" = "e859b6de9660533962eddb6f9f3d17ad8a4c1cca"
           test "$(git hash-object supabase/migrations/20261019_inventory_catalog.sql)" = "1f72ad2c8d643ec2d536225d8c8c09992d53cdc3"
           test "$(git hash-object supabase/migrations/20261102_p0_idempotency.sql)" = "03c9cb2940799731d614e97a9b48da2d9418f707"
           test "$(git hash-object supabase/migrations/202611110001_invoice_first_foundation.sql)" = "c7dfb445b02d3fdba196ed26f2d814674f4c9f11"
-      - name: Start disposable local Supabase
+      - name: Start disposable Supabase stack
         run: |
-          mkdir -p artifacts/ch4
           supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector > "$RUNNER_TEMP/ch4-start.log" 2>&1 || { sed -E 's/eyJ[A-Za-z0-9._-]+/[REDACTED_JWT]/g; s/sb_secret_[A-Za-z0-9_-]+/[REDACTED_SECRET]/g' "$RUNNER_TEMP/ch4-start.log"; exit 1; }
-      - name: Export local-only environment
+      - name: Capture service versions and local-only credentials
         shell: bash
         run: |
-          supabase --version > artifacts/ch4/cli-version.txt
-          supabase services > artifacts/ch4/service-versions.txt
+          supabase --version > artifacts/ch4/supabase-cli-version.txt
+          supabase services > artifacts/ch4/supabase-services.txt
           docker ps --format '{{.Names}} {{.Image}}' | sort > artifacts/ch4/docker-images.txt
           supabase status -o env > "$RUNNER_TEMP/ch4-local.env"
+          chmod 600 "$RUNNER_TEMP/ch4-local.env"
           set -a; source "$RUNNER_TEMP/ch4-local.env"; set +a
-          printf 'SUPABASE_URL=%s\nSUPABASE_DB_URL=%s\nSUPABASE_ANON_KEY=%s\n' "$API_URL" "$DB_URL" "$ANON_KEY" >> "$GITHUB_ENV"
-          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$API_URL" "$ANON_KEY" >> "$GITHUB_ENV"
-      - name: Run endpoint safety tests
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "SUPABASE_DB_URL=$DB_URL"
+            echo "SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+          } >> "$GITHUB_ENV"
+      - name: Enforce endpoint guard before database operations
         run: node --test tests/local-supabase-guard.test.mjs
-      - name: Run actual Supabase migration and catalog smoke
+      - name: Apply pinned baseline and invoice migration
         run: bash scripts/test-local-supabase.sh
-      - name: Stop disposable stack
-        if: always()
+      - name: Run actual GoTrue and PostgREST integration suite
+        run: node --test tests/ch4/auth-postgrest.test.mjs tests/ch4/tenant-isolation.test.mjs
+      - name: Start Next.js and run actual GET route integration
+        shell: bash
         run: |
+          npm run build
+          npm run start > "$RUNNER_TEMP/next.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/next.pid"
+          for i in $(seq 1 60); do curl --silent --fail http://127.0.0.1:3000/api/invoices?shopId=00000000-0000-4000-8000-000000000001 >/dev/null || true; if curl --silent http://127.0.0.1:3000 >/dev/null; then break; fi; sleep 1; done
+          node --test tests/ch4/api-routes.test.mjs
+      - name: Verify issue gate and no issuance side effects
+        run: |
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select case when issue_enabled then 't' else 'f' end from public.invoice_runtime_controls where control_key='invoice_issue'" | grep -qx f
+          psql "$SUPABASE_DB_URL" -X -Atc "select count(*) from public.invoices" | grep -qx 0
+      - name: Cleanup local users and disposable stack
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          source "$RUNNER_TEMP/ch4-local.env" 2>/dev/null
+          if [ -n "$API_URL" ] && [ -n "$ANON_KEY" ]; then curl --silent --fail -X POST "$API_URL/auth/v1/logout" -H "apikey: $ANON_KEY" >/dev/null; fi
+          if [ -f "$RUNNER_TEMP/next.pid" ]; then kill "$(cat "$RUNNER_TEMP/next.pid")" 2>/dev/null; fi
           supabase stop --no-backup
-          echo "supabase_stop_exit=$?" > artifacts/ch4/cleanup-report.txt
-      - name: Upload smoke evidence
+          rc=$?
+          echo "supabase_stop_exit=$rc" > artifacts/ch4/cleanup-report.txt
+          exit "$rc"
+      - name: Upload redacted evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ch4-local-supabase-smoke-evidence
+          name: ch4-local-supabase-integration-evidence
           path: artifacts/ch4/
           if-no-files-found: warn
           retention-days: 14
