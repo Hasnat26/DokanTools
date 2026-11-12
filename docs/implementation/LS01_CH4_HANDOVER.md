@@ -17,7 +17,7 @@ CH-4 owns the subsequent Owner A/B integration tests. LS-01 does not create test
 | PostgREST | `http://127.0.0.1:54321/rest/v1` | Actual HTTP API/RLS |
 | PostgreSQL | `127.0.0.1:54322/postgres` | Local migration/catalog verification |
 
-The CLI's local `supabase status -o env` output provides `API_URL`, `DB_URL`, `ANON_KEY` and `SERVICE_ROLE_KEY`. Never print or upload this file. Only the local API URL, DB URL and anon key are passed to the smoke script. The service-role key is not used for Owner A/B requests.
+The CLI's `supabase services` output and Docker image inventory are retained in the CI evidence artifact to record the exact service image versions selected by the pinned CLI. The CLI's local `supabase status -o env` output provides `API_URL`, `DB_URL`, `ANON_KEY` and `SERVICE_ROLE_KEY`. Never print or upload this file. Only the local API URL, DB URL and anon key are passed to the smoke script. The service-role key is not used for Owner A/B requests.
 
 ## Test identity bootstrap contract
 
