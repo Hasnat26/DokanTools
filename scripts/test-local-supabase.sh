@@ -48,4 +48,5 @@ psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f scripts/assert-local-supabase.s
 } > "$ARTIFACT_DIR/ls01-summary.txt"
 grep -qx 'issue_flag=f' "$ARTIFACT_DIR/ls01-summary.txt"
 cp docs/implementation/LS01_EXPECTED_STATE.json "$ARTIFACT_DIR/expected-state.json"
+cp docs/implementation/LS01_CH4_HANDOVER.md "$ARTIFACT_DIR/ch4-handover.md"
 echo "PASS: genuine local Supabase Auth, PostgREST, PostgreSQL, migrations and security assertions."
