@@ -91,3 +91,8 @@ Run from the repository root with Docker and Supabase CLI 3.1.0. The endpoint gu
 ## Evidence boundaries
 
 Successful LS-01 evidence proves that the disposable local Supabase services start, the pinned migration sequence applies, and the catalog assertions pass in that local environment. It does not prove hosted/production ACLs, PO policy approval, real customer workflows, invoice issuance authorization, or release readiness.
+
+
+## CH-4 selective-port note
+
+Current LS-01 source commit: `50305a1fbbfca147abca1c1495720b11c238db05`. QA application candidate: `6cc0ce8535423a9367ed05f17ecf15e5e1d34c20`. The approved main-baseline schema, inventory migration and P0 migration blobs were verified identical by SHA in the candidate tree. The CH-4 smoke runner consumes those candidate-tree files directly because PR #39 is a divergent branch and is not merged into the QA history. The reliability migration is intentionally not replayed; the consolidated schema already contains its resulting objects/policies, and replay would duplicate the customer SELECT policy. No application source, migration, RLS or grants are modified by this note.
