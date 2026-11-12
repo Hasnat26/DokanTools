@@ -76,6 +76,17 @@ jobs:
         run: node --test tests/local-supabase-guard.test.mjs
       - name: Apply pinned baseline and invoice migration
         run: bash scripts/test-local-supabase.sh
+      - name: Start local PostgREST fault-injection proxy
+        id: proxy
+        run: |
+          node tests/ch4/supabase-fault-proxy.mjs > "$RUNNER_TEMP/ch4-proxy.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/ch4-proxy.pid"
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:54329/__ch4/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/ch4-proxy.log"
+          exit 1
       - name: Run Auth suite and preserve its exit code
         id: auth
         continue-on-error: true
@@ -91,7 +102,7 @@ jobs:
         id: build
         if: always()
         continue-on-error: true
-        run: npm run build
+        run: NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54329 npm run build
       - name: Start Next.js and run actual GET routes
         id: routes
         if: always()
@@ -124,7 +135,7 @@ jobs:
           audit_events="$(psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select count(*) from public.invoice_audit_events")"
           test "$status_events" = 0
           test "$audit_events" = 0
-          grep -R "rpc/create_invoice_transaction" tests/ch4 && exit 1 || true
+          if grep -R -q "rpc/create_invoice_transaction" tests/ch4; then echo "Forbidden issuance RPC invocation found in QA tests" >&2; exit 1; fi
           psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "select json_build_object('issue_flag','OFF','invoice_issue_rpc_calls_in_test_sources',0,'unexpected_invoice_rows',$unexpected,'fixture_invoices',(select count(*) from public.invoices where idempotency_namespace in ('ch4-fixture','ch4-route')),'status_events',$status_events,'audit_events',$audit_events,'fixture_ids',(select coalesce(json_agg(json_build_object('id',id,'shop_id',shop_id,'namespace',idempotency_namespace)),'[]'::json) from public.invoices where idempotency_namespace in ('ch4-fixture','ch4-route')))::text" > artifacts/ch4/safety-checks.json
       - name: Capture security catalog and combine redacted HTTP transcripts
         if: always()
@@ -150,6 +161,10 @@ jobs:
           const evidence=[];
           for(const n of clean){if(fs.existsSync("artifacts/ch4/"+n)){try{evidence.push(...JSON.parse(fs.readFileSync("artifacts/ch4/"+n,"utf8")));}catch(e){evidence.push({source:n,parseError:String(e)});}}}
           fs.writeFileSync("artifacts/ch4/cleanup-users.json",JSON.stringify(evidence,null,2)+"\n");
+          const xml=["auth-test-results.xml","postgrest-rls-results.xml","api-route-results.xml"];
+          let executed=0, skipped=0, todo=0;
+          for(const n of xml){if(fs.existsSync("artifacts/ch4/"+n)){const s=fs.readFileSync("artifacts/ch4/"+n,"utf8");for(const m of s.matchAll(/<!-- tests (\\d+) -->/g))executed+=Number(m[1]);for(const m of s.matchAll(/<!-- skipped (\\d+) -->/g))skipped+=Number(m[1]);for(const m of s.matchAll(/<!-- todo (\\d+) -->/g))todo+=Number(m[1]);}}
+          fs.writeFileSync("artifacts/ch4/test-counts.json",JSON.stringify({executed,skipped,todo},null,2)+"\n");
           NODE
       - name: Assemble failure matrix and completion summary
         if: always()
@@ -166,7 +181,8 @@ jobs:
           const values = Object.fromEntries(cases.map(k => [k, process.env[k.toUpperCase()+"_OUTCOME"] || "missing"]));
           fs.writeFileSync("artifacts/ch4/failure-matrix.json", JSON.stringify(values,null,2)+"\n");
           const bad = cases.filter(k => values[k] !== "success");
-          fs.writeFileSync("artifacts/ch4/summary.md", "# CH-4 run summary\n\n"+cases.map(k=>"- "+k+": "+values[k]).join("\n")+"\n\nOverall: "+(bad.length ? "INCOMPLETE" : "suite steps successful")+"\n");
+          const counts=fs.existsSync("artifacts/ch4/test-counts.json")?JSON.parse(fs.readFileSync("artifacts/ch4/test-counts.json","utf8")):{executed:0,skipped:0,todo:0};
+          fs.writeFileSync("artifacts/ch4/summary.md", "# CH-4 run summary\n\n"+cases.map(k=>"- "+k+": "+values[k]).join("\n")+"\n\nExecuted: "+counts.executed+"\nSkipped: "+counts.skipped+"\nTODO: "+counts.todo+"\n\nOverall: "+(bad.length||counts.skipped||counts.todo?"INCOMPLETE":"suite steps successful")+"\n");
           NODE
       - name: Cleanup disposable stack and immutable fixtures
         if: always()
@@ -174,6 +190,7 @@ jobs:
         run: |
           set +e
           if [ -f "$RUNNER_TEMP/next.pid" ]; then kill "$(cat "$RUNNER_TEMP/next.pid")" 2>/dev/null; fi
+          if [ -f "$RUNNER_TEMP/ch4-proxy.pid" ]; then kill "$(cat "$RUNNER_TEMP/ch4-proxy.pid")" 2>/dev/null; fi
           supabase stop --no-backup
           stop_rc=$?
           printf "supabase_stop_exit=%s\nfixture_lifecycle=entire_disposable_database_destroyed\nfixture_user_deletion=recorded_in_test_evidence\n" "$stop_rc" > artifacts/ch4/cleanup-report.txt
