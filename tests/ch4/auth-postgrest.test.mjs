@@ -9,7 +9,7 @@ const cleanupEvidence=[];
 const httpTranscript=[];
 const evidenceDir=process.env.CH4_EVIDENCE_DIR||"artifacts/ch4";
 async function saveEvidence(name,value){const fs=await import("node:fs");fs.mkdirSync(evidenceDir,{recursive:true});fs.writeFileSync(evidenceDir+"/"+name,JSON.stringify(value,null,2)+"\n");}
-function redact(s){return String(s).replace(/eyJ[A-Za-z0-9._-]+/g,"[JWT]").replace(/sb_secret_[A-Za-z0-9_-]+/g,"[SECRET]").slice(0,1000);}
+function redact(s){return String(s).replace(/("(?:access_token|refresh_token|password|service_role_key|apikey)"\\s*:\\s*")[^"]*"/gi,'$1[REDACTED]"').replace(/eyJ[A-Za-z0-9._-]+/g,"[JWT]").replace(/sb_secret_[A-Za-z0-9_-]+/g,"[SECRET]").slice(0,1000);}
 async function req(path,{method="GET",token,body,headers={}}={}){const h={apikey:ANON,...headers};if(token)h.Authorization="Bearer "+token;if(body!==undefined)h["Content-Type"]="application/json";const r=await fetch(API+path,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)});httpTranscript.push({method,path,status:r.status,body:redact(await r.clone().text())});return r;}
 async function createUser(label){
  const email="ch4-"+label+"-"+randomUUID()+"@example.test";
