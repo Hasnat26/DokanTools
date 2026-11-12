@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 
 const fileUrl = new URL("../src/app/api/invoices/[invoiceId]/route.ts", import.meta.url);
@@ -21,7 +20,7 @@ test("detail GET routes every explicit response through the no-store helper", as
   ]) assert.match(source, branch);
 });
 
-test("shared detail response helper preserves all existing status/body branches and adds both headers", async () => {
+test("detail GET response cases retain status/error bodies and emit both private cache headers", async () => {
   const cases = [
     [400, { error: { code: "INVALID_INVOICE_ID" } }],
     [401, { error: { code: "UNAUTHENTICATED" } }],
@@ -31,7 +30,10 @@ test("shared detail response helper preserves all existing status/body branches 
     [200, { invoice: { id: "11111111-1111-4111-8111-111111111111" } }],
   ];
   for (const [status, body] of cases) {
-    const response = NextResponse.json(body, { status, headers: requiredHeaders });
+    const response = new Response(JSON.stringify(body), {
+      status,
+      headers: { ...requiredHeaders, "Content-Type": "application/json" },
+    });
     assert.equal(response.status, status);
     assert.equal(response.headers.get("Cache-Control"), "no-store");
     assert.equal(response.headers.get("Pragma"), "no-cache");
