@@ -33,7 +33,11 @@ jobs:
         with:
           version: 3.1.0
       - name: Start disposable local Supabase services
-        run: supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector
+        run: |
+          if ! supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector > "$RUNNER_TEMP/ls01-start.log" 2>&1; then
+            sed -E 's/sb_secret_[A-Za-z0-9_-]+/[REDACTED_LOCAL_SECRET]/g; s/sb_publishable_[A-Za-z0-9_-]+/[REDACTED_LOCAL_PUBLISHABLE_KEY]/g; s/eyJ[A-Za-z0-9._-]+/[REDACTED_LOCAL_JWT]/g' "$RUNNER_TEMP/ls01-start.log"
+            exit 1
+          fi
       - name: Capture exact CLI and service image versions
         run: |
           mkdir -p artifacts/ls01
