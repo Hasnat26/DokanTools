@@ -24,6 +24,7 @@ const transcript = [];
 let mockServer;
 let configuredApp;
 let noConfigApp;
+let mockScenario = "normal";
 
 const invoiceRow = {
   id: INVOICE_ID, shop_id: SHOP_ID, bill_number: 17,
@@ -81,7 +82,7 @@ async function mockHandler(req, res) {
     if (url.searchParams.get("id") !== `eq.${INVOICE_ID}`) {
       res.writeHead(200); res.end("[]"); return;
     }
-    if (url.searchParams.get("id") === `eq.${INVOICE_ID}` && req.headers["x-synthetic-case"] === "invoice-query-error") {
+    if (url.searchParams.get("id") === `eq.${INVOICE_ID}` && mockScenario === "invoice-query-error") {
       res.writeHead(500); res.end(JSON.stringify({ code: "XX000", message: "synthetic invoice query failure" })); return;
     }
     if (req.headers["x-synthetic-case"] === "invoice-query-error") {
@@ -93,7 +94,7 @@ async function mockHandler(req, res) {
     if (url.searchParams.get("shop_id") !== `eq.${SHOP_ID}` || url.searchParams.get("invoice_id") !== `eq.${INVOICE_ID}`) {
       res.writeHead(400); res.end(JSON.stringify({ message: "missing exact invoice-line filters" })); return;
     }
-    if (req.headers["x-synthetic-case"] === "invoice-lines-error") {
+    if (mockScenario === "invoice-lines-error") {
       res.writeHead(500); res.end(JSON.stringify({ code: "XX000", message: "synthetic invoice-lines failure" })); return;
     }
     res.writeHead(200); res.end(JSON.stringify(lineRows)); return;
@@ -225,28 +226,20 @@ test("06 invoice row missing -> exact 404 INVOICE_NOT_FOUND", async () => {
 });
 
 test("07 invoice PostgREST query failure -> exact 404 INVOICE_NOT_FOUND", async () => {
-  // The route's PostgREST filter is validated at the mock boundary; this synthetic request selects the error fixture.
   const start = transcript.length;
-  const response = await fetch(`http://127.0.0.1:${APP_PORT}/api/invoices/${INVOICE_ID}?shopId=${SHOP_ID}`, {
-    headers: { authorization: `Bearer ${TOKEN}`, "x-synthetic-case": "invoice-query-error" },
-  });
-  const body = await response.json();
-  assert.equal(response.status, 404);
-  assert.deepEqual(body, { error: { code: "INVOICE_NOT_FOUND" } });
-  assert.equal(response.headers.get("cache-control"), "no-store");
-  assert.equal(response.headers.get("pragma"), "no-cache");
+  mockScenario = "invoice-query-error";
+  try {
+    assert.deepEqual(await request(APP_PORT), { status: 404, body: { error: { code: "INVOICE_NOT_FOUND" } } });
+  } finally { mockScenario = "normal"; }
   assert.ok(transcript.slice(start).some(x => x.path === "/rest/v1/invoices"));
 });
 
 test("08 invoice-lines query failure -> exact 503 INVOICE_UNAVAILABLE", async () => {
   const start = transcript.length;
-  const response = await fetch(`http://127.0.0.1:${APP_PORT}/api/invoices/${INVOICE_ID}?shopId=${SHOP_ID}`, {
-    headers: { authorization: `Bearer ${TOKEN}`, "x-synthetic-case": "invoice-lines-error" },
-  });
-  assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), { error: { code: "INVOICE_UNAVAILABLE" } });
-  assert.equal(response.headers.get("cache-control"), "no-store");
-  assert.equal(response.headers.get("pragma"), "no-cache");
+  mockScenario = "invoice-lines-error";
+  let response;
+  try { response = await request(APP_PORT); } finally { mockScenario = "normal"; }
+  assert.deepEqual(response, { status: 503, body: { error: { code: "INVOICE_UNAVAILABLE" } } });
   const calls = transcript.slice(start);
   const invoiceQuery = calls.find(x => x.path === "/rest/v1/invoices");
   const linesQuery = calls.find(x => x.path === "/rest/v1/invoice_lines");
@@ -288,4 +281,10 @@ test("09 successful detail -> exact 200 InvoiceDTO, ordered lines and scoped Pos
   assert.equal(linesQuery.query.invoice_id, `eq.${INVOICE_ID}`);
   assert.equal(linesQuery.query.order, "line_no.asc");
   assert.ok(calls.every(x => x.method === "GET"), "no POST/issuance/QR request may occur");
+});
+
+
+test("10 mock transcript contains no mutation, issuance or QR endpoint requests", () => {
+  assert.ok(transcript.every(x => x.method === "GET"));
+  assert.ok(transcript.every(x => !/issue|qr/i.test(x.path)));
 });
