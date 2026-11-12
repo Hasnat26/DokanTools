@@ -36,7 +36,7 @@ psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f scripts/assert-local-supabase.s
   echo "api_url=http://127.0.0.1:54321"
   echo "db_host=127.0.0.1"
   echo "db_port=54322"
-  echo "issue_flag=$(psql "$SUPABASE_DB_URL" -X -Atc "select issue_enabled from public.invoice_runtime_controls where control_key='invoice_issue'")"
+  echo "issue_flag=$(psql "$SUPABASE_DB_URL" -X -Atc "select case when issue_enabled then 't' else 'f' end from public.invoice_runtime_controls where control_key='invoice_issue'")"
   echo "migration_status=APPLIED"
 } > "$ARTIFACT_DIR/ls01-summary.txt"
 grep -qx 'issue_flag=f' "$ARTIFACT_DIR/ls01-summary.txt"
