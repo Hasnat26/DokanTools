@@ -3,18 +3,22 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
 const API=process.env.SUPABASE_URL, ANON=process.env.SUPABASE_ANON_KEY, SERVICE=process.env.SUPABASE_SERVICE_ROLE_KEY, DB=process.env.SUPABASE_DB_URL;
-const pw="Ch4-"+randomUUID()+"-Aa9!";\nlet cleanupContext;
+const pw="Ch4-"+randomUUID()+"-Aa9!";
+let cleanupContext;
 async function adminUser(label){
  const email="ch4-"+label+"-"+randomUUID()+"@example.test";
  const r=await fetch(API+"/auth/v1/admin/users",{method:"POST",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE,"Content-Type":"application/json"},body:JSON.stringify({email,password:pw,email_confirm:true})});
- assert.equal(r.status,200);const u=await r.json();\n if(cleanupContext){cleanupContext.after(async()=>{const d=await fetch(API+"/auth/v1/admin/users/"+u.id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});assert.ok([200,204,404].includes(d.status),"fixture Owner cleanup failed");});}\n return {id:u.id,email,password:pw};
+ assert.equal(r.status,200);const u=await r.json();
+ if(cleanupContext){cleanupContext.after(async()=>{const d=await fetch(API+"/auth/v1/admin/users/"+u.id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});assert.ok([200,204,404].includes(d.status),"fixture Owner cleanup failed");});}
+ return {id:u.id,email,password:pw};
 }
 async function token(u){const r=await fetch(API+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:ANON,"Content-Type":"application/json"},body:JSON.stringify({email:u.email,password:u.password})});assert.equal(r.status,200);return (await r.json()).access_token;}
 async function sql(q){const {execFileSync}=await import("node:child_process");return execFileSync("psql",[DB,"-X","-v","ON_ERROR_STOP=1","-Atc",q],{encoding:"utf8"}).trim();}
 async function rest(path,tok,method="GET",body){const h={apikey:ANON,Authorization:"Bearer "+tok};if(body){h["Content-Type"]="application/json";h.Prefer="return=representation";}return fetch(API+"/rest/v1/"+path,{method,headers:h,body:body?JSON.stringify(body):undefined});}
 test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and mutation denial",async t=>{
- cleanupContext=t;\n assert.ok(DB&&API&&ANON&&SERVICE);const a=await adminUser("a"),b=await adminUser("b"),[ta,tb]=await Promise.all([token(a),token(b)]);
- const shopA=randomUUID(),shopB=randomUUID(),invoiceA=randomUUID(),invoiceB=randomUUID(),lineA=randomUUID(),lineB=randomUUID();
+ cleanupContext=t;
+ assert.ok(DB&&API&&ANON&&SERVICE);const a=await adminUser("a"),b=await adminUser("b"),[ta,tb]=await Promise.all([token(a),token(b)]);
+ const shopA=randomUUID(),shopB=randomUUID(),invoiceA=randomUUID(),invoiceB=randomUUID();
  const q=`insert into public.shops(id,user_id,shop_name,shop_type,address,phone) values
  ('${shopA}','${a.id}','CH4 A','food','A Address','01000000001'),
  ('${shopB}','${b.id}','CH4 B','food','B Address','01000000002');
