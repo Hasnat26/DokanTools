@@ -246,14 +246,24 @@ jobs:
         working-directory: route-app
         run: npm ci
 
-      - name: Build immutable route application candidate
+      - name: Build immutable route application candidate with loopback Supabase config
         working-directory: route-app
         run: npm run build
+
+      - name: Prepare isolated missing-config build
+        run: |
+          cp -a route-app route-app-no-config
+          rm -rf route-app-no-config/.next
+
+      - name: Build same immutable route candidate without Supabase config
+        working-directory: route-app-no-config
+        run: env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_ANON_KEY npm run build
 
       - name: Execute real HTTP route runtime tests against loopback mocks
         working-directory: qa-harness-route
         env:
           APP_DIR: ${{ github.workspace }}/route-app
+          NO_CONFIG_APP_DIR: ${{ github.workspace }}/route-app-no-config
           EVIDENCE_DIR: ${{ github.workspace }}/qa-harness-route/qa/route-runtime/evidence
         run: node --test --test-concurrency=1 qa/route-runtime/invoice-detail-runtime.test.mjs
 
