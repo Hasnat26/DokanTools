@@ -44,6 +44,9 @@ jobs:
           supabase --version > artifacts/ls01/supabase-cli-version.txt
           supabase services > artifacts/ls01/supabase-service-versions.txt
           docker ps --format '{{.Names}} {{.Image}}' | sort > artifacts/ls01/docker-service-images.txt
+          cat artifacts/ls01/supabase-cli-version.txt
+          cat artifacts/ls01/supabase-service-versions.txt
+          cat artifacts/ls01/docker-service-images.txt
       - name: Export local-only Supabase connection details
         shell: bash
         run: |
