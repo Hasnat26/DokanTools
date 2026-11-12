@@ -58,6 +58,11 @@ jobs:
           supabase status -o env > "$RUNNER_TEMP/ch4-local.env"
           chmod 600 "$RUNNER_TEMP/ch4-local.env"
           set -a; source "$RUNNER_TEMP/ch4-local.env"; set +a
+          auth_container="$(docker ps --format '{{.Names}}' | grep '^supabase_auth_' | head -n1)"
+          jwt_secret="$(docker inspect "$auth_container" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^GOTRUE_JWT_SECRET=//p' | head -n1)"
+          test -n "$jwt_secret"
+          echo "::add-mask::$jwt_secret"
+          echo "CH4_LOCAL_JWT_SECRET=$jwt_secret" >> "$GITHUB_ENV"
           {
             echo "SUPABASE_URL=$API_URL"
             echo "SUPABASE_DB_URL=$DB_URL"
