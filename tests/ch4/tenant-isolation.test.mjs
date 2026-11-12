@@ -60,8 +60,18 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
  assert.deepEqual((await linesA.json()).map(x=>x.invoice_id),[invoiceA]);assert.deepEqual((await linesB.json()).map(x=>x.invoice_id),[invoiceB]);
  const crossLinesA=await rest("invoice_lines?select=invoice_id&invoice_id=eq."+invoiceB,ta),crossLinesB=await rest("invoice_lines?select=invoice_id&invoice_id=eq."+invoiceA,tb);
  assert.deepEqual(await crossLinesA.json(),[]);assert.deepEqual(await crossLinesB.json(),[]);
- const anon=await fetch(API+"/rest/v1/invoices?select=id",{headers:{apikey:ANON}});assert.ok([401,403].includes(anon.status));
- const privateRead=await rest("invoice_counters?select=shop_id",ta);assert.ok([401,403].includes(privateRead.status));
+ const anonymousReads=[];
+ for(const table of ["invoices","invoice_lines"]){
+  const response=await fetch(API+"/rest/v1/"+table+"?select=*",{headers:{apikey:ANON}});
+  const body=redact(await response.text());anonymousReads.push({table,status:response.status,body});
+  assert.ok([401,403].includes(response.status),"anonymous "+table+" access must be denied");
+ }
+ const privateReads=[];
+ for(const table of ["invoice_counters","invoice_idempotency","invoice_status_events","invoice_audit_events","invoice_runtime_controls"]){
+  const response=await rest(table+"?select=*",ta);const body=redact(await response.text());
+  privateReads.push({table,status:response.status,body});
+  assert.ok([401,403].includes(response.status),table+" must not be accessible to authenticated tenant");
+ }
  const mutationCases=[
   ["invoice INSERT",()=>rest("invoices",ta,"POST",{id:randomUUID(),shop_id:shopA})],
   ["invoice UPDATE",()=>rest("invoices?id=eq."+invoiceA,ta,"PATCH",{bill_number:99})],
@@ -87,5 +97,5 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
  assert.equal(roleProbeB,b.id,"auth.uid() must resolve Owner B authenticated JWT subject");
  const rpcAcl=await sql(`select has_function_privilege('anon','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')::text||':'||exists(select 1 from pg_proc p,lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where p.oid='public.create_invoice_transaction(uuid,text,uuid,jsonb)'::regprocedure and a.grantee=0 and a.privilege_type='EXECUTE')::text||':'||has_function_privilege('authenticated','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')::text`);
  assert.equal(rpcAcl,"false:false:true","invoice issue RPC ACL must deny anon/PUBLIC and grant authenticated; RPC is not invoked");
- const tenantEvidence={ownerA:{visibleInvoiceIds:[invoiceA],foreignInvoiceIds:[]},ownerB:{visibleInvoiceIds:[invoiceB],foreignInvoiceIds:[]},crossTenantDisclosures:0,crossLineDisclosures:0,mutationEvidence,before,after:await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`),authUidSubjectA:roleProbe,authUidSubjectB:roleProbeB}; tenantEvidence.rpcAcl=rpcAcl; await saveEvidence("tenant-isolation.json",tenantEvidence); await saveEvidence("http-transcript-postgrest.json",httpTranscript); console.log("CH4_TENANT_EVIDENCE="+JSON.stringify(tenantEvidence));
+ const tenantEvidence={ownerA:{visibleInvoiceIds:[invoiceA],foreignInvoiceIds:[]},ownerB:{visibleInvoiceIds:[invoiceB],foreignInvoiceIds:[]},crossTenantDisclosures:0,crossLineDisclosures:0,anonymousReads,privateReads,mutationEvidence,before,after:await sql(`select (select count(*) from public.invoices where id in ('${invoiceA}','${invoiceB}'))||':'||(select count(*) from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'))`),authUidSubjectA:roleProbe,authUidSubjectB:roleProbeB}; tenantEvidence.rpcAcl=rpcAcl; await saveEvidence("tenant-isolation.json",tenantEvidence); await saveEvidence("http-transcript-postgrest.json",httpTranscript); console.log("CH4_TENANT_EVIDENCE="+JSON.stringify(tenantEvidence));
 });
