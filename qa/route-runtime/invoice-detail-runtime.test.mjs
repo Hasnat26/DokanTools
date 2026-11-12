@@ -85,9 +85,6 @@ async function mockHandler(req, res) {
     if (url.searchParams.get("id") === `eq.${INVOICE_ID}` && mockScenario === "invoice-query-error") {
       res.writeHead(500); res.end(JSON.stringify({ code: "XX000", message: "synthetic invoice query failure" })); return;
     }
-    if (req.headers["x-synthetic-case"] === "invoice-query-error") {
-      res.writeHead(500); res.end(JSON.stringify({ code: "XX000", message: "synthetic invoice query failure" })); return;
-    }
     res.writeHead(200); res.end(JSON.stringify(invoiceRow)); return;
   }
   if (url.pathname === "/rest/v1/invoice_lines") {
