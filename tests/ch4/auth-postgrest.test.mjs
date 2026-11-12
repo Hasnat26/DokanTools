@@ -5,13 +5,17 @@ import { randomUUID, createHmac } from "node:crypto";
 const API=process.env.SUPABASE_URL, ANON=process.env.SUPABASE_ANON_KEY, SERVICE=process.env.SUPABASE_SERVICE_ROLE_KEY;
 const pw="Ch4-"+randomUUID()+"-Aa9!";
 let cleanupContext;
+const cleanupEvidence=[];
+const httpTranscript=[];
+const evidenceDir=process.env.CH4_EVIDENCE_DIR||"artifacts/ch4";
+async function saveEvidence(name,value){const fs=await import("node:fs");fs.mkdirSync(evidenceDir,{recursive:true});fs.writeFileSync(evidenceDir+"/"+name,JSON.stringify(value,null,2)+"\n");}
 function redact(s){return String(s).replace(/eyJ[A-Za-z0-9._-]+/g,"[JWT]").replace(/sb_secret_[A-Za-z0-9_-]+/g,"[SECRET]").slice(0,1000);}
-async function req(path,{method="GET",token,body,headers={}}={}){const h={apikey:ANON,...headers};if(token)h.Authorization="Bearer "+token;if(body!==undefined)h["Content-Type"]="application/json";return fetch(API+path,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)});}
+async function req(path,{method="GET",token,body,headers={}}={}){const h={apikey:ANON,...headers};if(token)h.Authorization="Bearer "+token;if(body!==undefined)h["Content-Type"]="application/json";const r=await fetch(API+path,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)});httpTranscript.push({method,path,status:r.status,body:redact(await r.clone().text())});return r;}
 async function createUser(label){
  const email="ch4-"+label+"-"+randomUUID()+"@example.test";
  const r=await fetch(API+"/auth/v1/admin/users",{method:"POST",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE,"Content-Type":"application/json"},body:JSON.stringify({email,password:pw,email_confirm:true})});
  assert.equal(r.status,200,"GoTrue admin user creation must succeed");const u=await r.json();
- cleanupContext.after(async()=>{let ds=null,db="",gs=null,exists=null;try{const d=await fetch(API+"/auth/v1/admin/users/"+u.id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});ds=d.status;db=redact(await d.text());const g=await fetch(API+"/auth/v1/admin/users/"+u.id,{headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});gs=g.status;exists=g.status===200;console.log("CH4_AUTH_CLEANUP="+JSON.stringify({deleteStatus:ds,deleteBody:db,verifyStatus:gs,exists}));assert.equal(exists,false,"GoTrue Admin GET confirms user removal");assert.ok([200,204,404].includes(ds),"Unexpected GoTrue DELETE status");}catch(e){console.log("CH4_AUTH_CLEANUP="+JSON.stringify({deleteStatus:ds,deleteBody:db,verifyStatus:gs,exists,error:String(e)}));throw e;}});
+ cleanupContext.after(async()=>{let ds=null,db="",gs=null,exists=null;try{const d=await fetch(API+"/auth/v1/admin/users/"+u.id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});ds=d.status;db=redact(await d.text());const g=await fetch(API+"/auth/v1/admin/users/"+u.id,{headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});gs=g.status;exists=g.status===200;console.log("CH4_AUTH_CLEANUP="+JSON.stringify({deleteStatus:ds,deleteBody:db,verifyStatus:gs,exists}));const verified=gs===404&&exists===false;cleanupEvidence.push({userId:u.id,deleteStatus:ds,deleteBody:db,verifyStatus:gs,exists,deletionStatus:verified?"VERIFIED":"NOT_VERIFIED_STACK_DISPOSAL_REQUIRED"});await saveEvidence("cleanup-auth-users.json",cleanupEvidence);}catch(e){cleanupEvidence.push({userId:u.id,deleteStatus:ds,deleteBody:db,verifyStatus:gs,exists,error:String(e),deletionStatus:"NOT_VERIFIED_STACK_DISPOSAL_REQUIRED"});await saveEvidence("cleanup-auth-users.json",cleanupEvidence);}});
  return {id:u.id,email,password:pw};
 }
 async function signin(u){const r=await req("/auth/v1/token?grant_type=password",{method:"POST",body:{email:u.email,password:u.password}});assert.equal(r.status,200);const j=await r.json();assert.ok(j.access_token&&j.access_token.split(".").length===3);assert.ok(j.refresh_token);return {access:j.access_token,refresh:j.refresh_token};}
@@ -37,5 +41,5 @@ test("real GoTrue identities, JWT rejection, logout and account switch",async t=
  const refreshAfterLogout=await req("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:{refresh_token:sa.refresh}});
  assert.ok([400,401,403].includes(refreshAfterLogout.status),"signed-out refresh token must be rejected");
  const accessAfterLogout=await req("/auth/v1/user",{token:ta});
- console.log("CH4_SIGNOUT_EVIDENCE="+JSON.stringify({logoutStatus:out.status,refreshAfterLogoutStatus:refreshAfterLogout.status,accessTokenAfterLogoutStatus:accessAfterLogout.status}));
+ const authEvidence={ownerA:{userEndpointStatus:ua.status,identityVerified:true},ownerB:{userEndpointStatus:ub.status,identityVerified:true},malformedTokenRejected:true,invalidSignatureRejected:true,missingBearerStatus:missing.status,anonymousPostgrestStatus:anon.status,expiredJwt:{status:ex.status,expired:true,signedWithLocalConfig:true},logoutStatus:out.status,refreshAfterLogoutStatus:refreshAfterLogout.status,accessTokenAfterLogoutStatus:accessAfterLogout.status}; await saveEvidence("auth-evidence.json",authEvidence); await saveEvidence("http-transcript-auth.json",httpTranscript); console.log("CH4_SIGNOUT_EVIDENCE="+JSON.stringify({logoutStatus:out.status,refreshAfterLogoutStatus:refreshAfterLogout.status,accessTokenAfterLogoutStatus:accessAfterLogout.status}));
 });
