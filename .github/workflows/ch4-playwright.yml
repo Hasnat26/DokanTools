@@ -197,3 +197,73 @@ jobs:
             app/next-start.log
           if-no-files-found: warn
           retention-days: 30
+
+  route-runtime:
+    name: Invoice detail GET — actual Next.js HTTP runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ROUTE_APP_SHA: 79162f2361dd4de9ed03fa31f8e65be82e20d7cd
+      BROWSER_APP_SHA: 6cc0ce8535423a9367ed05f17ecf15e5e1d34c20
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-local-anon-key
+      CI: true
+    steps:
+      - name: Checkout QA harness revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: qa-harness-route
+          fetch-depth: 1
+
+      - name: Checkout immutable route application
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ROUTE_APP_SHA }}
+          path: route-app
+          fetch-depth: 1
+
+      - name: Record and verify separate test baselines
+        shell: bash
+        run: |
+          ROUTE_SHA=$(git -C route-app rev-parse HEAD)
+          QA_SHA=$(git -C qa-harness-route rev-parse HEAD)
+          test "$ROUTE_SHA" = "$ROUTE_APP_SHA"
+          echo "ROUTE_APP_SHA=$ROUTE_SHA" | tee qa-harness-route/qa/route-runtime/tested-sha.txt
+          echo "BROWSER_APP_SHA=$BROWSER_APP_SHA" | tee -a qa-harness-route/qa/route-runtime/tested-sha.txt
+          echo "QA_HARNESS_SHA=$QA_SHA" | tee -a qa-harness-route/qa/route-runtime/tested-sha.txt
+          echo "QA_HARNESS_SHA=$QA_SHA" >> "$GITHUB_ENV"
+          echo "Verified route app $ROUTE_SHA; browser baseline remains $BROWSER_APP_SHA; QA $QA_SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: route-app/package-lock.json
+
+      - name: Install exact route application dependencies
+        working-directory: route-app
+        run: npm ci
+
+      - name: Build immutable route application candidate
+        working-directory: route-app
+        run: npm run build
+
+      - name: Execute real HTTP route runtime tests against loopback mocks
+        working-directory: qa-harness-route
+        env:
+          APP_DIR: ${{ github.workspace }}/route-app
+          EVIDENCE_DIR: ${{ github.workspace }}/qa-harness-route/qa/route-runtime/evidence
+        run: node --test --test-concurrency=1 qa/route-runtime/invoice-detail-runtime.test.mjs
+
+      - name: Upload route runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ch4-route-runtime-evidence-${{ github.run_id }}
+          path: |
+            qa-harness-route/qa/route-runtime/tested-sha.txt
+            qa-harness-route/qa/route-runtime/evidence/
+          if-no-files-found: warn
+          retention-days: 30
