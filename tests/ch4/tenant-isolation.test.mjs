@@ -25,7 +25,9 @@ test("real PostgREST owner mapping, invoice and line RLS, cross-tenant reads and
  insert into public.invoice_lines(invoice_id,shop_id,line_no,item_name_snapshot,quantity,unit_price,line_total)
  values ('${invoiceA}','${shopA}',1,'A fixture',1,10,10),('${invoiceB}','${shopB}',1,'B fixture',1,20,20);`;
  await sql(q);
- t.after(async()=>{await sql(`delete from public.invoice_lines where invoice_id in ('${invoiceA}','${invoiceB}'); delete from public.invoice_audit_events where invoice_id in ('${invoiceA}','${invoiceB}'); delete from public.invoice_status_events where invoice_id in ('${invoiceA}','${invoiceB}'); delete from public.invoices where id in ('${invoiceA}','${invoiceB}'); delete from public.invoice_counters where shop_id in ('${shopA}','${shopB}'); delete from public.shops where id in ('${shopA}','${shopB}');`);for(const id of created)await fetch(API+"/auth/v1/admin/users/"+id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});});
+ // Immutable invoice facts remain untouched. The workflow destroys the disposable local DB
+ // and Supabase containers unconditionally with "supabase stop --no-backup".
+ t.after(async()=>{for(const id of created){const r=await fetch(API+"/auth/v1/admin/users/"+id,{method:"DELETE",headers:{apikey:SERVICE,Authorization:"Bearer "+SERVICE}});assert.ok([200,204,404].includes(r.status),"GoTrue fixture-user cleanup failed");}});
  const aRows=await rest("invoices?select=id,shop_id&order=id",ta), bRows=await rest("invoices?select=id,shop_id&order=id",tb);
  assert.equal(aRows.status,200);assert.equal(bRows.status,200);
  const ar=await aRows.json(),br=await bRows.json();assert.deepEqual(ar.map(x=>x.id),[invoiceA]);assert.deepEqual(br.map(x=>x.id),[invoiceB]);
