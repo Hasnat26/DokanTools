@@ -12,7 +12,8 @@ begin
   if v_count<>2 then raise exception 'LS01: invoice RLS is not enabled on both tables'; end if;
   select count(*) into v_owner_select from pg_policies
    where schemaname='public' and tablename in('invoices','invoice_lines')
-     and cmd='SELECT' and roles @> array['authenticated']::name[];
+     and cmd='SELECT' and roles @> array['authenticated']::name[]
+     and coalesce(qual,'') ilike '%shops%' and coalesce(qual,'') ilike '%auth.uid%';
   if v_owner_select<>2 then raise exception 'LS01: expected owner SELECT policies missing'; end if;
   select count(*) into v_bad from (
     select (
