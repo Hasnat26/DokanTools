@@ -161,10 +161,6 @@ jobs:
           const evidence=[];
           for(const n of clean){if(fs.existsSync("artifacts/ch4/"+n)){try{evidence.push(...JSON.parse(fs.readFileSync("artifacts/ch4/"+n,"utf8")));}catch(e){evidence.push({source:n,parseError:String(e)});}}}
           fs.writeFileSync("artifacts/ch4/cleanup-users.json",JSON.stringify(evidence,null,2)+"\n");
-          const xml=["auth-test-results.xml","postgrest-rls-results.xml","api-route-results.xml"];
-          let executed=0, skipped=0, todo=0;
-          for(const n of xml){if(fs.existsSync("artifacts/ch4/"+n)){const s=fs.readFileSync("artifacts/ch4/"+n,"utf8");for(const m of s.matchAll(/<!-- tests (\\d+) -->/g))executed+=Number(m[1]);for(const m of s.matchAll(/<!-- skipped (\\d+) -->/g))skipped+=Number(m[1]);for(const m of s.matchAll(/<!-- todo (\\d+) -->/g))todo+=Number(m[1]);}}
-          fs.writeFileSync("artifacts/ch4/test-counts.json",JSON.stringify({executed,skipped,todo},null,2)+"\n");
           NODE
       - name: Assemble failure matrix and completion summary
         if: always()
