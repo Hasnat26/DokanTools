@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "work_order": "LS-01",
+  "project": "DokanTools",
+  "baseline_commit": "79162f2361dd4de9ed03fa31f8e65be82e20d7cd",
+  "pinned_baseline_schema_commit": "9edc10e0a5e8f2e8c9e9a043870b13cd7ecb7bc1",
+  "environment": {
+    "kind": "disposable-local-only",
+    "supabase_cli": "3.1.0",
+    "postgres_major": 17,
+    "api_gateway": "Kong (Supabase local stack)",
+    "auth": "GoTrue",
+    "rest": "PostgREST",
+    "api_url": "http://127.0.0.1:54321",
+    "db_url": "postgresql://postgres:[LOCAL_PASSWORD]@127.0.0.1:54322/postgres"
+  },
+  "migrations": [
+    "pinned supabase/schema.sql from baseline commit",
+    "pinned 20261019_inventory_catalog.sql from baseline commit",
+    "tests/postgres/05_baseline_assertions.sql",
+    "pinned 20261102_p0_idempotency.sql from baseline commit",
+    "supabase/migrations/202611110001_invoice_first_foundation.sql"
+  ],
+  "expected_state": [
+    {
+      "id": "invoice_rls",
+      "expect": "RLS enabled on public.invoices and public.invoice_lines"
+    },
+    {
+      "id": "invoice_owner_select",
+      "expect": "authenticated owner SELECT policies present on invoices and invoice_lines"
+    },
+    {
+      "id": "invoice_anon_access",
+      "expect": "anon has no SELECT/INSERT/UPDATE/DELETE privileges on invoices or invoice_lines"
+    },
+    {
+      "id": "invoice_client_writes",
+      "expect": "authenticated has no INSERT/UPDATE/DELETE privileges on invoices or invoice_lines"
+    },
+    {
+      "id": "private_tables",
+      "expect": "anon and authenticated have no table privileges on invoice_counters, invoice_idempotency, invoice_status_events, invoice_audit_events, invoice_runtime_controls"
+    },
+    {
+      "id": "rpc_security",
+      "expect": "create_invoice_transaction is SECURITY DEFINER with search_path=pg_catalog and owner equal to the local migration executor"
+    },
+    {
+      "id": "rpc_acl",
+      "expect": "authenticated EXECUTE only; anon and PUBLIC EXECUTE absent"
+    },
+    {
+      "id": "immutable_trigger",
+      "expect": "invoice and invoice-line UPDATE/DELETE rejection triggers present"
+    },
+    {
+      "id": "issue_gate",
+      "expect": "invoice_runtime_controls.invoice_issue issue_enabled=false"
+    },
+    {
+      "id": "qr_token",
+      "expect": "no public QR/token/verification activation or public invoice endpoint"
+    }
+  ],
+  "unresolved": [
+    "PO-06 catalog eligibility and authoritative price policy remains unresolved; no policy is introduced.",
+    "Production ACL and migration-role ownership remain unverified and are outside LS-01.",
+    "No production or hosted Supabase access is permitted."
+  ]
+}
