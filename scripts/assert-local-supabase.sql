@@ -37,9 +37,13 @@ begin
     raise exception 'LS01: RPC must remain SECURITY DEFINER with search_path=pg_catalog';
   end if;
   if has_function_privilege('anon','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')
-     or has_function_privilege('public','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')
-     or not has_function_privilege('authenticated','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE') then
-    raise exception 'LS01: RPC EXECUTE ACL mismatch';
+     or not has_function_privilege('authenticated','public.create_invoice_transaction(uuid,text,uuid,jsonb)','EXECUTE')
+     or exists (
+       select 1 from pg_proc p, lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+       where p.oid='public.create_invoice_transaction(uuid,text,uuid,jsonb)'::regprocedure
+         and a.grantee=0 and a.privilege_type='EXECUTE'
+     ) then
+    raise exception 'LS01: RPC EXECUTE ACL mismatch (anon/PUBLIC must be denied; authenticated must be granted)';
   end if;
   select issue_enabled into v_issue from public.invoice_runtime_controls where control_key='invoice_issue';
   if v_issue is distinct from false then raise exception 'LS01: invoice issue flag must be OFF'; end if;
