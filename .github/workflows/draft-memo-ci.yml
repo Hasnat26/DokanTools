@@ -1,0 +1,21 @@
+name: Draft Memo CI
+on:
+  push:
+    branches:
+      - corrective/a6-a4-print-controlled-2026-11-17
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
