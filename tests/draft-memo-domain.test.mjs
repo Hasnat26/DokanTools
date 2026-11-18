@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {calculateDraftMemo,draftMemoStorageKey,validateDraftMemoIdentity,validateA6MemoFit} from "../src/lib/draft-memo-domain.mjs";
+const line=(id,q,p)=>({product_id:id,item_name:"Item",quantity:String(q),unit_price:String(p)});
+test("calculation and price snapshot totals",()=>{const r=calculateDraftMemo([line("p1",2,12.5),line("p2",.5,10)]);assert.equal(r.valid,true);assert.deepEqual(r.lineTotals,[2500,500]);assert.equal(r.totalMinor,3000);});
+test("empty and invalid inputs rejected",()=>{assert.equal(calculateDraftMemo([]).reason,"EMPTY_DRAFT");for(const l of [line("p",0,2),line("p",-1,2),line("p",1,"1.999"),line("",1,2)])assert.equal(calculateDraftMemo([l]).valid,false);});
+test("zero price accepted and negative price rejected",()=>{assert.equal(calculateDraftMemo([line("p",2,0)]).totalMinor,0);assert.equal(calculateDraftMemo([line("p",1,-.01)]).valid,false);});
+test("composite key isolates shop and owner",()=>{assert.notEqual(draftMemoStorageKey("u1","s1","d1"),draftMemoStorageKey("u2","s1","d1"));assert.notEqual(draftMemoStorageKey("u1","s1","d1"),draftMemoStorageKey("u1","s2","d1"));});
+test("identity mismatches rejected",()=>{assert.throws(()=>validateDraftMemoIdentity({id:"d",owner_id:"u2",shop_id:"s1"},"u1","s1"),/DRAFT_IDENTITY_MISMATCH/);assert.throws(()=>validateDraftMemoIdentity({id:"d",owner_id:"u1",shop_id:"s2"},"u1","s1"),/DRAFT_IDENTITY_MISMATCH/);});
+test("fit validation rejects oversized memo",()=>{assert.equal(validateA6MemoFit({shop_name:"Shop"},[line("p",1,1)]).valid,true);assert.equal(validateA6MemoFit({shop_name:"Shop"},Array(7).fill(line("p",1,1))).valid,false);});
