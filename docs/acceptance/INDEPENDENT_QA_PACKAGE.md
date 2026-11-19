@@ -126,3 +126,50 @@ Review date:
 ## Important boundaries
 
 This is a test package, not evidence that tests have been executed. GitHub Actions CI and PM source inspection are not independent QA. The separate browser-local demo is not a substitute for the authenticated route. No merge, deployment, pilot, production DB access or product-scope expansion is authorized.
+
+## Independent reviewer qualification and secure onboarding — Phase 4B
+
+### Minimum reviewer profile
+
+The PO-nominated reviewer must be independent of the PM, candidate author and implementation decision-makers. The reviewer must be able to demonstrate hands-on competence in:
+
+- Functional and negative testing of authenticated web applications.
+- Browser DevTools use, including Network, Console, storage and IndexedDB inspection.
+- REST API testing with bearer-token authentication and safe request/response evidence handling.
+- Tenant-isolation testing, including JWT identity context, PostgREST/RLS expectations and tampered identifiers.
+- Reproducible defect writing and signed, evidence-indexed test reporting.
+
+A specific certification is not mandatory. The PO must approve the named reviewer and confirm independence and relevant experience before access is granted.
+
+### Repository access request
+
+1. PO supplies the exact GitHub username and explicitly approves access in Issue #46.
+2. Grant **read-only** access to the PRIVATE repository, limited to the time required for QA.
+3. Do not grant write, maintain, administrator or branch-protection bypass permissions.
+4. Do not grant access before the PO-approved username is recorded.
+5. Record the reviewer identity, approval comment, granted permission, date and eventual access removal.
+
+### Isolated Supabase access requirements
+
+- Use only project `kidrysdtgmhmpogwxzzx` (`dokantools-phase4-isolated-qa`); never production.
+- Grant only the minimum project-level visibility and test capability required by the PO-approved test plan. Do not grant organization ownership or broad administrative access.
+- Reviewer must not receive the service-role key, database superuser password or other bypass-RLS credentials.
+- Supply only the disposable Owner A/B login credentials through the approved secure handover described below.
+- Any additional dashboard/SQL permissions must be explicitly approved by the PO and removed after testing.
+
+### Disposable credential handover
+
+1. Create or reset test-only passwords using the supported Supabase Auth flow. Never create password hashes by direct SQL.
+2. Use synthetic addresses under a controlled test domain and strong random, unique passwords.
+3. Deliver each account separately using a PO-approved password manager's time-limited/one-time secret-sharing facility. Do not send passwords, recovery codes, access tokens or cookies through GitHub issues, repository files, ordinary email, screenshots or the acceptance report.
+4. Keep Owner A and Owner B credentials separate. The reviewer must use separate clean browser profiles or an equivalent verified session-isolation method.
+5. Do not include bearer tokens or cookies in HAR files. Redact Authorization headers, refresh tokens, passwords, Set-Cookie values and recovery links before retaining evidence.
+6. After review, rotate/reset or disable the disposable accounts and remove temporary project/repository access as directed by the PO. Record only non-secret account UUIDs and the cleanup result.
+
+### Execution and evidence handover
+
+The reviewer receives this package, the Phase 4B evidence report, the exact application baseline SHA, isolated project reference, two disposable account labels (A/B), and the PO-approved secure credential-sharing instructions. The reviewer independently executes QA-01–QA-14 and signs the report template above. PM-generated SQL evidence is supporting context only; it must not be presented as the independent reviewer's own observation.
+
+### Current access status
+
+As of 2026-11-19 UTC, the PO has not nominated an independent GitHub username. No repository access has been granted to a reviewer. The connected Supabase integration does not expose Auth user administration, signup/signin or access-token issuance, and the connected browser interface is read-only. Accordingly, sign-in-capable account creation and reviewer credential handover remain blocked; do not substitute the existing SQL-only fixtures.
