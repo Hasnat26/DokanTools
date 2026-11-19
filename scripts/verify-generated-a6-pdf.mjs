@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -74,4 +74,6 @@ const report = {
   outOfBoundsTextBoxes: outOfBounds.length,
   expectedContentVerified: required,
 };
+await mkdir("artifacts", { recursive: true });
+await writeFile("artifacts/dokantools-a6-validation.json", JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report, null, 2));
