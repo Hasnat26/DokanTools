@@ -1,0 +1,53 @@
+name: Targeted audit remediation candidate
+on:
+  push:
+    branches:
+      - corrective/a6-a4-print-controlled-2026-11-17
+    paths:
+      - ".github/workflows/audit-targeted-postcss-patch.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: corrective/a6-a4-print-controlled-2026-11-17
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Apply only the PostCSS selector parser security patch
+        run: |
+          npm pkg set 'overrides.postcss-selector-parser=6.1.5'
+          npm install --package-lock-only --ignore-scripts --no-audit
+      - name: Install from candidate lockfile
+        run: npm ci
+      - name: Test, lint, typecheck and build candidate
+        run: |
+          npm test
+          npm run lint
+          npm run typecheck
+          npm run build
+      - name: Capture candidate audit and lock evidence
+        if: always()
+        run: |
+          set +e
+          npm audit --json > npm-audit-candidate.json
+          echo "npm audit exit code: $?"
+          node -e 'const r=require("./npm-audit-candidate.json"); console.log(JSON.stringify(r.metadata?.vulnerabilities||{},null,2))'
+          npm ls postcss-selector-parser minimatch --all > dependency-tree.txt 2>&1
+          npm ls postcss-selector-parser minimatch --all || true
+      - name: Upload candidate package and lock files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-postcss-patch-candidate
+          path: |
+            package.json
+            package-lock.json
+            npm-audit-candidate.json
+            dependency-tree.txt
+          retention-days: 30
