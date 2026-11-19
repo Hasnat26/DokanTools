@@ -13,7 +13,7 @@ The account must be new and must not already own a shop because the workflow ver
 Run in a browser-QA environment with Playwright Chromium and Poppler installed:
 
 ```bash
-npx playwright test qa/browser/v1-functional.spec.ts --project=chromium
+npx playwright test qa/browser/v1-functional.spec.mjs --project=chromium
 pdfinfo artifacts/dokantools-authenticated-a6.pdf
 pdffonts artifacts/dokantools-authenticated-a6.pdf
 pdftotext artifacts/dokantools-authenticated-a6.pdf -
