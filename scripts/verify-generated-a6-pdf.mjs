@@ -28,7 +28,7 @@ assert.ok(textBoxes.length>0,"No PDF text bounding boxes found");
 const outOfBounds=textBoxes.map(m=>({top:Number(m[1]),left:Number(m[2]),width:Number(m[3]),height:Number(m[4])})).filter(b=>b.left<safeX-1||b.top<safeY-1||b.left+b.width>xmlWidth-safeX+1||b.top+b.height>xmlHeight-safeY+1);
 assert.equal(outOfBounds.length,0,`Text outside 3mm safe area: ${JSON.stringify(outOfBounds.slice(0,5))}`);
 const extracted=run("pdftotext",[pdf,"-"]).replace(/\s+/g," ");
-const required=[expected.shopName,"Bill / Memo","Subtotal",expected.subtotal,"Grand Total",expected.grandTotal,"Draft Memo","Product","Qty","Unit Price","Line Total"];
+const required=[expected.shopName,"Bill / Memo","Subtotal",expected.subtotal,"Grand Total",expected.grandTotal,"DRAFT ONLY","Product","Qty","Unit Price","Line Total"];
 for(const line of expected.lines){required.push(line.productName,line.quantity,line.unit,line.unitPrice,line.lineTotal);}
 if(expected.discountEnabled)required.push("Discount",expected.discount);
 if(expected.taxEnabled)required.push("VAT / Tax",expected.taxRate,expected.tax);

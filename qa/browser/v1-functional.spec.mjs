@@ -72,13 +72,17 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
    await page.getByLabel("Discount amount").fill("99.00");await expect(page.getByText("Discount cannot exceed the subtotal.")).toBeVisible();
    await page.getByLabel("Discount amount").fill("1.00");await total("discount","1.00");await total("grand-total","32.50");
    await page.getByLabel("Enable VAT or tax").check();await page.getByLabel("Tax rate").fill("0.00");await total("tax","0.00");await total("grand-total","32.50");
+   await page.getByLabel("Tax rate").fill("-1");await expect(page.getByText("Tax rate must be non-negative and use up to 2 decimal places.")).toBeVisible();
    await page.getByLabel("Tax rate").fill("10.00");await total("tax","3.25");await total("grand-total","35.75");
    await page.getByLabel("Enable paid and due").check();await page.getByLabel("Amount paid").fill("0.00");await total("paid","0.00");await total("due","35.75");
    await page.getByLabel("Amount paid").fill("99.00");await expect(page.getByText("Paid amount cannot exceed the grand total.")).toBeVisible();
+   await page.getByLabel("Amount paid").fill("-1");await expect(page.getByText("Paid amount must be non-negative and use up to 2 decimal places.")).toBeVisible();
    await page.getByLabel("Amount paid").fill("20.00");await total("paid","20.00");await total("due","15.75");
    await page.getByLabel("Quantity").nth(0).fill("0");await expect(page.getByText("Quantity must be greater than zero and use up to 3 decimal places.")).toBeVisible();
+   await page.getByLabel("Quantity").nth(0).fill("1.0001");await expect(page.getByText("Quantity must be greater than zero and use up to 3 decimal places.")).toBeVisible();
    await page.getByLabel("Quantity").nth(0).fill("2");
    await page.getByLabel("Unit price").nth(1).fill("-1");await expect(page.getByText("Unit price must be zero or greater and use up to 2 decimal places.")).toBeVisible();
+   await page.getByLabel("Unit price").nth(1).fill("1.999");await expect(page.getByText("Unit price must be zero or greater and use up to 2 decimal places.")).toBeVisible();
    await page.getByLabel("Unit price").nth(1).fill("5.00");
    await page.getByLabel("Quantity").nth(0).fill("3");
    await total("subtotal","47.50");await total("discount","1.00");await total("tax","4.65");await total("grand-total","51.15");await total("paid","20.00");await total("due","31.15");
