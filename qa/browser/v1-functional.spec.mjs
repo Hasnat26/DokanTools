@@ -65,15 +65,16 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await page.getByRole("button", { name: `${categoryName} rename` }).click();
       await expect(categoryRegion.getByRole("button", { name: `${renamedCategory} rename` })).toBeVisible();
 
-      await page.getByLabel("নতুন পণ্যের নাম").fill(productName);
-      const categorySelect = page.getByLabel("ক্যাটাগরি").first();
+      const productForm = page.getByRole("form", { name: "পণ্য তৈরি" });
+      await productForm.getByLabel("নতুন পণ্যের নাম").fill(productName);
+      const categorySelect = productForm.getByLabel("ক্যাটাগরি");
       await categorySelect.selectOption({ label: renamedCategory });
       const selectedCategoryId = await categorySelect.inputValue();
       expect(selectedCategoryId).toBeTruthy();
-      await page.getByLabel("ইউনিট").first().fill("pcs");
-      await page.getByLabel("ক্রয়মূল্য").first().fill("8.00");
-      await page.getByLabel("বিক্রয়মূল্য").first().fill("12.50");
-      await page.getByRole("button", { name: "Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)" }).click();
+      await productForm.getByLabel("ইউনিট").fill("pcs");
+      await productForm.getByLabel("ক্রয়মূল্য").fill("8.00");
+      await productForm.getByLabel("বিক্রয়মূল্য").fill("12.50");
+      await productForm.getByRole("button", { name: "Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)" }).click();
       await expect(page.getByDisplayValue(productName)).toBeVisible();
       const productRow = page.getByDisplayValue(productName).locator("xpath=../..");
       await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(selectedCategoryId);
