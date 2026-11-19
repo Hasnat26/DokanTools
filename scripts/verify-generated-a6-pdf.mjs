@@ -15,8 +15,8 @@ const metadataTitle=info.match(/^Title:\s+(.*)$/m)?.[1]||"";assert.ok(metadataTi
 assert.ok(size,"PDF page size missing");const width=Number(size[1]),height=Number(size[2]);
 const expectedWidth=105*72/25.4,expectedHeight=148*72/25.4;
 assert.ok(Math.abs(width-expectedWidth)<=0.1,`A6 width mismatch beyond 0.1pt: ${width}pt`);assert.ok(Math.abs(height-expectedHeight)<=0.1,`A6 height mismatch beyond 0.1pt: ${height}pt`);assert.ok(width<height,"A6 must be portrait");
-const mediaBox=info.match(/^MediaBox:\\s+([\\d.-]+)\\s+([\\d.-]+)\\s+([\\d.-]+)\\s+([\\d.-]+)/m)?.slice(1).map(Number);
-const cropBox=info.match(/^CropBox:\\s+([\\d.-]+)\\s+([\\d.-]+)\\s+([\\d.-]+)\\s+([\\d.-]+)/m)?.slice(1).map(Number);
+const mediaBox=info.match(/^MediaBox:\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)/m)?.slice(1).map(Number);
+const cropBox=info.match(/^CropBox:\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)/m)?.slice(1).map(Number);
 assert.ok(mediaBox&&cropBox,"PDF MediaBox and CropBox must be present");
 const expectedBox=[0,0,expectedWidth,expectedHeight];
 for(const [name,box] of [["MediaBox",mediaBox],["CropBox",cropBox]])box.forEach((value,index)=>assert.ok(Math.abs(value-expectedBox[index])<=0.1,`${name} geometry mismatch at index ${index}: ${value}`));
