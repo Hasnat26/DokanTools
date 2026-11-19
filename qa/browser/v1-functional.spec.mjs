@@ -55,14 +55,15 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
     await test.step("3. Category CRUD and product catalogue CRUD (no stock operations)", async () => {
       await page.goto(new URL("/dashboard/stock", baseURL).toString());
       await expect(page.getByRole("heading", { name: "পণ্য ও ক্যাটাগরি" })).toBeVisible();
+      const categoryRegion = page.getByRole("region", { name: "ক্যাটাগরি ব্যবস্থাপনা" });
       const categoryInput = page.getByPlaceholder("নতুন ক্যাটাগরির নাম");
       await expect(categoryInput).toBeVisible({ timeout: 20_000 });
       await categoryInput.fill(categoryName);
       await page.getByRole("button", { name: "ক্যাটাগরি যোগ করুন" }).click();
-      await expect(page.getByText(categoryName, { exact: true })).toBeVisible();
+      await expect(categoryRegion.getByRole("button", { name: `${categoryName} rename` })).toBeVisible();
       page.once("dialog", dialog => dialog.accept(renamedCategory));
       await page.getByRole("button", { name: `${categoryName} rename` }).click();
-      await expect(page.getByText(renamedCategory, { exact: true })).toBeVisible();
+      await expect(categoryRegion.getByRole("button", { name: `${renamedCategory} rename` })).toBeVisible();
 
       await page.getByLabel("নতুন পণ্যের নাম").fill(productName);
       const categorySelect = page.getByLabel("ক্যাটাগরি").first();
@@ -135,8 +136,8 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await page.goto(new URL("/dashboard/stock", baseURL).toString());
       await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
       page.once("dialog", dialog => dialog.accept());
-      await page.getByRole("button", { name: `${renamedCategory} delete` }).click();
-      await expect(page.getByText(renamedCategory, { exact: true })).toHaveCount(0);
+      await categoryRegion.getByRole("button", { name: `${renamedCategory} delete` }).click();
+      await expect(categoryRegion.getByRole("button", { name: `${renamedCategory} rename` })).toHaveCount(0);
       const productRow = page.getByDisplayValue(editedProduct).locator("xpath=../..");
       await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue("");
       page.once("dialog", dialog => dialog.accept());
