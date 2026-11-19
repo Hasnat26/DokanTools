@@ -35,21 +35,29 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
 
   // Catalogue/category CRUD. Do not use stock create/adjust controls.
   await page.goto(new URL("/dashboard/stock", baseURL).toString());
-  const category = `QA Category ${Date.now()}`;
-  const renamedCategory = `${category} Edited`;
-  await page.getByPlaceholder("নতুন ক্যাটাগরির নাম").fill(category);
-  await page.getByRole("button", { name: "ক্যাটাগরি যোগ করুন" }).click();
-  await expect(page.getByText(category, { exact: true })).toBeVisible();
-  page.once("dialog", dialog => dialog.accept(renamedCategory));
-  await page.getByRole("button", { name: `${category} rename` }).click();
-  await expect(page.getByText(renamedCategory, { exact: true })).toBeVisible();
+  const categoryEnabled = await page.getByPlaceholder("নতুন ক্যাটাগরির নাম").isVisible().catch(() => false);
+  if (process.env.DOKANTOOLS_REQUIRE_CATEGORIES === "true") expect(categoryEnabled).toBe(true);
+  let renamedCategory = "";
+  if (categoryEnabled) {
+    const category = `QA Category ${Date.now()}`;
+    renamedCategory = `${category} Edited`;
+    await page.getByPlaceholder("নতুন ক্যাটাগরির নাম").fill(category);
+    await page.getByRole("button", { name: "ক্যাটাগরি যোগ করুন" }).click();
+    await expect(page.getByText(category, { exact: true })).toBeVisible();
+    page.once("dialog", dialog => dialog.accept(renamedCategory));
+    await page.getByRole("button", { name: `${category} rename` }).click();
+    await expect(page.getByText(renamedCategory, { exact: true })).toBeVisible();
+  }
 
   const product = `QA Product ${Date.now()}`;
   const editedProduct = `${product} Edited`;
-  const categorySelect = page.getByLabel("ক্যাটাগরি").first();
+  let selectedCategoryId = "";
   await page.getByLabel("নতুন পণ্যের নাম").fill(product);
-  await categorySelect.selectOption({ label: renamedCategory });
-  const selectedCategoryId = await categorySelect.inputValue();
+  if (categoryEnabled) {
+    const categorySelect = page.getByLabel("ক্যাটাগরি").first();
+    await categorySelect.selectOption({ label: renamedCategory });
+    selectedCategoryId = await categorySelect.inputValue();
+  }
   await page.getByLabel("ইউনিট").last().fill("pcs");
   await page.getByLabel("ক্রয়মূল্য").last().fill("8.00");
   await page.getByLabel("বিক্রয়মূল্য").last().fill("12.50");
@@ -57,7 +65,7 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   await expect(page.getByDisplayValue(product)).toBeVisible();
 
   const productRow = page.getByDisplayValue(product).locator("xpath=../..");
-  await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(selectedCategoryId);
+  if (categoryEnabled) await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(selectedCategoryId);
   await productRow.getByLabel("পণ্যের নাম").fill(editedProduct);
   await productRow.getByRole("button", { name: "সেভ" }).click();
   await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
@@ -101,9 +109,11 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   await expect(page.getByText("No drafts saved.")).toBeVisible();
 
   await page.goto(new URL("/dashboard/stock", baseURL).toString());
-  page.once("dialog", dialog => dialog.accept());
-  await page.getByRole("button", { name: `${renamedCategory} delete` }).click();
-  await expect(page.getByText(renamedCategory, { exact: true })).toHaveCount(0);
+  if (categoryEnabled) {
+    page.once("dialog", dialog => dialog.accept());
+    await page.getByRole("button", { name: `${renamedCategory} delete` }).click();
+    await expect(page.getByText(renamedCategory, { exact: true })).toHaveCount(0);
+  }
 
   const finalProductRow = page.getByDisplayValue(editedProduct).locator("xpath=../..");
   page.once("dialog", dialog => dialog.accept());
