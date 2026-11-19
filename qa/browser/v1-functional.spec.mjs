@@ -72,8 +72,8 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       const selectedCategoryId = await categorySelect.inputValue();
       expect(selectedCategoryId).toBeTruthy();
       await productForm.getByLabel("ইউনিট").fill("pcs");
-      await productForm.getByLabel("ক্রয়মূল্য").fill("8.00");
-      await productForm.getByLabel("বিক্রয়মূল্য").fill("12.50");
+      await productForm.getByLabel("ক্রয়মূল্য", { exact: true }).fill("8.00");
+      await productForm.getByLabel("বিক্রয়মূল্য", { exact: true }).fill("12.50");
       await productForm.getByRole("button", { name: "Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)" }).click();
       await expect(page.getByDisplayValue(productName)).toBeVisible();
       const productRow = page.getByDisplayValue(productName).locator("xpath=../..");
