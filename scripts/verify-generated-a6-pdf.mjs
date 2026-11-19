@@ -37,9 +37,11 @@ assert.ok(fontSizes.length > 0, "PDF text font metadata was not found");
 const minFontSize = Math.min(...fontSizes);
 assert.ok(minFontSize >= 8, `PDF contains text below 8pt: minimum ${minFontSize}pt`);
 
-const page = xml.match(/<page\b[^>]*\bwidth="([\d.]+)"[^>]*\bheight="([\d.]+)"/);
-assert.ok(page, "PDF XML page dimensions missing");
-const xmlWidth = Number(page[1]), xmlHeight = Number(page[2]);
+const pageTag = xml.match(/<page\\b[^>]*>/)?.[0];
+assert.ok(pageTag, "PDF XML page dimensions missing");
+const xmlWidth = Number(pageTag.match(/\\bwidth="([\\d.]+)"/)?.[1]);
+const xmlHeight = Number(pageTag.match(/\\bheight="([\\d.]+)"/)?.[1]);
+assert.ok(Number.isFinite(xmlWidth) && Number.isFinite(xmlHeight), "PDF XML page dimensions are invalid");
 const safeX = xmlWidth * (3 / 105), safeY = xmlHeight * (3 / 148);
 const textBoxes = [...xml.matchAll(/<text\b[^>]*\btop="([\d.]+)"[^>]*\bleft="([\d.]+)"[^>]*\bwidth="([\d.]+)"[^>]*\bheight="([\d.]+)"/g)];
 assert.ok(textBoxes.length > 0, "No PDF text bounding boxes found");
