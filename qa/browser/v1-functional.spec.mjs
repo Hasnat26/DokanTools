@@ -48,6 +48,7 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   const categorySelect = page.getByLabel("ক্যাটাগরি").first();
   await page.getByLabel("নতুন পণ্যের নাম").fill(product);
   await categorySelect.selectOption({ label: renamedCategory });
+  const selectedCategoryId = await categorySelect.inputValue();
   await page.getByLabel("ইউনিট").last().fill("pcs");
   await page.getByLabel("ক্রয়মূল্য").last().fill("8.00");
   await page.getByLabel("বিক্রয়মূল্য").last().fill("12.50");
@@ -55,7 +56,7 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   await expect(page.getByDisplayValue(product)).toBeVisible();
 
   const productRow = page.getByDisplayValue(product).locator("xpath=../..");
-  await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(await categorySelect.inputValue());
+  await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(selectedCategoryId);
   await productRow.getByLabel("পণ্যের নাম").fill(editedProduct);
   await productRow.getByRole("button", { name: "সেভ" }).click();
   await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
@@ -82,7 +83,13 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   await page.reload();
   await expect(page.getByText("1 lines")).toBeVisible();
 
-  // Fresh PDF from the authenticated application print DOM, not the demo artifact.
+  // Exercise the application's font/overflow validation and print action, then capture its print DOM.
+  await page.evaluate(() => {
+    window.__dokantoolsPrintCalled = false;
+    window.print = () => { window.__dokantoolsPrintCalled = true; };
+  });
+  await page.getByRole("button", { name: "A6 Print / PDF" }).click();
+  await expect.poll(() => page.evaluate(() => window.__dokantoolsPrintCalled)).toBe(true);
   await mkdir("artifacts", { recursive: true });
   await page.emulateMedia({ media: "print" });
   await page.pdf({ path: pdfPath, printBackground: true, preferCSSPageSize: true });
