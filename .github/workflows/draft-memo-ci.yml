@@ -57,6 +57,40 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - name: Run full test suite
         run: npm test
+  category-integrity:
+    name: PostgreSQL 17 category tenant-integrity regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: dokantools_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dokantools_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Bootstrap disposable Supabase-compatible schema
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/category_integrity_schema.sql
+      - name: Apply corrected category migration to disposable CI database
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/migrations/202611180001_item_categories.sql
+      - name: Run positive and negative category integrity tests (transaction rolls back)
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/tests/20261119_item_categories_tenant_integrity.sql
   pdf-qa:
     name: A6 PDF artifact verification
     runs-on: ubuntu-24.04
