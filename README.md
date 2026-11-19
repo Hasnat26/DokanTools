@@ -99,3 +99,8 @@ Run one command at a time when diagnosing failures. See [`START_HERE_BN.md`](./S
 3. Do not repeat a payment or sale until the previous operation status is checked.
 4. Keep tenant isolation and basic data protection independent of future paid plans.
 5. Expand pilot access only after critical data isolation, idempotency, stock/accounting, sync/recovery and usability acceptance tests pass.
+
+
+## Draft Memo local demonstration
+
+A separate browser-local Draft Memo demonstration is available at [`/draft-memo-demo.html`](./public/draft-memo-demo.html). Run it with `npm run demo:draft-memo` and open `http://localhost:4173/`. It stores the shop profile, catalogue, and draft memos in the current browser's IndexedDB; it is not connected to Supabase or the authenticated production workflow. See [`docs/DRAFT_MEMO_MVP_DEMO.md`](./docs/DRAFT_MEMO_MVP_DEMO.md) for scope, limitations, and verification evidence.

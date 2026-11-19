@@ -12,7 +12,8 @@
     "perf": "node scripts/performance-benchmark.mjs",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run verify:sql && npm run perf",
     "typecheck": "tsc --noEmit",
-    "test:invoice:postgres": "bash scripts/test-invoice-postgres.sh"
+    "test:invoice:postgres": "bash scripts/test-invoice-postgres.sh",
+    "demo:draft-memo": "node scripts/serve-draft-memo-demo.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

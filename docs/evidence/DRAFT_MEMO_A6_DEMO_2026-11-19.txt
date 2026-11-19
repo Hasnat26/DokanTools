@@ -1,0 +1,17 @@
+DokanTools Draft Memo local demonstration — 2026-11-19
+
+Browser: Playwright-controlled Chromium, headless
+Flow: save shop profile; add two products; add two memo lines; calculate; save; reload; edit; print to PDF.
+Line 1: 2 kg × BDT 75.50 = BDT 151.00
+Line 2: 1.5 kg × BDT 120.00 = BDT 180.00
+Grand total: BDT 331.00
+Saved draft count after reload: 1
+Lines after reloading/editing: 2
+Browser page errors: 0
+Self-hosted Bengali Noto Sans Bengali WOFF2 font loaded: true
+Bengali sample measured after font load: true
+PDF: one page, 298.08 × 420 pt reported by pdfinfo (nominal A6 297.64 × 419.53 pt; measured PDF page is approximately 0.16 mm larger in each dimension and remains a print-geometry acceptance defect)
+Font inspection: embedded NotoSansBengali-Regular CID TrueType plus Chromium Type 3 glyph subsets
+Rasterized PDF visually inspected at reduced scale; Bengali shop heading, item labels, units, and draft marker were visibly rendered.
+
+Scope note: this is a browser-local demo, not the authenticated production application. No production infrastructure or data was accessed.
