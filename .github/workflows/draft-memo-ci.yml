@@ -23,3 +23,17 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
+      - name: Start production server and smoke-test homepage
+        run: |
+          npm run start -- --hostname 127.0.0.1 > /tmp/dokantools-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/ -o /tmp/dokantools-home.html; then
+              grep -q 'দোকানের হিসাব এখন' /tmp/dokantools-home.html
+              exit $?
+            fi
+            sleep 2
+          done
+          cat /tmp/dokantools-next.log
+          exit 1
