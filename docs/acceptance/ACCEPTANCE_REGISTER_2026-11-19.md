@@ -6,10 +6,10 @@ Date: 2026-11-19 (UTC)
 
 - PO-approved application-under-test baseline: `437e76c1c0261d43c5b419a80aa3bed890331aff`.
 - Corrective branch: `corrective/a6-a4-print-controlled-2026-11-17`.
-- Actual current corrective branch HEAD verified from the branch ref: `b95e8f212b1480da5aeb16120fc6a7a08c2772f2`.
-- Dependency remediation commit: `01e82e767eca29ccd986e5443fc6c455ae0c4296`; it is an ancestor of the current branch (compare reports 6 commits ahead from remediation commit to current HEAD, 0 behind).
-- Current branch is 20 commits ahead of the application baseline, 0 behind. The diff from the application baseline to current HEAD contains only `package.json`, `package-lock.json`, acceptance documentation and GitHub workflow files; no application source files changed.
-- Latest full CI and security-audit workflows ran against `cb18e5fbffd241ee8c76b31ce3f0a1bce8b6a240`. The current HEAD is one documentation-only commit later; the only file changed between that tested SHA and current HEAD is `docs/acceptance/AG07_DEPENDENCY_TRIAGE.md`. The package manifest and lockfile are unchanged.
+- Corrective branch HEAD immediately before this register refresh: `b95e8f212b1480da5aeb16120fc6a7a08c2772f2`; this register refresh creates the new HEAD recorded by its commit.
+- Dependency remediation commit: `01e82e767eca29ccd986e5443fc6c455ae0c4296`; it is an ancestor of the branch (compare reports 7 commits ahead from remediation commit to the new register commit, 0 behind).
+- The new register commit is 21 commits ahead of the application baseline, 0 behind. The diff from the application baseline to current HEAD contains only `package.json`, `package-lock.json`, acceptance documentation and GitHub workflow files; no application source files changed.
+- Latest full CI and security-audit workflows ran against `cb18e5fbffd241ee8c76b31ce3f0a1bce8b6a240`. Two documentation-only commits follow the tested SHA: the AG-07 disposition note and this acceptance-register refresh. No package manifest, lockfile or application source changed after the tested SHA. The package manifest and lockfile are unchanged.
 - `main`: `b07d47bef332d641ec10ce7a96a9ab30a1ea5eab`; unchanged.
 - Repository visibility: PRIVATE.
 - No merge, deployment, pilot, production database operation, public release or public visibility change. No invoice issuance, payment, VAT, discount, stock, sales, ledger or public verification activation. No offline sync, service worker or new product feature was introduced.
