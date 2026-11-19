@@ -1,0 +1,44 @@
+name: Acceptance PostgreSQL concurrency and rollback
+on:
+  push:
+    branches:
+      - corrective/a6-a4-print-controlled-2026-11-17
+    paths:
+      - "scripts/test-invoice-postgres.sh"
+      - "supabase/**"
+      - "tests/postgres/**"
+      - ".github/workflows/acceptance-postgres.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  disposable-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          ref: corrective/a6-a4-print-controlled-2026-11-17
+          fetch-depth: 0
+      - name: Install PostgreSQL client and Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client python3
+      - name: Verify disposable PostgreSQL migration, concurrency and rollback
+        env:
+          GITHUB_ACTIONS: "true"
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: bash scripts/test-invoice-postgres.sh
