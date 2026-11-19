@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 
 const baseURL = process.env.DOKANTOOLS_QA_URL;
 const email = process.env.DOKANTOOLS_QA_EMAIL;
@@ -9,8 +10,8 @@ const pdfPath = process.env.DOKANTOOLS_A6_PDF_OUTPUT || "artifacts/dokantools-au
 test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", async ({ page }) => {
   test.skip(!baseURL || !email || !password, "Set QA URL and synthetic-account credentials as CI secrets.");
   await page.goto(new URL("/login", baseURL).toString());
-  await page.getByLabel("ইমেইল").fill(email!);
-  await page.getByLabel("পাসওয়ার্ড").fill(password!);
+  await page.getByLabel("ইমেইল").fill(email);
+  await page.getByLabel("পাসওয়ার্ড").fill(password);
   await page.getByRole("button", { name: "লগইন" }).click();
   await expect(page).toHaveURL(/dashboard/);
 
@@ -90,7 +91,7 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   });
   await page.getByRole("button", { name: "A6 Print / PDF" }).click();
   await expect.poll(() => page.evaluate(() => window.__dokantoolsPrintCalled)).toBe(true);
-  await mkdir("artifacts", { recursive: true });
+  await mkdir(dirname(pdfPath), { recursive: true });
   await page.emulateMedia({ media: "print" });
   await page.pdf({ path: pdfPath, printBackground: true, preferCSSPageSize: true });
   await page.emulateMedia({ media: "screen" });
