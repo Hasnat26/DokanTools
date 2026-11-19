@@ -38,6 +38,7 @@ The demo checks the rendered preview's 99 × 142 mm content box before opening t
 - Generated PDF: one page; `pdfinfo` reported 298.08 × 420 pt (nominal A6 105 × 148 mm; small Chromium/PDF point rounding applies).
 - `document.fonts.check()` returned true for Bengali text using the self-hosted Noto Sans Bengali font; canvas measured the Bengali sample after font load. PDF font inspection reported embedded Type 3 glyph subsets. This verifies font loading/embedding, not independent typographic proof of every conjunct or target-printer output.
 - No browser page errors in the recorded run.
+- Overflow rejection: 18 long Bengali item rows produced 1,673 px rendered height against a 537 px content box; print was blocked with an overflow warning.
 
 The browser test used the preinstalled Playwright/Chromium in the temporary execution sandbox. Playwright is not added as an application dependency.
 

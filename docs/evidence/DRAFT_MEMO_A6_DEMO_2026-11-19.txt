@@ -15,3 +15,5 @@ Font inspection: embedded NotoSansBengali-Regular CID TrueType plus Chromium Typ
 Rasterized PDF visually inspected at reduced scale; Bengali shop heading, item labels, units, and draft marker were visibly rendered.
 
 Scope note: this is a browser-local demo, not the authenticated production application. No production infrastructure or data was accessed.
+
+Overflow rejection test: 18 long Bengali product lines produced 1,673 px content height against a 537 px A6 content box; print was blocked with an explicit overflow warning. No shrink-to-fit or pagination was applied.
