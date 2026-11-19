@@ -1,13 +1,16 @@
-name: Draft Memo CI
+name: DokanTools V1 Delivery CI
 on:
   push:
     branches:
-      - corrective/a6-a4-print-controlled-2026-11-17
+      - delivery/dokantools-v1-2026-11-19
+  pull_request:
+    branches:
+      - delivery/dokantools-v1-2026-11-19
 permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
