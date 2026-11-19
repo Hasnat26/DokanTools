@@ -1,0 +1,48 @@
+name: Acceptance security and dependency audit
+on:
+  push:
+    branches:
+      - corrective/a6-a4-print-controlled-2026-11-17
+    paths:
+      - "**"
+      - ".github/workflows/acceptance-security-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full Git history
+        uses: actions/checkout@v4
+        with:
+          ref: corrective/a6-a4-print-controlled-2026-11-17
+          fetch-depth: 0
+      - name: Scan working tree and complete Git history with redaction
+        id: secrets
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect \
+            --source=/repo --log-opts=--all --redact \
+            --report-format=json --report-path=/repo/gitleaks-report.json --exit-code=1
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run fresh npm vulnerability audit
+        id: npm_audit
+        run: |
+          set +e
+          npm audit --json > npm-audit-report.json
+          code=$?
+          echo "npm_audit_exit_code=$code" >> "$GITHUB_OUTPUT"
+          node -e 'const r=require("./npm-audit-report.json"); const v=r.metadata?.vulnerabilities||{}; console.log(JSON.stringify({auditExitCode:Number(process.env.AUDIT_CODE||0),vulnerabilities:v},null,2))' || true
+          echo "npm audit exit code: $code"
+      - name: Upload redacted scan and audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dokantools-security-audit
+          path: |
+            gitleaks-report.json
+            npm-audit-report.json
+          if-no-files-found: warn
+          retention-days: 30
