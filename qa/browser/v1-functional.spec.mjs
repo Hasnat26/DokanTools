@@ -105,7 +105,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
    await page.getByRole("button",{name:"Generate A6 PDF / Print"}).click();
    await expect.poll(()=>page.evaluate(()=>window.__dokantoolsPrintCalled),{timeout:10000}).toBe(true);
    await mkdir(dirname(pdfPath),{recursive:true});await page.emulateMedia({media:"print"});
-   await page.pdf({path:pdfPath,printBackground:true,preferCSSPageSize:true,scale:1});await page.emulateMedia({media:"screen"});
+   await page.pdf({path:pdfPath,printBackground:true,preferCSSPageSize:false,width:"105mm",height:"148mm",margin:{top:"3mm",right:"3mm",bottom:"3mm",left:"3mm"},scale:1});await page.emulateMedia({media:"screen"});
    await writeFile("artifacts/dokantools-a6-expectations.json",JSON.stringify({
     shopName,lines:[
      {productName:firstProduct,quantity:"3",unit:"pcs",unitPrice:"12.50",lineTotal:"37.50"},
