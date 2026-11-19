@@ -247,7 +247,7 @@ export default function ProductCataloguePage() {
           <button type="button" className="btn-secondary" onClick={addPresets} disabled={busy}>ডিফল্ট পণ্য যোগ করুন</button>
         </div>
 
-        <form onSubmit={createProduct} className="mt-4 grid gap-3 rounded-xl border border-dashed p-3 sm:grid-cols-5">
+        <form onSubmit={createProduct} aria-label="পণ্য তৈরি" className="mt-4 grid gap-3 rounded-xl border border-dashed p-3 sm:grid-cols-5">
           <label className="text-xs text-slate-500 sm:col-span-2">নতুন পণ্যের নাম
             <input className="field mt-1" required value={productName}
               onChange={event => setProductName(event.target.value)} />
