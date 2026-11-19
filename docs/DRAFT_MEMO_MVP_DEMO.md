@@ -35,7 +35,7 @@ The demo checks the rendered preview's 99 × 142 mm content box before opening t
 
 - Chromium headless workflow: shop profile saved; two catalogue products added; two lines entered (2 kg × ৳75.50 and 1.5 kg × ৳120.00); total verified as ৳331.00.
 - Draft saved to IndexedDB, page reloaded, and saved draft reopened in edit mode with both lines.
-- Generated PDF: one page; `pdfinfo` reported 298.08 × 420 pt (nominal A6 105 × 148 mm; small Chromium/PDF point rounding applies).
+- Generated PDF: one page; `pdfinfo` reported 298.08 × 420 pt. The nominal A6 target is 297.64 × 419.53 pt; the generated PDF is approximately 0.16 mm larger in each dimension. This remains an A6 print-geometry acceptance defect; do not treat the PDF as final production acceptance.
 - `document.fonts.check()` returned true for Bengali text using the self-hosted Noto Sans Bengali font; canvas measured the Bengali sample after font load. PDF font inspection reported embedded Type 3 glyph subsets. This verifies font loading/embedding, not independent typographic proof of every conjunct or target-printer output.
 - No browser page errors in the recorded run.
 - Overflow rejection: 18 long Bengali item rows produced 1,673 px rendered height against a 537 px content box; print was blocked with an overflow warning.
