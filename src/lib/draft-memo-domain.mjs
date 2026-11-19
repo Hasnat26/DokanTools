@@ -1,7 +1,7 @@
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 function scaled(value, places, code) {
   const text = String(value ?? "").trim();
-  const pattern = places === 2 ? /^\\d+(?:\\.\\d{1,2})?$/ : /^\\d+(?:\\.\\d{1,3})?$/;
+  const pattern = places === 2 ? /^\d+(?:\.\d{1,2})?$/ : /^\d+(?:\.\d{1,3})?$/;
   if (!pattern.test(text)) throw new Error(code);
   const [whole, fraction = ""] = text.split(".");
   return BigInt(whole) * (10n ** BigInt(places)) + BigInt((fraction + "0".repeat(places)).slice(0, places));
