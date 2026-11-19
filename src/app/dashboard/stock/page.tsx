@@ -1,74 +1,315 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase, Shop } from "@/lib/supabase";
-import { money, todayIso } from "@/lib/utils";
 import { normalizeProductName } from "@/lib/reliability-core.mjs";
 import { PRODUCT_PRESETS } from "@/lib/product-presets";
 
-type Category={id:string;name:string;sort_order:number};
-type Product={id:string;name:string;unit:string;purchase_price:number;sale_price:number;sort_order:number;is_active:boolean;category_id:string|null};
-type Stock={id:string;name:string;unit:string;purchase_price:number;sale_price:number;price:number;qty:number;expiry_date:string|null;sort_order:number;is_public?:boolean};
-const UNITS=["পিস","কেজি","গ্রাম","লিটার","মিলিলিটার","প্যাকেট","স্ট্রিপ","বোতল","বক্স","প্লেট","কাপ","বাটি","সেবা","ডজন","মিটার","অন্যান্য"];
-export default function StockPage(){
- const [shop,setShop]=useState<Shop|null>(null);const [items,setItems]=useState<Stock[]>([]);const [catalog,setCatalog]=useState<Product[]>([]);const [categories,setCategories]=useState<Category[]>([]);const [categoryFeatureAvailable,setCategoryFeatureAvailable]=useState(false);const [categoryName,setCategoryName]=useState("");const [catalogSaved,setCatalogSaved]=useState<Record<string,{name:string;unit:string}>>({});
- const [name,setName]=useState("");const [unit,setUnit]=useState("পিস");const [purchase,setPurchase]=useState("0");const [sale,setSale]=useState("0");const [qty,setQty]=useState("0");const [catalogName,setCatalogName]=useState("");const [catalogCategory,setCatalogCategory]=useState("");const [catalogUnit,setCatalogUnit]=useState("পিস");const [catalogPurchase,setCatalogPurchase]=useState("0");const [catalogSale,setCatalogSale]=useState("0");const [expiry,setExpiry]=useState("");const [error,setError]=useState("");const [busy,setBusy]=useState(false);const createRequestId=useRef<string>("");const router=useRouter();
- const load=useCallback(async()=>{const {data:{user}}=await supabase.auth.getUser();if(!user){router.replace("/login");return;}const {data:s}=await supabase.from("shops").select("*").eq("user_id",user.id).limit(1).maybeSingle();if(!s){router.replace("/dashboard");return;}setShop(s as Shop);const [st,cat,cats,categoryColumn]=await Promise.all([supabase.from("stock_items").select("*").eq("shop_id",s.id).order("sort_order").order("name"),supabase.from("item_catalog").select("*").eq("shop_id",s.id).order("sort_order").order("name"),supabase.from("item_categories").select("*").eq("shop_id",s.id).order("sort_order").order("name"),supabase.from("item_catalog").select("category_id").limit(0)]);setItems((st.data||[]) as Stock[]);const catalogItems=(cat.data||[]) as Product[];setCatalog(catalogItems);setCategories((cats.data||[]) as Category[]);setCategoryFeatureAvailable(!cats.error&&!categoryColumn.error);setCatalogSaved(Object.fromEntries(catalogItems.map(p=>[p.id,{name:p.name,unit:p.unit}])));},[router]);
- useEffect(()=>{void load();},[load]);
- async function submit(e:FormEvent){
-  e.preventDefault();if(!shop)return;setBusy(true);setError("");
-  if(!name.trim()||!unit.trim()||!Number.isFinite(Number(qty))||Number(qty)<0||!Number.isFinite(Number(purchase))||Number(purchase)<0||!Number.isFinite(Number(sale))||Number(sale)<0){setError("পণ্যের নাম, ইউনিট, পরিমাণ ও দাম যাচাই করুন।");setBusy(false);return;}
-  if(items.some(i=>i.name.trim().toLocaleLowerCase()===name.trim().toLocaleLowerCase())){setError("এই পণ্যটি ইনভেন্টরিতে আছে। বিদ্যমান পণ্যটি ব্যবহার করুন।");setBusy(false);return;}
-  const requestId=createRequestId.current||crypto.randomUUID();createRequestId.current=requestId;
-  const existingCatalog=catalog.find(p=>p.name.toLowerCase()===name.trim().toLowerCase());
-  let catalogError:{message:string}|null=null;
-  if(existingCatalog){const result=await supabase.from("item_catalog").update({unit,purchase_price:Number(purchase),sale_price:Number(sale),is_active:true}).eq("id",existingCatalog.id);catalogError=result.error;}
-  else {const result=await supabase.from("item_catalog").insert({shop_id:shop.id,name:name.trim(),unit,purchase_price:Number(purchase),sale_price:Number(sale),sort_order:catalog.length,is_active:true}).select("id").single();catalogError=result.error;}
-  if(catalogError){setBusy(false);setError(catalogError.message);return;}
-  try{const response=await supabase.rpc("create_stock_item",{p_request_id:requestId,p_shop_id:shop.id,p_name:name.trim(),p_unit:unit,p_purchase_price:Number(purchase),p_sale_price:Number(sale),p_initial_qty:Number(qty),p_expiry_date:expiry||null,p_sort_order:items.length}).single();const result=response.data as {result_stock_id?:string}|null;if(response.error||!result?.result_stock_id){setBusy(false);setError(response.error?.message||"স্টক তৈরির ফল নিশ্চিত করা যায়নি।");return;}}
-  catch(err:unknown){setBusy(false);setError("নেটওয়ার্কের কারণে স্টক তৈরির ফল নিশ্চিত করা যায়নি। একই অনুরোধ আইডি রেখে যাচাই করুন। "+(err instanceof Error?err.message:""));return;}
-  setBusy(false);
-  createRequestId.current="";setName("");setUnit("পিস");setPurchase("0");setSale("0");setQty("0");setExpiry("");await load();
- }
- async function createCategory(e:FormEvent){e.preventDefault();if(!shop)return;const name=categoryName.trim();if(!name)return;if(categories.some(c=>c.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase())){setError("এই ক্যাটাগরি আগে থেকেই আছে।");return;}setBusy(true);setError("");const {error}=await supabase.from("item_categories").insert({shop_id:shop.id,name,sort_order:categories.length});setBusy(false);if(error){setError(error.message);return;}setCategoryName("");await load();}
- async function renameCategory(category:Category){if(!shop||busy)return;const proposed=window.prompt("ক্যাটাগরির নতুন নাম লিখুন:",category.name);if(proposed===null)return;const name=proposed.trim();if(!name||name===category.name)return;if(categories.some(c=>c.id!==category.id&&c.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase())){setError("এই নামে আরেকটি ক্যাটাগরি আছে।");return;}setBusy(true);setError("");const {error}=await supabase.from("item_categories").update({name}).eq("id",category.id).eq("shop_id",shop.id);setBusy(false);if(error){setError(error.message);return;}await load();}
- async function deleteCategory(category:Category){if(!shop||busy||!window.confirm(`“${category.name}” ক্যাটাগরি মুছবেন? যুক্ত পণ্যগুলো Uncategorized হবে।`))return;setBusy(true);const {error}=await supabase.from("item_categories").delete().eq("id",category.id).eq("shop_id",shop.id);setBusy(false);if(error){setError(error.message);return;}await load();}
- async function createCatalogProduct(e:FormEvent){e.preventDefault();if(!shop||busy)return;const n=catalogName.trim(),u=catalogUnit.trim(),pu=Number(catalogPurchase),su=Number(catalogSale);if(!n||!u||!Number.isFinite(pu)||pu<0||!Number.isFinite(su)||su<0){setError("পণ্যের নাম, ইউনিট ও মূল্য যাচাই করুন।");return;}if(catalog.some(p=>normalizeProductName(p.name)===normalizeProductName(n))){setError("এই নামে পণ্য ইতিমধ্যে আছে।");return;}setBusy(true);setError("");const payload={shop_id:shop.id,name:n,unit:u,purchase_price:pu,sale_price:su,sort_order:catalog.length,is_active:true,...(categoryFeatureAvailable&&catalogCategory?{category_id:catalogCategory}:{})};const {error}=await supabase.from("item_catalog").insert(payload);setBusy(false);if(error){setError(error.message);return;}setCatalogName("");setCatalogCategory("");setCatalogUnit("পিস");setCatalogPurchase("0");setCatalogSale("0");await load();}
- async function deleteCatalogProduct(p:Product){if(!shop||busy)return;if(items.some(i=>normalizeProductName(i.name)===normalizeProductName(p.name))){setError("এই পণ্যটি স্টকের সঙ্গে যুক্ত। স্টক-যুক্ত পণ্য ক্যাটালগ থেকে মুছবেন না; আগে সংযোগ যাচাই করুন।");return;}if(!window.confirm(`“${p.name}” ক্যাটালগ থেকে মুছে ফেলবেন? এই কাজটি ফেরানো যাবে না।`))return;setBusy(true);setError("");const {error}=await supabase.from("item_catalog").delete().eq("id",p.id).eq("shop_id",shop.id);setBusy(false);if(error){setError(error.message);return;}await load();}
- async function saveProduct(p:Product){const baseline=catalogSaved[p.id];const linkedStock=baseline?items.find(i=>normalizeProductName(i.name)===normalizeProductName(baseline.name)):undefined;if(linkedStock&&normalizeProductName(p.name)!==normalizeProductName(baseline.name)){setError("ইনভেন্টরির সঙ্গে যুক্ত পণ্যের নাম এই সংস্করণে সরাসরি বদলানো যাবে না; এতে বিক্রির স্টক মিল নষ্ট হতে পারে।");return;}if(linkedStock&&p.unit!==linkedStock.unit){setError("ইনভেন্টরিতে থাকা পণ্যের ইউনিট সরাসরি বদলানো যাবে না; ইউনিট রূপান্তর এই পাইলট সংস্করণে নেই।");return;}const duplicate=catalog.some(x=>x.id!==p.id&&normalizeProductName(x.name)===normalizeProductName(p.name));if(duplicate){setError("এই নামে আরেকটি ক্যাটালগ পণ্য আছে।");return;}const patch={name:p.name,unit:p.unit,purchase_price:Number(p.purchase_price),sale_price:Number(p.sale_price),sort_order:p.sort_order,is_active:p.is_active,...(categoryFeatureAvailable?{category_id:p.category_id||null}:{})};const {error}=await supabase.from("item_catalog").update(patch).eq("id",p.id).eq("shop_id",shop?.id);if(error)setError(error.message);else await load();}
- async function moveProduct(index:number,delta:number){const next=index+delta;if(next<0||next>=catalog.length)return;const a=catalog[index],b=catalog[next];await Promise.all([supabase.from("item_catalog").update({sort_order:b.sort_order}).eq("id",a.id),supabase.from("item_catalog").update({sort_order:a.sort_order}).eq("id",b.id)]);await load();}
- async function addPreset(){if(!shop)return;const existing=new Set(catalog.map(p=>p.name.toLowerCase()));const presets=(PRODUCT_PRESETS[shop.shop_type]||PRODUCT_PRESETS.general).filter(p=>!existing.has(p.name.toLowerCase()));if(!presets.length){setError("সব ডিফল্ট পণ্য ইতিমধ্যে তালিকায় আছে।");return;}const {error}=await supabase.from("item_catalog").insert(presets.map((p,i)=>({shop_id:shop.id,name:p.name,unit:p.unit,purchase_price:0,sale_price:0,sort_order:catalog.length+i,is_active:true})));if(error)setError(error.message);else await load();}
- async function addToStock(p:Product){
-  if(!shop)return;const current=items.find(i=>i.name.toLowerCase()===p.name.toLowerCase());
-  if(current){setError("এই পণ্যটি ইনভেন্টরিতে আছে। তালিকা থেকে পরিমাণ/দাম আপডেট করুন।");return;}
-  const {data,error}=await supabase.rpc("create_stock_item",{p_request_id:crypto.randomUUID(),p_shop_id:shop.id,p_name:p.name,p_unit:p.unit,p_purchase_price:Number(p.purchase_price),p_sale_price:Number(p.sale_price),p_initial_qty:0,p_expiry_date:null,p_sort_order:items.length}).single();
-  const result=data as {result_stock_id?:string}|null;
-  if(error||!result?.result_stock_id){setError(error?.message||"স্টক আইটেম তৈরি করা যায়নি।");return;}await load();
- }
- async function updateStock(item:Stock,patch:Partial<Stock>){
-  if(!shop)return;const next={...item,...patch};
-  if(patch.unit!==undefined&&patch.unit!==item.unit){setError("ইনভেন্টরিতে থাকা পণ্যের ইউনিট সরাসরি বদলানো নিরাপদ নয়; স্পষ্ট রূপান্তর এই সংস্করণে সমর্থিত নয়।");await load();return;}
-  if(patch.name!==undefined&&items.some(other=>other.id!==item.id&&normalizeProductName(other.name)===normalizeProductName(patch.name))){setError("একই নামে একাধিক স্টক পণ্য রাখা যাবে না; আগে পণ্যের পরিচয় যাচাই করুন।");await load();return;}
-  if(patch.qty!==undefined&&Number(patch.qty)!==Number(item.qty)){
-   if(!Number.isFinite(Number(patch.qty))||Number(patch.qty)<0){setError("স্টকের পরিমাণ শূন্য বা তার বেশি হতে হবে।");await load();return;}
-   const reason=window.prompt("স্টক পরিবর্তনের কারণ লিখুন (যেমন: হাতে গুনে সংশোধন, ক্ষতি, ভুল এন্ট্রি):", "হাতে গুনে স্টক সংশোধন");
-   if(reason===null||reason.trim().length<3){setError("স্টক পরিবর্তন করা হয়নি; কারণ লিখতে হবে।");await load();return;}
-   const {error:adjustError}=await supabase.rpc("adjust_stock_quantity",{p_request_id:crypto.randomUUID(),p_shop_id:shop.id,p_stock_item_id:item.id,p_new_qty:Number(patch.qty),p_reason:reason.trim()}).single();
-   if(adjustError){setError(adjustError.message);await load();return;}
+type Category = { id: string; name: string; sort_order: number };
+type Product = {
+  id: string;
+  name: string;
+  unit: string;
+  purchase_price: number;
+  sale_price: number;
+  sort_order: number;
+  is_active: boolean;
+  category_id: string | null;
+};
+
+export default function ProductCataloguePage() {
+  const router = useRouter();
+  const [shop, setShop] = useState<Shop | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryFeatureAvailable, setCategoryFeatureAvailable] = useState(false);
+  const [categoryName, setCategoryName] = useState("");
+  const [productName, setProductName] = useState("");
+  const [productUnit, setProductUnit] = useState("পিস");
+  const [purchasePrice, setPurchasePrice] = useState("0");
+  const [salePrice, setSalePrice] = useState("0");
+  const [productCategory, setProductCategory] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) { setError(authError.message); setLoading(false); return; }
+    if (!user) { router.replace("/login"); return; }
+
+    const { data: shopData, error: shopError } = await supabase
+      .from("shops").select("*").eq("user_id", user.id).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (shopError) { setError(shopError.message); setLoading(false); return; }
+    if (!shopData) { router.replace("/dashboard"); return; }
+    setShop(shopData as Shop);
+
+    const [catalogResult, categoriesResult, categoryColumnResult] = await Promise.all([
+      supabase.from("item_catalog").select("*").eq("shop_id", shopData.id).order("sort_order").order("name"),
+      supabase.from("item_categories").select("*").eq("shop_id", shopData.id).order("sort_order").order("name"),
+      supabase.from("item_catalog").select("category_id").limit(0),
+    ]);
+
+    if (catalogResult.error) setError(catalogResult.error.message);
+    if (categoriesResult.error && !categoriesResult.error.message.includes("item_categories")) setError(categoriesResult.error.message);
+    setProducts((catalogResult.data || []) as Product[]);
+    setCategories((categoriesResult.data || []) as Category[]);
+    setCategoryFeatureAvailable(!categoriesResult.error && !categoryColumnResult.error);
+    setLoading(false);
+  }, [router]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function createCategory(event: FormEvent) {
+    event.preventDefault();
+    if (!shop || busy) return;
+    const name = categoryName.trim();
+    if (!name) return;
+    if (categories.some(category => normalizeProductName(category.name) === normalizeProductName(name))) {
+      setError("এই ক্যাটাগরি আগে থেকেই আছে।");
+      return;
+    }
+    setBusy(true); setError("");
+    const { error: insertError } = await supabase.from("item_categories").insert({
+      shop_id: shop.id, name, sort_order: categories.length,
+    });
+    setBusy(false);
+    if (insertError) { setError(insertError.message); return; }
+    setCategoryName("");
+    await load();
   }
-  const metadataChanged=Object.keys(patch).some(key=>key!=="qty");
-  if(metadataChanged){
-   const {error}=await supabase.from("stock_items").update({purchase_price:Number(next.purchase_price),sale_price:Number(next.sale_price),price:Number(next.sale_price),expiry_date:next.expiry_date,sort_order:next.sort_order,is_public:Boolean(next.is_public)}).eq("id",item.id);
-   if(error){setError(error.message);await load();return;}
-   const matching=catalog.find(p=>p.name.toLowerCase()===item.name.toLowerCase());
-   if(matching){const {error:catalogError}=await supabase.from("item_catalog").update({name:next.name,unit:next.unit,purchase_price:Number(next.purchase_price),sale_price:Number(next.sale_price)}).eq("id",matching.id);if(catalogError)setError(catalogError.message);}
+
+  async function renameCategory(category: Category) {
+    if (!shop || busy) return;
+    const proposed = window.prompt("ক্যাটাগরির নতুন নাম লিখুন:", category.name);
+    if (proposed === null) return;
+    const name = proposed.trim();
+    if (!name || name === category.name) return;
+    if (categories.some(item => item.id !== category.id && normalizeProductName(item.name) === normalizeProductName(name))) {
+      setError("এই নামে আরেকটি ক্যাটাগরি আছে।");
+      return;
+    }
+    setBusy(true); setError("");
+    const { error: updateError } = await supabase.from("item_categories")
+      .update({ name }).eq("id", category.id).eq("shop_id", shop.id);
+    setBusy(false);
+    if (updateError) { setError(updateError.message); return; }
+    await load();
   }
-  await load();
- }
- const today=todayIso();const in30=new Date();in30.setDate(in30.getDate()+30);const in30Iso=in30.toISOString().slice(0,10);
- return <div className="container-page py-8"><Link href="/dashboard" className="text-sm font-semibold text-brand-700">← ড্যাশবোর্ড</Link><h1 className="mt-3 text-3xl font-extrabold">ইনভেন্টরি ও পণ্য তালিকা</h1><p className="muted mt-2">প্রতি পণ্যের ক্রয়মূল্য, বিক্রয়মূল্য, ইউনিট ও পরিমাণ নির্ধারণ করুন। ইনভয়েসে বিক্রয়মূল্য অটো আসবে।</p>
- <div className="mt-6 grid gap-5 lg:grid-cols-3"><form onSubmit={submit} className="card space-y-4"><h2 className="text-lg font-bold">নতুন পণ্য ও স্টক</h2><div><label className="label">পণ্যের নাম</label><input className="field" required value={name} onChange={e=>setName(e.target.value)}/></div><div><label className="label">ইউনিট</label><select className="field" value={unit} onChange={e=>setUnit(e.target.value)}>{UNITS.map(u=><option key={u}>{u}</option>)}</select></div><div className="grid grid-cols-2 gap-3"><div><label className="label">ক্রয়মূল্য / ইউনিট</label><input className="field" type="number" min="0" step="0.01" required value={purchase} onChange={e=>setPurchase(e.target.value)}/></div><div><label className="label">বিক্রয়মূল্য / ইউনিট</label><input className="field" type="number" min="0" step="0.01" required value={sale} onChange={e=>setSale(e.target.value)}/></div></div><div><label className="label">বর্তমান পরিমাণ ({unit})</label><input className="field" type="number" min="0" step="0.001" required value={qty} onChange={e=>setQty(e.target.value)}/></div><div><label className="label">মেয়াদ শেষ (ঐচ্ছিক)</label><input className="field" type="date" value={expiry} onChange={e=>setExpiry(e.target.value)}/></div>{error&&<p className="text-sm text-red-600">{error}</p>}<button className="btn-primary w-full" disabled={busy}>{busy?"সেভ হচ্ছে…":"পণ্য ও স্টক সেভ করুন"}</button></form>
- <div className="card lg:col-span-2"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">ইনভেন্টরি ({items.length})</h2><span className="muted">কম স্টক: ৫ ইউনিটের কম</span></div><div className="mt-4 space-y-3">{items.map(item=>{const low=item.qty<5;const exp=!!item.expiry_date&&item.expiry_date>=today&&item.expiry_date<=in30Iso;const expired=!!item.expiry_date&&item.expiry_date<today;return <div key={item.id} className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-3"><div><p className="font-bold">{item.name} <span className="text-sm font-normal text-slate-500">/ {item.unit}</span></p><p className="muted">ক্রয় {money(item.purchase_price)} · বিক্রয় {money(item.sale_price)} প্রতি {item.unit}</p>{item.expiry_date&&<p className="muted">মেয়াদ: {item.expiry_date}</p>}</div><div className="flex flex-wrap content-start gap-2">{low&&<span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">কম স্টক</span>}{exp&&<span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-800">মেয়াদ আসছে</span>}{expired&&<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">মেয়াদ শেষ</span>}</div></div><div className="mt-3 grid gap-2 sm:grid-cols-5"><label className="text-xs text-slate-500">পরিমাণ<input className="field mt-1" type="number" min="0" step="0.001" defaultValue={item.qty} onBlur={e=>{if(Number(e.target.value)!==Number(item.qty))updateStock(item,{qty:Number(e.target.value)});}}/></label><label className="text-xs text-slate-500">ক্রয়মূল্য<input className="field mt-1" type="number" min="0" step="0.01" defaultValue={item.purchase_price} onBlur={e=>{if(Number(e.target.value)!==Number(item.purchase_price))updateStock(item,{purchase_price:Number(e.target.value)});}}/></label><label className="text-xs text-slate-500">বিক্রয়মূল্য<input className="field mt-1" type="number" min="0" step="0.01" defaultValue={item.sale_price} onBlur={e=>{if(Number(e.target.value)!==Number(item.sale_price))updateStock(item,{sale_price:Number(e.target.value)});}}/></label><label className="text-xs text-slate-500">ইউনিট<input className="field mt-1" defaultValue={item.unit} disabled title="এই সংস্করণে স্টক ইউনিট পরিবর্তন করা যায় না"/></label><label className="text-xs text-slate-500">মেয়াদ<input className="field mt-1" type="date" defaultValue={item.expiry_date||""} onBlur={e=>{if(e.target.value!== (item.expiry_date||""))updateStock(item,{expiry_date:e.target.value||null});}}/></label></div><label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(item.is_public)} onChange={e=>updateStock(item,{is_public:e.target.checked})}/>পাবলিক দোকান পেজে পণ্যের নাম ও বিক্রয়মূল্য দেখান</label></div>})}{items.length===0&&<p className="muted py-8 text-center">এখনও কোনো পণ্য যোগ করা হয়নি।</p>}</div></div></div>
- <section className="mt-6 card"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold">ডিফল্ট ও কাস্টম পণ্যের তালিকা</h2><form onSubmit={createCatalogProduct} className="mt-4 grid gap-3 rounded-xl border border-dashed p-3 sm:grid-cols-5"><label className="text-xs text-slate-500 sm:col-span-2">নতুন পণ্যের নাম<input className="field mt-1" required value={catalogName} onChange={e=>setCatalogName(e.target.value)} placeholder="পণ্যের নাম"/></label>{categoryFeatureAvailable&&<label className="text-xs text-slate-500">ক্যাটাগরি<select className="field mt-1" value={catalogCategory} onChange={e=>setCatalogCategory(e.target.value)}><option value="">ক্যাটাগরি নেই</option>{categories.map(cat=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>}<label className="text-xs text-slate-500">ইউনিট<input className="field mt-1" required value={catalogUnit} onChange={e=>setCatalogUnit(e.target.value)} /></label><label className="text-xs text-slate-500">ক্রয়মূল্য<input className="field mt-1" type="number" min="0" step="0.01" value={catalogPurchase} onChange={e=>setCatalogPurchase(e.target.value)}/></label><label className="text-xs text-slate-500">বিক্রয়মূল্য<input className="field mt-1" type="number" min="0" step="0.01" value={catalogSale} onChange={e=>setCatalogSale(e.target.value)}/></label><button className="btn-primary sm:col-span-5" disabled={busy}>{busy?"তৈরি হচ্ছে…":"Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)"}</button></form><p className="muted mt-1">নাম ও ইউনিট সম্পাদনা করুন; ↑ ↓ দিয়ে সাজান। ইনভয়েসে এই তালিকা ব্যবহার হবে।</p></div><button className="btn-secondary" onClick={addPreset}>ডিফল্ট পণ্য যোগ করুন</button></div>{categoryFeatureAvailable&&<div className="mb-4 rounded-xl border p-3"><h3 className="font-semibold">ক্যাটাগরি ব্যবস্থাপনা</h3><form onSubmit={createCategory} className="mt-2 flex flex-wrap gap-2"><input className="field min-w-[180px] flex-1" value={categoryName} onChange={e=>setCategoryName(e.target.value)} placeholder="নতুন ক্যাটাগরির নাম" required/><button className="btn-primary" disabled={busy}>ক্যাটাগরি যোগ করুন</button></form><div className="mt-2 flex flex-wrap gap-2">{categories.map(cat=><span key={cat.id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm">{cat.name}<button type="button" aria-label={cat.name+" rename"} title="ক্যাটাগরি সম্পাদনা" onClick={()=>renameCategory(cat)} className="text-slate-700">✎</button><button type="button" aria-label={cat.name+" delete"} onClick={()=>deleteCategory(cat)} className="text-red-600">×</button></span>)}</div></div>}<div className="mt-4 space-y-3">{catalog.map((p,index)=><div key={p.id} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-12 sm:items-end"><label className="text-xs text-slate-500 sm:col-span-4">পণ্যের নাম<input className="field mt-1" value={p.name} onChange={e=>setCatalog(old=>old.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/></label><label className="text-xs text-slate-500 sm:col-span-2">ইউনিট<input className="field mt-1" value={p.unit} onChange={e=>setCatalog(old=>old.map(x=>x.id===p.id?{...x,unit:e.target.value}:x))}/></label>{categoryFeatureAvailable&&<label className="text-xs text-slate-500 sm:col-span-2">ক্যাটাগরি<select className="field mt-1" value={p.category_id||""} onChange={e=>setCatalog(old=>old.map(x=>x.id===p.id?{...x,category_id:e.target.value||null}:x))}><option value="">ক্যাটাগরি নেই</option>{categories.map(cat=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>}<label className="text-xs text-slate-500 sm:col-span-2">ক্রয়মূল্য<input className="field mt-1" type="number" min="0" step="0.01" value={p.purchase_price} onChange={e=>setCatalog(old=>old.map(x=>x.id===p.id?{...x,purchase_price:Number(e.target.value)}:x))}/></label><label className="text-xs text-slate-500 sm:col-span-2">বিক্রয়মূল্য<input className="field mt-1" type="number" min="0" step="0.01" value={p.sale_price} onChange={e=>setCatalog(old=>old.map(x=>x.id===p.id?{...x,sale_price:Number(e.target.value)}:x))}/></label><div className="flex gap-1 sm:col-span-2"><button type="button" className="btn-secondary px-3" title="উপরে" onClick={()=>moveProduct(index,-1)}>↑</button><button type="button" className="btn-secondary px-3" title="নিচে" onClick={()=>moveProduct(index,1)}>↓</button><button type="button" className="btn-primary px-3" onClick={()=>saveProduct(p)}>সেভ</button><button type="button" className="btn-secondary px-3" disabled={busy} onClick={()=>deleteCatalogProduct(p)}>মুছুন</button>{!items.some(item=>normalizeProductName(item.name)===normalizeProductName(p.name))&&<button type="button" className="btn-secondary px-3" onClick={()=>addToStock(p)}>স্টকে যোগ</button>}</div></div>)}{catalog.length===0&&<p className="muted">দোকান তৈরি করার সময় ডিফল্ট তালিকা তৈরি হয়।</p>}</div></section></div>;
+
+  async function deleteCategory(category: Category) {
+    if (!shop || busy || !window.confirm(`“${category.name}” ক্যাটাগরি মুছবেন? যুক্ত পণ্যগুলো Uncategorized হবে।`)) return;
+    setBusy(true); setError("");
+    const { error: deleteError } = await supabase.from("item_categories")
+      .delete().eq("id", category.id).eq("shop_id", shop.id);
+    setBusy(false);
+    if (deleteError) { setError(deleteError.message); return; }
+    await load();
+  }
+
+  async function createProduct(event: FormEvent) {
+    event.preventDefault();
+    if (!shop || busy) return;
+    const name = productName.trim();
+    const unit = productUnit.trim();
+    const purchase = Number(purchasePrice);
+    const sale = Number(salePrice);
+    if (!name || !unit || !Number.isFinite(purchase) || purchase < 0 || !Number.isFinite(sale) || sale < 0) {
+      setError("পণ্যের নাম, ইউনিট ও মূল্য যাচাই করুন।");
+      return;
+    }
+    if (products.some(item => normalizeProductName(item.name) === normalizeProductName(name))) {
+      setError("এই নামে পণ্য ইতিমধ্যে আছে।");
+      return;
+    }
+    setBusy(true); setError("");
+    const payload = {
+      shop_id: shop.id, name, unit, purchase_price: purchase, sale_price: sale,
+      sort_order: products.length, is_active: true,
+      ...(categoryFeatureAvailable && productCategory ? { category_id: productCategory } : {}),
+    };
+    const { error: insertError } = await supabase.from("item_catalog").insert(payload);
+    setBusy(false);
+    if (insertError) { setError(insertError.message); return; }
+    setProductName(""); setProductUnit("পিস"); setPurchasePrice("0"); setSalePrice("0"); setProductCategory("");
+    await load();
+  }
+
+  async function saveProduct(product: Product) {
+    if (!shop || busy) return;
+    if (!product.name.trim() || !product.unit.trim() ||
+        !Number.isFinite(Number(product.purchase_price)) || Number(product.purchase_price) < 0 ||
+        !Number.isFinite(Number(product.sale_price)) || Number(product.sale_price) < 0) {
+      setError("পণ্যের নাম, ইউনিট ও মূল্য যাচাই করুন।");
+      return;
+    }
+    if (products.some(item => item.id !== product.id && normalizeProductName(item.name) === normalizeProductName(product.name))) {
+      setError("এই নামে আরেকটি ক্যাটালগ পণ্য আছে।");
+      return;
+    }
+    const patch = {
+      name: product.name.trim(), unit: product.unit.trim(),
+      purchase_price: Number(product.purchase_price), sale_price: Number(product.sale_price),
+      sort_order: product.sort_order, is_active: product.is_active,
+      ...(categoryFeatureAvailable ? { category_id: product.category_id || null } : {}),
+    };
+    setBusy(true); setError("");
+    const { error: updateError } = await supabase.from("item_catalog")
+      .update(patch).eq("id", product.id).eq("shop_id", shop.id);
+    setBusy(false);
+    if (updateError) { setError(updateError.message); return; }
+    await load();
+  }
+
+  async function deleteProduct(product: Product) {
+    if (!shop || busy || !window.confirm(`“${product.name}” ক্যাটালগ থেকে মুছে ফেলবেন? এই কাজটি ফেরানো যাবে না।`)) return;
+    setBusy(true); setError("");
+    const { error: deleteError } = await supabase.from("item_catalog")
+      .delete().eq("id", product.id).eq("shop_id", shop.id);
+    setBusy(false);
+    if (deleteError) { setError(deleteError.message); return; }
+    await load();
+  }
+
+  async function moveProduct(index: number, delta: number) {
+    if (busy) return;
+    const next = index + delta;
+    if (next < 0 || next >= products.length) return;
+    const current = products[index], adjacent = products[next];
+    setBusy(true);
+    const results = await Promise.all([
+      supabase.from("item_catalog").update({ sort_order: adjacent.sort_order }).eq("id", current.id).eq("shop_id", shop?.id),
+      supabase.from("item_catalog").update({ sort_order: current.sort_order }).eq("id", adjacent.id).eq("shop_id", shop?.id),
+    ]);
+    setBusy(false);
+    const failed = results.find(result => result.error);
+    if (failed?.error) { setError(failed.error.message); return; }
+    await load();
+  }
+
+  async function addPresets() {
+    if (!shop || busy) return;
+    const existing = new Set(products.map(product => normalizeProductName(product.name)));
+    const presets = (PRODUCT_PRESETS[shop.shop_type] || PRODUCT_PRESETS.general)
+      .filter(product => !existing.has(normalizeProductName(product.name)));
+    if (!presets.length) { setError("সব ডিফল্ট পণ্য ইতিমধ্যে তালিকায় আছে।"); return; }
+    setBusy(true); setError("");
+    const { error: insertError } = await supabase.from("item_catalog").insert(presets.map((product, index) => ({
+      shop_id: shop.id, name: product.name, unit: product.unit, purchase_price: 0,
+      sale_price: 0, sort_order: products.length + index, is_active: true,
+    })));
+    setBusy(false);
+    if (insertError) { setError(insertError.message); return; }
+    await load();
+  }
+
+  if (loading) return <main className="container-page py-8">লোড হচ্ছে…</main>;
+
+  return (
+    <main className="container-page py-8">
+      <Link href="/dashboard" className="text-sm font-semibold text-brand-700">← ড্যাশবোর্ড</Link>
+      <h1 className="mt-3 text-3xl font-extrabold">পণ্য ও ক্যাটাগরি</h1>
+      <p className="muted mt-2">Draft Memo-এর জন্য দোকানের পণ্য, ইউনিট ও মূল্য পরিচালনা করুন।</p>
+
+      {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+
+      {categoryFeatureAvailable && (
+        <section className="mt-6 card" aria-label="ক্যাটাগরি ব্যবস্থাপনা">
+          <h2 className="text-lg font-bold">ক্যাটাগরি ব্যবস্থাপনা</h2>
+          <form onSubmit={createCategory} className="mt-3 flex flex-wrap gap-2">
+            <input className="field min-w-[180px] flex-1" value={categoryName}
+              onChange={event => setCategoryName(event.target.value)}
+              placeholder="নতুন ক্যাটাগরির নাম" aria-label="নতুন ক্যাটাগরির নাম" required />
+            <button className="btn-primary" disabled={busy}>ক্যাটাগরি যোগ করুন</button>
+          </form>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {categories.map(category => (
+              <span key={category.id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm">
+                {category.name}
+                <button type="button" aria-label={category.name + " rename"}
+                  onClick={() => renameCategory(category)} className="text-slate-700">✎</button>
+                <button type="button" aria-label={category.name + " delete"}
+                  onClick={() => deleteCategory(category)} className="text-red-600">×</button>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="mt-6 card">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold">পণ্য ক্যাটালগ</h2>
+            <p className="muted mt-1">এখানে সংরক্ষিত পণ্য Draft Memo-তে নির্বাচন করা যাবে।</p>
+          </div>
+          <button type="button" className="btn-secondary" onClick={addPresets} disabled={busy}>ডিফল্ট পণ্য যোগ করুন</button>
+        </div>
+
+        <form onSubmit={createProduct} className="mt-4 grid gap-3 rounded-xl border border-dashed p-3 sm:grid-cols-5">
+          <label className="text-xs text-slate-500 sm:col-span-2">নতুন পণ্যের নাম
+            <input className="field mt-1" required value={productName}
+              onChange={event => setProductName(event.target.value)} />
+          </label>
+          {categoryFeatureAvailable && <label className="text-xs text-slate-500">ক্যাটাগরি
+            <select className="field mt-1" aria-label="ক্যাটাগরি" value={productCategory}
+              onChange={event => setProductCategory(event.target.value)}>
+              <option value="">ক্যাটাগরি নেই</option>
+              {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </label>}
+          <label className="text-xs text-slate-500">ইউনিট
+            <input className="field mt-1" required value={productUnit} onChange={event => setProductUnit(event.target.value)} />
+          </label>
+          <label className="text-xs text-slate-500">ক্রয়মূল্য
+            <input className="field mt-1" type="number" min="0" step="0.01" value={purchasePrice}
+              onChange={event => setPurchasePrice(event.target.value)} />
+          </label>
+          <label className="text-xs text-slate-500">বিক্রয়মূল্য
+            <input className="field mt-1" type="number" min="0" step="0.01" value={salePrice}
+              onChange={event => setSalePrice(event.target.value)} />
+          </label>
+          <button className="btn-primary sm:col-span-5" disabled={busy}>Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)</button>
+        </form>
+
+        <div className="mt-4 space-y-3">
+          {products.map((product, index) => (
+            <div key={product.id} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-12 sm:items-end">
+              <label className="text-xs text-slate-500 sm:col-span-3">পণ্যের নাম
+                <input className="field mt-1" aria-label="পণ্যের নাম" value={product.name}
+                  onChange={event => setProducts(items => items.map(item => item.id === product.id ? { ...item, name: event.target.value } : item))} />
+              </label>
+              <label className="text-xs text-slate-500 sm:col-span-2">ইউনিট
+                <input className="field mt-1" aria-label="ইউনিট" value={product.unit}
+                  onChange={event => setProducts(items => items.map(item => item.id === product.id ? { ...item, unit: event.target.value } : item))} />
+              </label>
+              {categoryFeatureAvailable && <label className="text-xs text-slate-500 sm:col-span-2">ক্যাটাগরি
+                <select className="field mt-1" aria-label="ক্যাটাগরি" value={product.category_id || ""}
+                  onChange={event => setProducts(items => items.map(item => item.id === product.id ? { ...item, category_id: event.target.value || null } : item))}>
+                  <option value="">ক্যাটাগরি নেই</option>
+                  {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+              </label>}
+              <label className="text-xs text-slate-500 sm:col-span-2">ক্রয়মূল্য
+                <input className="field mt-1" aria-label="ক্রয়মূল্য" type="number" min="0" step="0.01"
+                  value={product.purchase_price} onChange={event => setProducts(items => items.map(item => item.id === product.id ? { ...item, purchase_price: Number(event.target.value) } : item))} />
+              </label>
+              <label className="text-xs text-slate-500 sm:col-span-2">বিক্রয়মূল্য
+                <input className="field mt-1" aria-label="বিক্রয়মূল্য" type="number" min="0" step="0.01"
+                  value={product.sale_price} onChange={event => setProducts(items => items.map(item => item.id === product.id ? { ...item, sale_price: Number(event.target.value) } : item))} />
+              </label>
+              <div className="flex gap-1 sm:col-span-3">
+                <button type="button" className="btn-secondary px-3" title="উপরে" onClick={() => moveProduct(index, -1)}>↑</button>
+                <button type="button" className="btn-secondary px-3" title="নিচে" onClick={() => moveProduct(index, 1)}>↓</button>
+                <button type="button" className="btn-primary px-3" onClick={() => saveProduct(product)} disabled={busy}>সেভ</button>
+                <button type="button" className="btn-secondary px-3" onClick={() => deleteProduct(product)} disabled={busy}>মুছুন</button>
+              </div>
+            </div>
+          ))}
+          {products.length === 0 && <p className="muted py-8 text-center">এখনও কোনো পণ্য যোগ করা হয়নি।</p>}
+        </div>
+      </section>
+    </main>
+  );
 }
