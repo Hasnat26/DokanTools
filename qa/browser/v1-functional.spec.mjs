@@ -48,7 +48,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
    await form.getByLabel("ইউনিট").fill("pcs");await form.getByLabel("ক্রয়মূল্য",{exact:true}).fill("2.00");await form.getByLabel("বিক্রয়মূল্য",{exact:true}).fill("4.25");
    await form.getByRole("button",{name:"Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)"}).click();
    inputs=page.getByLabel("পণ্যের নাম",{exact:true});await expect(inputs).toHaveCount(2);
-   row=inputs.nth(1).locator("xpath=../..");await row.getByLabel("ক্যাটাগরি",{exact:true}).toHaveValue(selectedCategoryId);
+   row=inputs.nth(1).locator("xpath=../..");await expect(row.getByLabel("ক্যাটাগরি",{exact:true})).toHaveValue(selectedCategoryId);
    await page.reload();await expect(categoryRegion.getByRole("button",{name:`${renamedCategory} rename`})).toBeVisible();
    inputs=page.getByLabel("পণ্যের নাম",{exact:true});await expect(inputs).toHaveCount(2);
    await expect(inputs.nth(0)).toHaveValue(firstProduct);await expect(inputs.nth(1)).toHaveValue(secondProduct);
