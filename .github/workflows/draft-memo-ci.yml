@@ -153,9 +153,11 @@ jobs:
             -H "Authorization: Bearer $DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY" \
             -H "Content-Type: application/json" -d "$payload")"
           test "$status" = "200" || test "$status" = "201"
+          user_id="$(jq -er '.id | select(type == "string" and length > 0)' "$RUNNER_TEMP/auth-user.json")"
           {
             echo "DOKANTOOLS_QA_EMAIL=$email"
             echo "DOKANTOOLS_QA_PASSWORD=$password"
+            echo "DOKANTOOLS_QA_USER_ID=$user_id"
           } >> "$GITHUB_ENV"
           unset password payload
       - name: Build production application against local Supabase
@@ -178,7 +180,8 @@ jobs:
       - name: Run real Chromium authenticated V1 workflow
         run: npx playwright test qa/browser/v1-functional.spec.mjs --reporter=line --workers=1
       - name: Verify fresh application-generated A6 PDF
-        run: node scripts/verify-generated-a6-pdf.mjs artifacts/dokantools-authenticated-a6.pdf
+        if: success()
+        run: node scripts/verify-generated-a6-pdf.mjs artifacts/dokantools-authenticated-a6.pdf artifacts/dokantools-a6-expectations.json
       - name: Upload authenticated browser evidence and fresh PDF
         if: always()
         uses: actions/upload-artifact@v4
@@ -186,6 +189,8 @@ jobs:
           name: dokantools-v1-chromium-a6-${{ github.run_id }}
           path: |
             artifacts/dokantools-authenticated-a6.pdf
+            artifacts/dokantools-a6-expectations.json
+            artifacts/dokantools-a6-validation.json
             test-results/
           if-no-files-found: warn
       - name: Stop disposable local Supabase
