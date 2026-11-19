@@ -47,6 +47,15 @@
 6. Fresh `npm audit --json` contains no unresolved advisory rows, or each remaining advisory receives a documented and PO-reviewed risk disposition.
 7. Only after candidate validation, commit generated package files to the existing corrective branch and rerun full CI/security workflows.
 
+## Candidate validation and committed remediation
+
+- Candidate generation and validation run: [44463144496](https://github.com/Hasnat26/DokanTools/actions/runs/44463144496), conclusion SUCCESS.
+- Candidate lock resolution: `@typescript-eslint/*` toolchain packages `8.73.0`; nested `minimatch@11.0.9`; `postcss-selector-parser@6.1.5`.
+- Candidate npm audit: `info 0, low 0, moderate 0, high 0, critical 0, total 0`; `npm audit` exit code 0.
+- Candidate regression: `npm ci`, `npm test`, `npm run lint`, `npm run typecheck`, `npm run build` all passed.
+- The validated `package.json` and generated `package-lock.json` were committed by the workflow as `01e82e767eca29ccd986e5443fc6c455ae0c4296` (`fix: patch audited development dependencies`).
+- Exact committed manifest/lock versions were independently fetched and checked at that SHA; package lock contains 8.73.0 TypeScript ESLint family, minimatch 11.0.9 and postcss-selector-parser 6.1.5.
+
 ## Current disposition
 
-AG-07 remains **IN PROGRESS** pending completion of candidate workflow `44463144496`, artifact inspection, package-file commit and post-commit CI/audit. No broad `npm audit fix` was used; no package update is accepted based on audit output alone.
+AG-07 remains **IN PROGRESS** until post-commit full CI and the normal security-audit workflow are confirmed against commit `01e82e767eca29ccd986e5443fc6c455ae0c4296`. Candidate-level audit and regression checks passed, but the gate will not be closed before the committed revision is rechecked. No broad `npm audit fix` was used; no unreviewed major upgrade was introduced.
