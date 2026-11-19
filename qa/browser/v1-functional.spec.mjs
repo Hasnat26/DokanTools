@@ -67,13 +67,15 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await page.getByLabel("নতুন পণ্যের নাম").fill(productName);
       const categorySelect = page.getByLabel("ক্যাটাগরি").first();
       await categorySelect.selectOption({ label: renamedCategory });
+      const selectedCategoryId = await categorySelect.inputValue();
+      expect(selectedCategoryId).toBeTruthy();
       await page.getByLabel("ইউনিট").first().fill("pcs");
       await page.getByLabel("ক্রয়মূল্য").first().fill("8.00");
       await page.getByLabel("বিক্রয়মূল্য").first().fill("12.50");
       await page.getByRole("button", { name: "Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)" }).click();
       await expect(page.getByDisplayValue(productName)).toBeVisible();
       const productRow = page.getByDisplayValue(productName).locator("xpath=../..");
-      await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(await categorySelect.inputValue());
+      await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(selectedCategoryId);
       await productRow.getByLabel("পণ্যের নাম").fill(editedProduct);
       await productRow.getByRole("button", { name: "সেভ" }).click();
       await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
