@@ -108,6 +108,7 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await expect(page.getByText("Saved locally")).toBeVisible();
       await page.reload();
       await expect(page.getByText("1 lines")).toBeVisible();
+      await page.getByRole("button", { name: "Edit" }).click();
       await expect(page.getByLabel("Quantity")).toHaveValue("3");
       await expect(page.getByText("৳ 37.50")).toBeVisible();
     });
