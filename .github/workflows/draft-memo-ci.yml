@@ -266,6 +266,13 @@ jobs:
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/test-results.json
         run: npx playwright test qa/browser/v1-functional.spec.mjs --reporter=line,json --workers=1
+      - name: Stamp Playwright test results with exact commit identity
+        if: always()
+        shell: bash
+        run: |
+          if [ -f test-results/test-results.json ]; then
+            node -e 'const fs=require("node:fs");const p="test-results/test-results.json";const r=JSON.parse(fs.readFileSync(p,"utf8"));r.metadata={...(r.metadata||{}),commitIdentity:JSON.parse(fs.readFileSync("artifacts/commit-identity.json","utf8"))};fs.writeFileSync(p,JSON.stringify(r,null,2));'
+          fi
       - name: Verify fresh application-generated A6 PDF
         if: success()
         run: node scripts/verify-generated-a6-pdf.mjs artifacts/dokantools-authenticated-a6.pdf artifacts/dokantools-a6-expectations.json
