@@ -14,7 +14,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
  page.on("console",message=>{if(message.type()==="error")diagnostics.push({type:"console",text:message.text()});});
  page.on("pageerror",error=>diagnostics.push({type:"pageerror",text:error.message}));
  page.on("requestfailed",request=>diagnostics.push({type:"requestfailed",url:request.url(),error:request.failure()?.errorText}));
- const total=(name,value)=>expect(page.getByTestId(name)).toHaveText(`BDT ${value}`);
+ const total=(name,value)=>expect(page.getByTestId(name)).toHaveText(name==="discount"?`− BDT ${value}`:`BDT ${value}`);
  try{
   await test.step("1. Authenticate synthetic owner",async()=>{
    await page.goto(new URL("/login",baseURL).toString());
