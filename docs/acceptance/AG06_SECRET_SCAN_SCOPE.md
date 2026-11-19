@@ -4,14 +4,13 @@
 
 - Repository: `Hasnat26/DokanTools` (PRIVATE).
 - Branch: `corrective/a6-a4-print-controlled-2026-11-17`.
-- Scan commit: `0808f43ab9e15a8acb44ccfc8903ea50880b0a0b` (latest completed full-history scan available at the time of this document update; subsequent dependency remediation and documentation commits are not included in this scan).
+- Scan commit: `41f3c6ff78896038f54fee32cb80aee51f86d04a`.
 - Tool: Gitleaks Docker image `zricethezav/gitleaks:latest` (workflow did not pin an immutable image digest).
 - Command: `gitleaks detect --source=/repo --log-opts=--all --redact --report-format=json --report-path=/repo/gitleaks-report.json --exit-code=1`.
 - Checkout: `actions/checkout@v4`, `fetch-depth: 0` (complete Git history).
-- Latest completed scan before the final dependency commit: GitHub Actions run [44463002873](https://github.com/Hasnat26/DokanTools/actions/runs/44463002873), on the full-history checkout.
-- Result: 115 commits scanned, approximately 1 MB, no leaks found.
-- Redacted report artifact: [dokantools-security-audit.zip, artifact 14500648262](https://github.com/Hasnat26/DokanTools/actions/runs/44463002873/artifacts/14500648262). The ZIP contains `gitleaks-report.json` (empty findings array) and `npm-audit-report.json`. Artifact retention is 30 days from 2026-11-19.
-- A new scan is triggered by the acceptance-register update on the dependency-remediated branch; its result will be linked in the execution report.
+- Latest scan: GitHub Actions run [44463732310](https://github.com/Hasnat26/DokanTools/actions/runs/44463732310), on the full-history checkout.
+- Result: 123 commits scanned, no leaks found.
+- Redacted report artifact: [dokantools-security-audit.zip, artifact 14501361778](https://github.com/Hasnat26/DokanTools/actions/runs/44463732310/artifacts/14501361778). The ZIP contains `gitleaks-report.json` (empty findings array) and `npm-audit-report.json`; the latter reports 0 vulnerabilities after targeted remediation. Artifact retention is 30 days from 2026-11-19.
 
 ## What was in scope
 
