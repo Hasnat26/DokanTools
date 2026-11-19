@@ -129,7 +129,7 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
         .toBe(true);
       await mkdir(dirname(pdfPath), { recursive: true });
       await page.emulateMedia({ media: "print" });
-      await page.pdf({ path: pdfPath, printBackground: true, preferCSSPageSize: true });
+      await page.pdf({ path: pdfPath, printBackground: true, preferCSSPageSize: true, scale: 1 });
       await page.emulateMedia({ media: "screen" });
       await writeFile("artifacts/dokantools-a6-expectations.json", JSON.stringify({
         shopName, productName: editedProduct, quantity: "3", unit: "pcs",
