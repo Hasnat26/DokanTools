@@ -10,19 +10,25 @@ permissions:
   contents: read
 jobs:
   verify:
+    name: Application build and startup
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: sudo apt-get update && sudo apt-get install -y ghostscript poppler-utils
-      - run: npm ci
-      - run: npm test
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run build
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Unit and domain tests
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
       - name: Start production server and smoke-test homepage
         run: |
           npm run start -- --hostname 127.0.0.1 > /tmp/dokantools-next.log 2>&1 &
@@ -37,3 +43,16 @@ jobs:
           done
           cat /tmp/dokantools-next.log
           exit 1
+  pdf-qa:
+    name: A6 PDF artifact verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install PDF inspection tools only
+        run: sudo apt-get update && sudo apt-get install -y ghostscript poppler-utils
+      - name: Verify retained A6 PDF geometry, fonts and content
+        run: node scripts/verify-a6-pdf.mjs docs/evidence/draft-memo-a6-demo.pdf
