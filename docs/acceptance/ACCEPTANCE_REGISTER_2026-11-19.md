@@ -6,10 +6,10 @@ Date: 2026-11-19 (UTC)
 
 - PO-approved application-under-test baseline: `437e76c1c0261d43c5b419a80aa3bed890331aff`.
 - Corrective branch: `corrective/a6-a4-print-controlled-2026-11-17`.
-- Corrective branch HEAD verified immediately before this Phase 4 register update: `8930060caf69a4bdeefc07faa760ea0bf13e7ae4`; this update creates the next documentation-only HEAD.
+- Corrective branch HEAD immediately before this Phase 4B register refresh: `d57acabb574ef16d4864c979b50644aa7741d30e`; this refresh creates the next documentation-only HEAD.
 - Dependency remediation commit: `01e82e767eca29ccd986e5443fc6c455ae0c4296`; it is an ancestor of the branch; GitHub compare confirms the current branch is a descendant of the remediation commit (0 commits behind).
-- The branch is a descendant of the application baseline. GitHub compare confirms the baseline is an ancestor (0 commits behind). The diff from the application baseline to current HEAD contains only `package.json`, `package-lock.json`, acceptance documentation and GitHub workflow files; no application source files changed.
-- Latest full CI and security-audit workflows ran against `cb18e5fbffd241ee8c76b31ce3f0a1bce8b6a240`. Only documentation-only commits follow the tested SHA (AG-07 disposition and register maintenance). No package manifest, lockfile or application source changed after the tested SHA. The package manifest and lockfile are unchanged.
+- Phase 4B source reconciliation at branch HEAD `7861c5488bbc37ed38752435d11fa7d669b5ed55`: merge-base is exactly the application baseline, 25 commits ahead / 0 behind. The complete baseline-to-HEAD file list is 11 paths: three GitHub workflows, six acceptance docs, `package.json` and `package-lock.json`; no `src/` paths. Six representative application files were independently checked by blob SHA and are identical at baseline and audited HEAD. The approved baseline commit itself contains a one-line fix in `src/app/dashboard/draft-memo/page.tsx`; it is part of the approved baseline, not a later change. See [Phase 4B source reconciliation report](PHASE4B_AUTH_POSTGREST_ISOLATION_2026-11-19.md).
+- Latest full CI and security-audit workflows ran against `cb18e5fbffd241ee8c76b31ce3f0a1bce8b6a240`. Subsequent commits through the Phase 4B source audit changed acceptance documentation only; package manifest, lockfile and application source remain unchanged from the tested dependency tree.
 - `main`: `b07d47bef332d641ec10ce7a96a9ab30a1ea5eab`; unchanged.
 - Repository visibility: PRIVATE.
 - No merge, deployment, pilot, production database operation, public release or public visibility change. No invoice issuance, payment, VAT, discount, stock, sales, ledger or public verification activation. No offline sync, service worker or new product feature was introduced.
@@ -131,3 +131,61 @@ AG-02 remains **BLOCKED**. The database-level RLS isolation tests listed above p
 - AG-04: browser OFF-01–OFF-10 not executed; no offline feature added.
 - AG-05/AG-06/AG-07: retain prior scope-limited evidence and tested-SHA qualifications.
 - AG-08: intended attribution recorded in Issue #46, but ownership/employer/contributor/third-party rights evidence outstanding; LICENSE unchanged.
+
+
+## Phase 4B addendum — source reconciliation, Auth/PostgREST capability and reviewer readiness
+
+Date: 2026-11-19 (UTC). Detailed evidence: [PHASE4B_AUTH_POSTGREST_ISOLATION_2026-11-19.md](PHASE4B_AUTH_POSTGREST_ISOLATION_2026-11-19.md).
+
+### Repository discrepancy audit
+
+- Live corrective branch HEAD at the pre-report audit: `7861c5488bbc37ed38752435d11fa7d669b5ed55`.
+- GitHub compare merge-base: approved application baseline `437e76c1c0261d43c5b419a80aa3bed890331aff`.
+- Ahead / behind: 25 / 0.
+- Baseline-to-HEAD changed-file list: 11 files — three workflows, six acceptance documents, package.json and package-lock.json. No application-source path is present.
+- The only source patch in the approved baseline commit itself is one line in `src/app/dashboard/draft-memo/page.tsx`; this is already part of the PO-approved baseline.
+- Blob SHA comparisons for the Draft Memo route, Supabase adapter, invoices page, dashboard page, draft memo store and draft memo domain match exactly between baseline and audited HEAD.
+- Conclusion: no unapproved application-source change after the approved baseline was found. No source file was reverted or changed during Phase 4B.
+
+### Supabase scope re-audit
+
+- Project `kidrysdtgmhmpogwxzzx` remains `ACTIVE_HEALTHY`, PostgreSQL 17.12, Singapore region, Free plan, $0/month quoted creation cost.
+- Applied migrations remain `20261119062535 / 20261119_phase4_draft_memo_scope` and `20261119063019 / 20261119_phase4_catalog_index_alignment`.
+- Public base tables remain only `shops` and `item_catalog`, both with RLS enabled.
+- Public views, functions/routines and triggers: none.
+- Owner policies and grants remain unchanged. Anonymous SELECT remains unavailable. Shop owner identity cannot be changed by an authenticated client because the update grant omits `user_id`.
+- Security Advisor: no table/RLS lint; `auth_leaked_password_protection` warning remains and was not changed.
+- Performance Advisor: four `auth_rls_initplan` warnings remain; no policy rewrite performed.
+- Health Advisor: no findings.
+- No prohibited data model or public feature was added.
+
+### Auth and PostgREST capability blocker
+
+The connected Supabase integration does not expose supported Auth Admin user creation, signup/sign-in, token issuance/retrieval or generic HTTP/PostgREST request operations. The connected browser interface is read-only. Therefore no real Auth accounts were created and no direct HTTP request could be executed. The two previous synthetic auth.users rows remain database-only fixtures without password hashes; they are not sign-in-capable users. No password hash insertion or service-role workaround was attempted.
+
+Direct PostgREST tests, real sign-in, application route execution and browser IndexedDB checks are NOT RUN / BLOCKED, not passed or failed. Previous SQL-layer tests using simulated authenticated JWT claims remain partial database RLS evidence only.
+
+### Independent QA onboarding
+
+The existing QA package now contains the minimum reviewer competency profile, PO nomination and username requirement, read-only repository access rules, isolated project access controls, secure disposable-credential handover, token redaction and cleanup instructions. QA-01–QA-14, evidence checklist, defect template and signed report template remain available.
+
+No independent reviewer has been nominated. No repository access has been granted. PM execution is not independent QA.
+
+### Phase 4B disposition
+
+- AG-01: BLOCKED — no PO-nominated independent reviewer or approved username.
+- AG-02: BLOCKED — prior SQL RLS evidence remains partial; Auth, direct PostgREST, authenticated browser and IndexedDB tests not run.
+- AG-03: BLOCKED — no physical A6 print/measurement evidence.
+- AG-04: BLOCKED — OFF-01–OFF-10 browser tests not run.
+- AG-05, AG-06 and AG-07: prior scope-limited PASS evidence unchanged.
+- AG-08: BLOCKED — ownership, employer IP and third-party/contributor rights remain unverified.
+
+### Required next PO actions
+
+1. Nominate an independent reviewer by exact GitHub username and approve read-only access to the PRIVATE repository.
+2. Authorize an Auth-capable, secure test path for this isolated Supabase project that supports disposable user creation/sign-in and direct PostgREST HTTP requests.
+3. Approve secure time-limited credential handover for disposable Owner A/B accounts. Do not send passwords, bearer tokens or service-role keys through GitHub or this report.
+4. Have the independent reviewer execute QA-01–QA-14 and sign/date the evidence report.
+5. Execute OFF-01–OFF-10 only when real test accounts and an authorized browser runner are available.
+
+No acceptance status is upgraded by Phase 4B. All merge/deployment/pilot/production/public-release restrictions remain in force.
