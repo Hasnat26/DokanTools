@@ -21,6 +21,7 @@ if (!baseURL || !email || !password) {
 test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A6 PDF", async ({ page }) => {
   test.setTimeout(120_000);
   const diagnostics = [];
+  const categoryRegion = page.getByRole("region", { name: "ক্যাটাগরি ব্যবস্থাপনা" });
   page.on("console", message => { if (message.type() === "error") diagnostics.push({ type: "console", text: message.text() }); });
   page.on("pageerror", error => diagnostics.push({ type: "pageerror", text: error.message }));
   page.on("requestfailed", request => diagnostics.push({ type: "requestfailed", url: request.url(), error: request.failure()?.errorText }));
@@ -55,7 +56,6 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
     await test.step("3. Category CRUD and product catalogue CRUD (no stock operations)", async () => {
       await page.goto(new URL("/dashboard/stock", baseURL).toString());
       await expect(page.getByRole("heading", { name: "পণ্য ও ক্যাটাগরি" })).toBeVisible();
-      const categoryRegion = page.getByRole("region", { name: "ক্যাটাগরি ব্যবস্থাপনা" });
       const categoryInput = page.getByPlaceholder("নতুন ক্যাটাগরির নাম");
       await expect(categoryInput).toBeVisible({ timeout: 20_000 });
       await categoryInput.fill(categoryName);
@@ -75,14 +75,15 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await productForm.getByLabel("ক্রয়মূল্য", { exact: true }).fill("8.00");
       await productForm.getByLabel("বিক্রয়মূল্য", { exact: true }).fill("12.50");
       await productForm.getByRole("button", { name: "Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)" }).click();
-      await expect(page.getByDisplayValue(productName)).toBeVisible();
-      const productRow = page.getByDisplayValue(productName).locator("xpath=../..");
-      await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(selectedCategoryId);
-      await productRow.getByLabel("পণ্যের নাম").fill(editedProduct);
+      const productNameInput = page.getByLabel("পণ্যের নাম", { exact: true });
+      await expect(productNameInput).toBeVisible();
+      const productRow = productNameInput.locator("xpath=../..");
+      await expect(productRow.getByLabel("ক্যাটাগরি", { exact: true })).toHaveValue(selectedCategoryId);
+      await productRow.getByLabel("পণ্যের নাম", { exact: true }).fill(editedProduct);
       await productRow.getByRole("button", { name: "সেভ" }).click();
-      await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
+      await expect(productRow.getByLabel("পণ্যের নাম", { exact: true })).toHaveValue(editedProduct);
       await page.reload();
-      await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
+      await expect(page.getByLabel("পণ্যের নাম", { exact: true })).toHaveValue(editedProduct);
     });
 
     await test.step("4. Draft Memo calculation and IndexedDB save/reload/edit persistence", async () => {
@@ -135,15 +136,16 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await page.getByRole("button", { name: "Delete" }).click();
       await expect(page.getByText("No drafts saved.")).toBeVisible();
       await page.goto(new URL("/dashboard/stock", baseURL).toString());
-      await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
+      const finalProductNameInput = page.getByLabel("পণ্যের নাম", { exact: true });
+      await expect(finalProductNameInput).toHaveValue(editedProduct);
       page.once("dialog", dialog => dialog.accept());
       await categoryRegion.getByRole("button", { name: `${renamedCategory} delete` }).click();
       await expect(categoryRegion.getByRole("button", { name: `${renamedCategory} rename` })).toHaveCount(0);
-      const productRow = page.getByDisplayValue(editedProduct).locator("xpath=../..");
-      await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue("");
+      const finalProductRow = finalProductNameInput.locator("xpath=../..");
+      await expect(finalProductRow.getByLabel("ক্যাটাগরি", { exact: true })).toHaveValue("");
       page.once("dialog", dialog => dialog.accept());
-      await productRow.getByRole("button", { name: "মুছুন" }).click();
-      await expect(page.getByDisplayValue(editedProduct)).toHaveCount(0);
+      await finalProductRow.getByRole("button", { name: "মুছুন" }).click();
+      await expect(page.getByLabel("পণ্যের নাম", { exact: true })).toHaveCount(0);
     });
   } catch (error) {
     const body = await page.locator("body").innerText().catch(() => "Unable to read page body");
