@@ -64,6 +64,8 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       page.once("dialog", dialog => dialog.accept(renamedCategory));
       await page.getByRole("button", { name: `${categoryName} rename` }).click();
       await expect(categoryRegion.getByRole("button", { name: `${renamedCategory} rename` })).toBeVisible();
+      await page.reload();
+      await expect(categoryRegion.getByRole("button", { name: `${renamedCategory} rename` })).toBeVisible();
 
       const productForm = page.getByRole("form", { name: "পণ্য তৈরি" });
       await productForm.getByLabel("নতুন পণ্যের নাম").fill(productName);
@@ -83,7 +85,11 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await productRow.getByRole("button", { name: "সেভ" }).click();
       await expect(productRow.getByLabel("পণ্যের নাম", { exact: true })).toHaveValue(editedProduct);
       await page.reload();
-      await expect(page.getByLabel("পণ্যের নাম", { exact: true })).toHaveValue(editedProduct);
+      await expect(categoryRegion.getByRole("button", { name: `${renamedCategory} rename` })).toBeVisible();
+      const reloadedProductInput = page.getByLabel("পণ্যের নাম", { exact: true });
+      await expect(reloadedProductInput).toHaveValue(editedProduct);
+      const reloadedProductRow = reloadedProductInput.locator("xpath=../..");
+      await expect(reloadedProductRow.getByLabel("ক্যাটাগরি", { exact: true })).toHaveValue(selectedCategoryId);
     });
 
     await test.step("4. Draft Memo calculation and IndexedDB save/reload/edit persistence", async () => {
@@ -128,7 +134,7 @@ test("authenticated V1 Shop Profile, catalogue, IndexedDB Draft Memo and fresh A
       await writeFile("artifacts/dokantools-a6-expectations.json", JSON.stringify({
         shopName, productName: editedProduct, quantity: "3", unit: "pcs",
         unitPrice: "12.50", lineTotal: "37.50", grandTotal: "37.50",
-        draftLabel: "Draft only", banglaDraftLabel: "খসড়া",
+        draftLabel: "Draft only", currency: "BDT",
       }, null, 2));
     });
 

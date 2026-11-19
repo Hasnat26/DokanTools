@@ -29,7 +29,7 @@ assert.ok(Math.abs(height - expectedHeight) <= 0.5, `A6 portrait height mismatch
 assert.ok(width < height, "A6 page must be portrait");
 
 const fontTable = run("pdffonts", [pdf]);
-assert.match(fontTable, /NotoSansBengali.*\byes\s+yes\s+yes\b/, "embedded Bengali font with Unicode mapping is required");
+assert.doesNotMatch(fontTable, /NotoSansBengali|Bengali/i, "A6 PDF must not depend on a Bengali font");
 
 const xml = run("pdftohtml", ["-xml", "-stdout", pdf]);
 const fontSizes = [...xml.matchAll(/<fontspec\b[^>]*\bsize="(\d+)"/g)].map(match => Number(match[1]));
@@ -58,9 +58,10 @@ const extracted = run("pdftotext", [pdf, "-"]).replace(/\s+/g, " ");
 const required = [
   expected.shopName, expected.productName, expected.quantity, expected.unit,
   expected.unitPrice, expected.lineTotal, expected.grandTotal,
-  "Grand Total", expected.draftLabel, expected.banglaDraftLabel,
+  "Grand Total", expected.draftLabel, expected.currency, "Draft Memo", "Qty", "Unit Price", "Product", "Total",
 ];
 for (const value of required) assert.ok(extracted.includes(value), `Expected PDF content missing: ${value}`);
+assert.doesNotMatch(extracted, /\p{Script=Bengali}/u, "Printed memo must contain English-only text");
 
 const report = {
   result: "PASS",
@@ -69,7 +70,8 @@ const report = {
   rotationDegrees: rotation,
   pageSizePoints: [width, height],
   expectedA6PortraitPoints: [expectedWidth, expectedHeight],
-  embeddedBengaliFont: true,
+  bengaliFontDependency: false,
+  englishOnlyTextVerified: true,
   minimumFontSizePt: minFontSize,
   safeContentMarginMm: 3,
   textBoundingBoxesChecked: textBoxes.length,
