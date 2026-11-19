@@ -8,7 +8,7 @@ const pdfPath = process.env.DOKANTOOLS_A6_PDF_OUTPUT || "artifacts/dokantools-au
 
 test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", async ({ page }) => {
   test.skip(!baseURL || !email || !password, "Set QA URL and synthetic-account credentials as CI secrets.");
-  await page.goto(new URL("/login", baseURL).toString());
+  await page.goto(new URL("/login", baseURL!).toString());
   await page.getByLabel("ইমেইল").fill(email!);
   await page.getByLabel("পাসওয়ার্ড").fill(password!);
   await page.getByRole("button", { name: "লগইন" }).click();
@@ -33,7 +33,7 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   await expect(page.getByRole("heading", { name: shopName })).toBeVisible();
 
   // Catalogue/category CRUD. Do not use stock create/adjust controls.
-  await page.goto(new URL("/dashboard/stock", baseURL).toString());
+  await page.goto(new URL("/dashboard/stock", baseURL!).toString());
   const category = `QA Category ${Date.now()}`;
   const renamedCategory = `${category} Edited`;
   await page.getByPlaceholder("নতুন ক্যাটাগরির নাম").fill(category);
@@ -54,14 +54,18 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   await page.getByRole("button", { name: "Catalogue-এ পণ্য যোগ করুন (Stock ছাড়া)" }).click();
   await expect(page.getByDisplayValue(product)).toBeVisible();
 
-  const productRow = page.locator("div.grid").filter({ has: page.getByDisplayValue(product) }).last();
+  const productRow = page.getByDisplayValue(product).locator("xpath=../..");
+  await expect(productRow.getByLabel("ক্যাটাগরি")).toHaveValue(await categorySelect.inputValue());
   await productRow.getByLabel("পণ্যের নাম").fill(editedProduct);
   await productRow.getByRole("button", { name: "সেভ" }).click();
   await expect(page.getByDisplayValue(editedProduct)).toBeVisible();
 
   // Draft Memo calculation + IndexedDB persistence across reload/edit/delete.
-  await page.goto(new URL("/dashboard/draft-memo", baseURL).toString());
-  await page.locator("select").first().selectOption({ label: new RegExp(editedProduct) });
+  await page.goto(new URL("/dashboard/draft-memo", baseURL!).toString());
+  const productOption = page.locator("select").first().locator("option").filter({ hasText: editedProduct });
+  const productId = await productOption.getAttribute("value");
+  expect(productId).toBeTruthy();
+  await page.locator("select").first().selectOption(productId!);
   await page.getByLabel("Quantity").fill("2");
   await page.getByLabel("Unit price snapshot").fill("12.50");
   await expect(page.getByText("৳ 25.00")).toBeVisible();
@@ -93,7 +97,7 @@ test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", as
   await page.getByRole("button", { name: `${renamedCategory} delete` }).click();
   await expect(page.getByText(renamedCategory, { exact: true })).toHaveCount(0);
 
-  const finalProductRow = page.locator("div.grid").filter({ has: page.getByDisplayValue(editedProduct) }).last();
+  const finalProductRow = page.getByDisplayValue(editedProduct).locator("xpath=../..");
   page.once("dialog", dialog => dialog.accept());
   await finalProductRow.getByRole("button", { name: "মুছুন" }).click();
   await expect(page.getByDisplayValue(editedProduct)).toHaveCount(0);
