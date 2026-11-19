@@ -10,24 +10,24 @@ const pdfPath = process.env.DOKANTOOLS_A6_PDF_OUTPUT || "artifacts/dokantools-au
 test("authenticated V1 shop, catalogue, IndexedDB draft and A6 PDF workflow", async ({ page }) => {
   test.skip(!baseURL || !email || !password, "Set QA URL and synthetic-account credentials as CI secrets.");
   await page.goto(new URL("/login", baseURL).toString());
-  await page.getByLabel("ইমেইল").fill(email);
-  await page.getByLabel("পাসওয়ার্ড").fill(password);
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(password);
   await page.getByRole("button", { name: "লগইন" }).click();
   await expect(page).toHaveURL(/dashboard/);
 
   // The synthetic account must be new and must not already own a shop.
   await expect(page.getByRole("heading", { name: "আপনার দোকান তৈরি করুন" })).toBeVisible();
   const shopName = `V1 QA Shop ${Date.now()}`;
-  await page.getByLabel("দোকানের নাম *").fill(shopName);
-  await page.getByLabel("মালিকের নাম").fill("Synthetic QA Owner");
-  await page.getByLabel("দোকানের ফোন").fill("01000000000");
-  await page.getByLabel("ঠিকানা").fill("Isolated QA");
+  await page.locator("form input").nth(0).fill(shopName);
+  await page.locator("form input").nth(1).fill("Synthetic QA Owner");
+  await page.locator("form input").nth(2).fill("01000000000");
+  await page.locator("form input").nth(3).fill("Isolated QA");
   await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
   await expect(page.getByRole("heading", { name: shopName })).toBeVisible();
 
   // Shop Profile edit and persistence after reload.
   await page.getByRole("button", { name: "তথ্য সম্পাদনা" }).click();
-  await page.getByLabel("মালিকের নাম").fill("Synthetic QA Owner Edited");
+  await page.locator("form input").nth(1).fill("Synthetic QA Owner Edited");
   await page.getByRole("button", { name: "পরিবর্তন সংরক্ষণ" }).click();
   await expect(page.getByText("Synthetic QA Owner Edited")).toBeVisible();
   await page.reload();
