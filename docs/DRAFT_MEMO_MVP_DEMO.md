@@ -55,3 +55,8 @@ The browser test used the preinstalled Playwright/Chromium in the temporary exec
 - [ ] Confirm README and setup instructions against a clean clone after the full repository has been scanned.
 
 Repository visibility must remain private until the PO separately approves public release.
+
+
+## Finalization update
+
+The exact A6 evidence artifact has MediaBox and CropBox [0,0,297.64,419.53] pt (target 297.6378 × 419.5276 pt), one page, rotation 0, and embedded Noto Sans Bengali CID TrueType. It was generated from the browser PDF using Ghostscript fixed media; this does not scale content and clips content beyond the page boundary. The authenticated page now self-hosts the Bengali font and checks rendered DOM dimensions before print. The browser print dialog itself remains user-controlled.

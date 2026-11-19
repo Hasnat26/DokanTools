@@ -13,7 +13,9 @@
     "verify": "npm run lint && npm run typecheck && npm run test && npm run verify:sql && npm run perf",
     "typecheck": "tsc --noEmit",
     "test:invoice:postgres": "bash scripts/test-invoice-postgres.sh",
-    "demo:draft-memo": "node scripts/serve-draft-memo-demo.mjs"
+    "demo:draft-memo": "node scripts/serve-draft-memo-demo.mjs",
+    "finalize:draft-memo:pdf": "node scripts/finalize-a6-pdf.mjs",
+    "verify:draft-memo:pdf": "node scripts/verify-a6-pdf.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

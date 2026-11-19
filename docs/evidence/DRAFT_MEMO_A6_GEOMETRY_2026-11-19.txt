@@ -1,0 +1,16 @@
+Exact A6 PDF artifact — 2026-11-19
+
+Generated from the browser PDF using Ghostscript pdfwrite fixed-media mode. Content is not scaled; any content outside the final page boundary is clipped.
+
+Measured with `pdfinfo -box`:
+Pages: 1
+MediaBox: [0.00 0.00 297.64 419.53] pt
+CropBox:  [0.00 0.00 297.64 419.53] pt
+Target: 297.6378 × 419.5276 pt (105 × 148 mm)
+Rotation: 0
+
+Measured with `pdffonts`: NotoSansBengali-Regular CID TrueType, embedded=yes, subset=yes, Unicode=yes. Chromium also emits small Type 3 glyph subsets.
+
+`pdftotext` verified `Grand Total: ৳331.00` and `DRAFT ONLY`. The Bengali text extraction is not a reliable ligature proof; the grayscale raster was visually inspected for Bengali/English rendering. Physical printer-driver output remains unverified.
+
+The source content box is 99 × 142 mm with 3 mm page margins. The integrated route uses rendered DOM dimensions to reject overflow before invoking the browser print dialog.

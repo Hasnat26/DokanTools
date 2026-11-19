@@ -104,3 +104,10 @@ Run one command at a time when diagnosing failures. See [`START_HERE_BN.md`](./S
 ## Draft Memo local demonstration
 
 A separate browser-local Draft Memo demonstration is available at [`/draft-memo-demo.html`](./public/draft-memo-demo.html). Run it with `npm run demo:draft-memo` and open `http://localhost:4173/`. It stores the shop profile, catalogue, and draft memos in the current browser's IndexedDB; it is not connected to Supabase or the authenticated production workflow. See [`docs/DRAFT_MEMO_MVP_DEMO.md`](./docs/DRAFT_MEMO_MVP_DEMO.md) for scope, limitations, and verification evidence.
+
+
+## Draft Memo A6 acceptance
+
+Authenticated route: /dashboard/draft-memo. It reads the signed-in owner's shop and active product catalogue from Supabase and stores drafts locally in IndexedDB, keyed by owner and shop. Draft records do not create sales, stock, ledger, payment or invoice records.
+
+The browser print workflow produces an intermediate PDF. For exact A6, use npm run finalize:draft-memo:pdf -- input.pdf output-a6.pdf, then npm run verify:draft-memo:pdf -- output-a6.pdf. Ghostscript fixed-media sets exact A6 MediaBox/CropBox without scaling content; content beyond the page boundary is clipped. The regression test requires Ghostscript and Poppler utilities, installed by the Draft Memo CI workflow.
