@@ -72,3 +72,7 @@ create policy "owner manages item categories" on public.item_categories
 grant select,insert,update,delete on public.shops to authenticated;
 grant select,insert,update,delete on public.item_catalog to authenticated;
 grant select,insert,update,delete on public.item_categories to authenticated;
+
+-- The tables are created after Supabase/PostgREST starts; refresh its schema cache.
+notify pgrst, 'reload schema';
+select pg_sleep(1);
