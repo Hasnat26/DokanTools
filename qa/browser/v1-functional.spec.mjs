@@ -47,7 +47,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
   });
   let selectedCategoryId="";
   await test.step("3. Category create, rename, persistence and two product CRUD/association",async()=>{
-   await page.goto(new URL("/dashboard/stock",baseURL).toString());await expect(page.getByRole("heading",{name:"পণ্য ও ক্যাটাগরি"})).toBeVisible();
+   await page.goto(new URL("/dashboard/catalog",baseURL).toString());await expect(page.getByRole("heading",{name:"পণ্য ও ক্যাটাগরি"})).toBeVisible();
    const categoryInput=page.getByPlaceholder("নতুন ক্যাটাগরির নাম");await categoryInput.fill(categoryName);
    await page.getByRole("button",{name:"ক্যাটাগরি যোগ করুন"}).click();await expect(categoryRegion.getByRole("button",{name:`${categoryName} rename`})).toBeVisible();
    page.once("dialog",dialog=>dialog.accept(renamedCategory));await categoryRegion.getByRole("button",{name:`${categoryName} rename`}).click();
@@ -138,13 +138,16 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
   });
   await test.step("7. Delete saved draft, category and both products",async()=>{
    page.once("dialog",dialog=>dialog.accept());await page.getByRole("button",{name:"Delete"}).click();await expect(page.getByText("No drafts saved.")).toBeVisible();
-   await page.goto(new URL("/dashboard/stock",baseURL).toString());let inputs=page.getByLabel("পণ্যের নাম",{exact:true});await expect(inputs).toHaveCount(2);
+   await page.goto(new URL("/dashboard/catalog",baseURL).toString());let inputs=page.getByLabel("পণ্যের নাম",{exact:true});await expect(inputs).toHaveCount(2);
    page.once("dialog",dialog=>dialog.accept());await categoryRegion.getByRole("button",{name:`${renamedCategory} delete`}).click();
    await expect(categoryRegion.getByRole("button",{name:`${renamedCategory} rename`})).toHaveCount(0);
    inputs=page.getByLabel("পণ্যের নাম",{exact:true});await expect(inputs.nth(0).locator("xpath=../..").getByLabel("ক্যাটাগরি",{exact:true})).toHaveValue("");
    for(let i=1;i>=0;i--){const row=page.getByLabel("পণ্যের নাম",{exact:true}).nth(i).locator("xpath=../..");page.once("dialog",dialog=>dialog.accept());await row.getByRole("button",{name:"মুছুন"}).click();}
    await expect(page.getByLabel("পণ্যের নাম",{exact:true})).toHaveCount(0);
   });
+  await page.goto(new URL("/dashboard/stock",baseURL).toString());
+  await expect(page.getByRole("heading",{name:"ইনভেন্টরি ও পণ্য তালিকা"})).toBeVisible();
+  await expect(page.getByText("কম স্টক: ৫ ইউনিটের কম")).toBeVisible();
  }catch(error){
   const body=await page.locator("body").innerText().catch(()=>"Unable to read page body");
   await test.info().attach("browser-diagnostics.json",{body:JSON.stringify({url:page.url(),title:await page.title().catch(()=>""),body,diagnostics},null,2),contentType:"application/json"});throw error;
