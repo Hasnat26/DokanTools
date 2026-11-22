@@ -655,3 +655,6 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       ),
       contentType: "application/json",
     });
+    throw error;
+  }
+});
