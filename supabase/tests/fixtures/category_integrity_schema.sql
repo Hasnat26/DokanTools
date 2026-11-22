@@ -4,15 +4,21 @@ create schema auth;
 create role authenticated nologin;
 create role anon nologin;
 
+grant usage on schema public, auth to authenticated;
+
 create table auth.users (
   id uuid primary key
 );
 
+-- Supabase-compatible per-request identity source. Tests set the JWT subject
+-- claim while executing as the non-owner authenticated role.
 create function auth.uid()
 returns uuid
 language sql
 stable
-as $$ select null::uuid $$;
+as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+
+grant execute on function auth.uid() to authenticated;
 
 create table public.shops (
   id uuid primary key default gen_random_uuid(),
@@ -47,6 +53,8 @@ create policy "owner manages item catalog" on public.item_catalog
   for all to authenticated
   using (exists (select 1 from public.shops s where s.id = item_catalog.shop_id and s.user_id = auth.uid()))
   with check (exists (select 1 from public.shops s where s.id = item_catalog.shop_id and s.user_id = auth.uid()));
+
+grant select on public.shops to authenticated;
 
 insert into auth.users(id) values
   ('10000000-0000-4000-8000-000000000001'),
