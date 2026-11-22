@@ -294,6 +294,9 @@ jobs:
             artifacts/dokantools-authenticated-a6.pdf
             artifacts/dokantools-a6-expectations.json
             artifacts/dokantools-a6-validation.json
+            artifacts/dokantools-bill-header.png
+            artifacts/shop-map-qr.png
+            artifacts/shop-public-profile-qr.png
             artifacts/commit-identity.json
             test-results/
           if-no-files-found: warn
