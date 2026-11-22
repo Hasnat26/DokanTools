@@ -18,6 +18,23 @@ create table public.shops (
 );
 create index shops_user_id_idx on public.shops(user_id);
 
+-- Minimal inventory rows are included only for catalogue/stock linkage checks.
+-- No stock RPC, stock deduction, ledger or invoice schema is provisioned.
+create table public.stock_items (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  name text not null,
+  unit text not null default 'pcs',
+  purchase_price numeric(12,2) not null default 0,
+  sale_price numeric(12,2) not null default 0,
+  price numeric(12,2) not null default 0,
+  qty numeric(14,3) not null default 0,
+  expiry_date date,
+  sort_order integer not null default 0,
+  is_public boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 create table public.item_categories (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops(id) on delete cascade,
@@ -47,6 +64,7 @@ create table public.item_catalog (
 );
 
 alter table public.shops enable row level security;
+alter table public.stock_items enable row level security;
 alter table public.item_catalog enable row level security;
 alter table public.item_categories enable row level security;
 
@@ -59,6 +77,11 @@ create policy "owner updates own shop" on public.shops
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
 
+create policy "owner manages stock items" on public.stock_items
+  for all to authenticated
+  using (exists(select 1 from public.shops s where s.id=stock_items.shop_id and s.user_id=(select auth.uid())))
+  with check (exists(select 1 from public.shops s where s.id=stock_items.shop_id and s.user_id=(select auth.uid())));
+
 create policy "owner manages item catalog" on public.item_catalog
   for all to authenticated
   using (exists(select 1 from public.shops s where s.id=item_catalog.shop_id and s.user_id=(select auth.uid())))
@@ -70,6 +93,7 @@ create policy "owner manages item categories" on public.item_categories
   with check (exists(select 1 from public.shops s where s.id=item_categories.shop_id and s.user_id=(select auth.uid())));
 
 grant select,insert,update,delete on public.shops to authenticated;
+grant select,insert,update,delete on public.stock_items to authenticated;
 grant select,insert,update,delete on public.item_catalog to authenticated;
 grant select,insert,update,delete on public.item_categories to authenticated;
 
