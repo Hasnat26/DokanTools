@@ -18,11 +18,15 @@ type Product = {
   is_active: boolean;
   category_id: string | null;
 };
+type StockLink = { id: string; name: string; unit: string };
 
 export default function ProductCataloguePage() {
   const router = useRouter();
   const [shop, setShop] = useState<Shop | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [stockItems, setStockItems] = useState<StockLink[]>([]);
+  const [catalogSaved, setCatalogSaved] = useState<Record<string, { name: string; unit: string }>>({});
+  const [stockReady, setStockReady] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryFeatureAvailable, setCategoryFeatureAvailable] = useState(false);
   const [categoryName, setCategoryName] = useState("");
@@ -46,15 +50,20 @@ export default function ProductCataloguePage() {
     if (!shopData) { router.replace("/dashboard"); return; }
     setShop(shopData as Shop);
 
-    const [catalogResult, categoriesResult, categoryColumnResult] = await Promise.all([
+    const [catalogResult, categoriesResult, categoryColumnResult, stockResult] = await Promise.all([
       supabase.from("item_catalog").select("*").eq("shop_id", shopData.id).order("sort_order").order("name"),
       supabase.from("item_categories").select("*").eq("shop_id", shopData.id).order("sort_order").order("name"),
       supabase.from("item_catalog").select("category_id").limit(0),
+      supabase.from("stock_items").select("id,name,unit").eq("shop_id", shopData.id),
     ]);
 
     if (catalogResult.error) setError(catalogResult.error.message);
     if (categoriesResult.error && !categoriesResult.error.message.includes("item_categories")) setError(categoriesResult.error.message);
-    setProducts((catalogResult.data || []) as Product[]);
+    if (stockResult.error) { setError("Inventory linkage could not be verified: " + stockResult.error.message); setStockReady(false); }
+    else { setStockItems((stockResult.data || []) as StockLink[]); setStockReady(true); }
+    const catalogItems = (catalogResult.data || []) as Product[];
+    setProducts(catalogItems);
+    setCatalogSaved(Object.fromEntries(catalogItems.map(item => [item.id, { name: item.name, unit: item.unit }])));
     setCategories((categoriesResult.data || []) as Category[]);
     setCategoryFeatureAvailable(!categoriesResult.error && !categoryColumnResult.error);
     setLoading(false);
@@ -139,6 +148,13 @@ export default function ProductCataloguePage() {
 
   async function saveProduct(product: Product) {
     if (!shop || busy) return;
+    if (!stockReady) { setError("Inventory linkage could not be verified; product changes are blocked until stock data loads."); return; }
+    const baseline = catalogSaved[product.id];
+    const linkedStock = baseline ? stockItems.find(item => normalizeProductName(item.name) === normalizeProductName(baseline.name)) : undefined;
+    if (linkedStock && (normalizeProductName(product.name) !== normalizeProductName(baseline.name) || product.unit.trim() !== linkedStock.unit)) {
+      setError("Inventory-linked product name or unit cannot be changed directly; this would break stock matching.");
+      return;
+    }
     if (!product.name.trim() || !product.unit.trim() ||
         !Number.isFinite(Number(product.purchase_price)) || Number(product.purchase_price) < 0 ||
         !Number.isFinite(Number(product.sale_price)) || Number(product.sale_price) < 0) {
@@ -164,7 +180,14 @@ export default function ProductCataloguePage() {
   }
 
   async function deleteProduct(product: Product) {
-    if (!shop || busy || !window.confirm(`“${product.name}” ক্যাটালগ থেকে মুছে ফেলবেন? এই কাজটি ফেরানো যাবে না।`)) return;
+    if (!shop || busy) return;
+    if (!stockReady) { setError("Inventory linkage could not be verified; deletion is blocked until stock data loads."); return; }
+    const baseline = catalogSaved[product.id];
+    if (stockItems.some(item => normalizeProductName(item.name) === normalizeProductName(baseline?.name || product.name))) {
+      setError("এই পণ্যটি স্টকের সঙ্গে যুক্ত। স্টক-যুক্ত পণ্য ক্যাটালগ থেকে মুছবেন না; আগে সংযোগ যাচাই করুন।");
+      return;
+    }
+    if (!window.confirm(`“${product.name}” ক্যাটালগ থেকে মুছে ফেলবেন? এই কাজটি ফেরানো যাবে না।`)) return;
     setBusy(true); setError("");
     const { error: deleteError } = await supabase.from("item_catalog")
       .delete().eq("id", product.id).eq("shop_id", shop.id);
