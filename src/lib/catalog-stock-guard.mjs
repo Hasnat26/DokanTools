@@ -1,4 +1,4 @@
-import { normalizeProductName } from "@/lib/reliability-core.mjs";
+import { normalizeProductName } from "./reliability-core.mjs";
 
 export function findInventoryLinkedProduct(stockItems, productName) {
   if (!Array.isArray(stockItems) || typeof productName !== "string" || !productName.trim()) return undefined;
