@@ -22,7 +22,7 @@ begin
   -- User A's legitimate category create/read.
   perform set_config('request.jwt.claim.sub', v_user_a::text, true);
   insert into public.item_categories(shop_id, name)
-  values (v_shop_a, '__rls_user_a_category")
+  values (v_shop_a, '__rls_user_a_category')
   returning id into v_category_a;
 
   select count(*) into v_count from public.item_categories
