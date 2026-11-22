@@ -20,3 +20,9 @@ test("inventory-linked catalogue deletion is blocked",()=>{
  assert.equal(inventoryLinkedProductDeletionBlocked(stock,"QA Product","QA Product"),true);
  assert.equal(inventoryLinkedProductDeletionBlocked(stock,"Other","Other"),false);
 });
+
+test("unit mutation compares against saved catalogue baseline, not divergent stock unit",()=>{
+ const diverged=[{id:"stock-2",name:"QA Product",unit:"piece"}];
+ assert.equal(inventoryLinkedProductMutationReason(diverged,{name:"QA Product",unit:"pcs"},{name:"QA Product",unit:"pcs"}),null);
+ assert.equal(inventoryLinkedProductMutationReason(diverged,{name:"QA Product",unit:"pcs"},{name:"QA Product",unit:"kg"}),"UNIT_CHANGE");
+});

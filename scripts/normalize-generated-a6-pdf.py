@@ -19,10 +19,20 @@ target_width = Decimal(105) * Decimal(72) / Decimal("25.4")
 target_height = Decimal(148) * Decimal(72) / Decimal("25.4")
 source_width = Decimal(str(float(page.mediabox.width)))
 source_height = Decimal(str(float(page.mediabox.height)))
-if abs(source_width - target_width) > Decimal("1.0") or abs(source_height - target_height) > Decimal("1.0"):
-    raise SystemExit(f"Refusing to normalize non-A6 input: {source_width} x {source_height} pt")
+# Independently verify the browser-generated page size before changing any page box.
+# Normalization is permitted only for Chromium's small quantization error, not to
+# conceal a missing/invalid @page CSS size.
+pre_normalization_tolerance = Decimal("0.1")
+if abs(source_width - target_width) > pre_normalization_tolerance or abs(source_height - target_height) > pre_normalization_tolerance:
+    raise SystemExit(f"PRE_NORMALIZATION_A6_SIZE_FAIL: {source_width} x {source_height} pt; expected {target_width} x {target_height} pt within {pre_normalization_tolerance} pt")
 if abs(float(page.mediabox.left)) > 0.1 or abs(float(page.mediabox.bottom)) > 0.1:
     raise SystemExit("Refusing to normalize a PDF with non-zero page-box origin")
+source_crop_width = Decimal(str(float(page.cropbox.width)))
+source_crop_height = Decimal(str(float(page.cropbox.height)))
+if abs(source_crop_width - target_width) > pre_normalization_tolerance or abs(source_crop_height - target_height) > pre_normalization_tolerance:
+    raise SystemExit(f"PRE_NORMALIZATION_CROPBOX_A6_SIZE_FAIL: {source_crop_width} x {source_crop_height} pt")
+if abs(float(page.cropbox.left)) > 0.1 or abs(float(page.cropbox.bottom)) > 0.1:
+    raise SystemExit("PRE_NORMALIZATION_CROPBOX_ORIGIN_FAIL")
 
 # Chromium can quantize requested paper dimensions. Set all page boxes to exact A6;
 # preserve the content stream unchanged, so no content is scaled.

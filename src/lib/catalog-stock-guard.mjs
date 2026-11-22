@@ -11,7 +11,7 @@ export function inventoryLinkedProductMutationReason(stockItems, baseline, nextP
   const linked = findInventoryLinkedProduct(stockItems, baseline.name);
   if (!linked) return null;
   if (normalizeProductName(nextProduct.name) !== normalizeProductName(baseline.name)) return "NAME_CHANGE";
-  if (nextProduct.unit.trim() !== linked.unit) return "UNIT_CHANGE";
+  if (nextProduct.unit.trim() !== baseline.unit.trim()) return "UNIT_CHANGE";
   return null;
 }
 

@@ -19,6 +19,11 @@ declare
   v_rows integer;
   v_insert_denied boolean := false;
 begin
+  if current_user <> 'authenticated' then raise exception 'FAIL: expected current_user=authenticated, got %', current_user; end if;
+  if (select rolbypassrls from pg_roles where rolname = current_user) is distinct from false then
+    raise exception 'FAIL: authenticated role must not bypass RLS';
+  end if;
+
   -- User A's legitimate category create/read.
   perform set_config('request.jwt.claim.sub', v_user_a::text, true);
   insert into public.item_categories(shop_id, name)
@@ -44,6 +49,13 @@ begin
     when insufficient_privilege then v_insert_denied := true;
   end;
   if not v_insert_denied then raise exception 'FAIL: User B inserted into User A shop'; end if;
+
+  -- Cross-tenant item_catalog INSERT must be denied to User B as well.
+  begin
+    insert into public.item_catalog(shop_id, name, unit) values (v_shop_a, '__rls_user_b_cross_tenant_catalog', 'pcs');
+    raise exception 'FAIL: User B inserted item_catalog row into User A shop';
+  exception when insufficient_privilege then null;
+  end;
 
   update public.item_categories set name = '__rls_user_b_modified_a'
   where id = v_category_a and shop_id = v_shop_a;
@@ -76,6 +88,12 @@ begin
 
   -- User A's legitimate update/delete must still work after switching identities.
   perform set_config('request.jwt.claim.sub', v_user_a::text, true);
+  -- User A may see its own category, but WITH CHECK must reject moving it to User B's shop.
+  begin
+    update public.item_categories set shop_id = v_shop_b where id = v_category_a;
+    raise exception 'FAIL: User A moved category into another tenant';
+  exception when insufficient_privilege then null;
+  end;
   update public.item_categories set name = '__rls_user_a_category_updated'
   where id = v_category_a and shop_id = v_shop_a;
   get diagnostics v_rows = row_count;

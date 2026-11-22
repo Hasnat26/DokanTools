@@ -32,7 +32,7 @@ export default function ProductCataloguePage() {
   const [categoryFeatureAvailable, setCategoryFeatureAvailable] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [productName, setProductName] = useState("");
-  const [productUnit, setProductUnit] = useState("পিস");
+  const [productUnit, setProductUnit] = useState("pcs");
   const [purchasePrice, setPurchasePrice] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
   const [productCategory, setProductCategory] = useState("");
@@ -143,7 +143,7 @@ export default function ProductCataloguePage() {
     const { error: insertError } = await supabase.from("item_catalog").insert(payload);
     setBusy(false);
     if (insertError) { setError(insertError.message); return; }
-    setProductName(""); setProductUnit("পিস"); setPurchasePrice("0"); setSalePrice("0"); setProductCategory("");
+    setProductName(""); setProductUnit("pcs"); setPurchasePrice("0"); setSalePrice("0"); setProductCategory("");
     await load();
   }
 

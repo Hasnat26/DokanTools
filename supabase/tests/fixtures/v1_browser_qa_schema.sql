@@ -1,5 +1,5 @@
 -- Disposable local-browser QA schema. Not a migration and not for hosted databases.
--- Contains V1 Shop Profile, catalogue/category tables, and a minimal stock_items linkage fixture.
+-- Contains V1 Shop Profile, base catalogue table, and a minimal stock_items linkage fixture.
 -- No stock RPC/deduction, ledger or invoice schema is provisioned.
 create table public.shops (
   id uuid primary key default gen_random_uuid(),
@@ -19,6 +19,20 @@ create table public.shops (
 );
 create index shops_user_id_idx on public.shops(user_id);
 
+-- Base catalogue table; category_id and category FK are created by the real migration.
+create table public.item_catalog (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  name text not null,
+  unit text not null default 'pcs',
+  purchase_price numeric(12,2) not null default 0,
+  sale_price numeric(12,2) not null default 0,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (shop_id, name)
+);
+
 -- Minimal inventory rows are included only for catalogue/stock linkage checks.
 -- No stock RPC, stock deduction, ledger or invoice schema is provisioned.
 create table public.stock_items (
@@ -36,38 +50,8 @@ create table public.stock_items (
   created_at timestamptz not null default now()
 );
 
-create table public.item_categories (
-  id uuid primary key default gen_random_uuid(),
-  shop_id uuid not null references public.shops(id) on delete cascade,
-  name text not null,
-  sort_order integer not null default 0,
-  created_at timestamptz not null default now(),
-  constraint item_categories_shop_id_id_key unique(shop_id,id),
-  constraint item_categories_shop_id_name_key unique(shop_id,name)
-);
-
-create table public.item_catalog (
-  id uuid primary key default gen_random_uuid(),
-  shop_id uuid not null references public.shops(id) on delete cascade,
-  name text not null,
-  unit text not null default 'pcs',
-  purchase_price numeric(12,2) not null default 0,
-  sale_price numeric(12,2) not null default 0,
-  sort_order integer not null default 0,
-  is_active boolean not null default true,
-  category_id uuid,
-  created_at timestamptz not null default now(),
-  constraint item_catalog_shop_name_key unique(shop_id,name),
-  constraint item_catalog_shop_category_fkey
-    foreign key(shop_id,category_id)
-    references public.item_categories(shop_id,id)
-    on delete set null(category_id)
-);
-
-alter table public.shops enable row level security;
 alter table public.stock_items enable row level security;
 alter table public.item_catalog enable row level security;
-alter table public.item_categories enable row level security;
 
 create policy "owner reads own shops" on public.shops
   for select to authenticated using (user_id = (select auth.uid()));
@@ -88,16 +72,28 @@ create policy "owner manages item catalog" on public.item_catalog
   using (exists(select 1 from public.shops s where s.id=item_catalog.shop_id and s.user_id=(select auth.uid())))
   with check (exists(select 1 from public.shops s where s.id=item_catalog.shop_id and s.user_id=(select auth.uid())));
 
-create policy "owner manages item categories" on public.item_categories
-  for all to authenticated
-  using (exists(select 1 from public.shops s where s.id=item_categories.shop_id and s.user_id=(select auth.uid())))
-  with check (exists(select 1 from public.shops s where s.id=item_categories.shop_id and s.user_id=(select auth.uid())));
-
 grant select,insert,update,delete on public.shops to authenticated;
 grant select,insert,update,delete on public.stock_items to authenticated;
-grant select,insert,update,delete on public.item_catalog to authenticated;
-grant select,insert,update,delete on public.item_categories to authenticated;
+create function public.create_stock_item(
+  p_request_id uuid, p_shop_id uuid, p_name text, p_unit text,
+  p_purchase_price numeric, p_sale_price numeric, p_initial_qty numeric,
+  p_expiry_date date, p_sort_order integer
+) returns table(result_stock_id uuid)
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare v_id uuid;
+begin
+  insert into public.stock_items(shop_id,name,unit,purchase_price,sale_price,price,qty,expiry_date,sort_order)
+  values(p_shop_id,p_name,p_unit,p_purchase_price,p_sale_price,p_sale_price,p_initial_qty,p_expiry_date,p_sort_order)
+  returning id into v_id;
+  return query select v_id;
+end
+$$;
+grant execute on function public.create_stock_item(uuid,uuid,text,text,numeric,numeric,numeric,date,integer) to authenticated;
 
+grant select,insert,update,delete on public.item_catalog to authenticated;
 -- The tables are created after Supabase/PostgREST starts; refresh its schema cache.
 notify pgrst, 'reload schema';
 select pg_sleep(1);

@@ -51,7 +51,7 @@ export default function DraftMemoPage(){
  useEffect(()=>{document.title="DokanTools Bill Memo";void load();},[load]);
  useEffect(()=>{let active=true;if(!shop){setBillQr("");return;}const target=getShopQrDestination(shop,window.location.origin);if(!target){setBillQr("");return;}void QRCode.toDataURL(target,{width:320,margin:1,errorCorrectionLevel:"M"}).then(data=>{if(active)setBillQr(data);}).catch(()=>{if(active)setBillQr("");});return()=>{active=false;};},[shop]);
  const result=useMemo(()=>calculateDraftMemo(lines,options),[lines,options]);
- const add=(productId:string)=>{const product=products.find(item=>item.id===productId);if(!product)return;setLines(current=>[...current,{product_id:product.id,item_name:product.name,unit:product.unit,quantity:"1",unit_price:Number(product.sale_price||0).toFixed(2)}]);setSaved(false);setError("");};
+ const add=(productId:string)=>{const product=products.find(item=>item.id===productId);if(!product)return;if(/[\u0980-\u09FF]/.test(`${product.name} ${product.unit}`)){setError("The printed bill is English-only. Use English product name and unit before adding it to the bill.");return;}setLines(current=>[...current,{product_id:product.id,item_name:product.name,unit:product.unit,quantity:"1",unit_price:Number(product.sale_price||0).toFixed(2)}]);setSaved(false);setError("");};
  const changeLine=(index:number,key:keyof Line,value:string)=>{setLines(current=>current.map((line,i)=>i===index?{...line,[key]:value}:line));setSaved(false);};
  const changeOption=<K extends keyof Options>(key:K,value:Options[K])=>{setOptions(current=>({...current,[key]:value}));setSaved(false);};
  async function save(){

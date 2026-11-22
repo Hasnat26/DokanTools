@@ -16,14 +16,15 @@ create function auth.uid()
 returns uuid
 language sql
 stable
-as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+as $$ select coalesce(nullif(current_setting('request.jwt.claim.sub', true), ''), nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')::uuid $$;
 
 grant execute on function auth.uid() to authenticated;
 
 create table public.shops (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  shop_name text not null
+  shop_name text not null,
+  map_link text
 );
 
 create table public.item_catalog (
@@ -37,6 +38,13 @@ create table public.item_catalog (
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   unique (shop_id, name)
+);
+
+create table public.stock_items (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  name text not null,
+  unit text not null default 'pcs'
 );
 
 alter table public.shops enable row level security;
