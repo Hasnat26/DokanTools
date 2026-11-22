@@ -163,6 +163,12 @@ jobs:
         run: npm ci
       - name: Start disposable local Supabase Auth and PostgreSQL
         run: supabase --workdir qa/supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector
+      - name: Verify Supabase CLI migration inventory and local dry-run (no hosted target)
+        run: |
+          test ! -e supabase/migrations/202611180001_item_categories.down.sql
+          test -f supabase/rollbacks/202611180001_item_categories.down.sql
+          supabase --workdir qa/supabase migration list
+          supabase --workdir qa/supabase db push --dry-run
       - name: Create base V1 QA schema fixture and apply real category migrations
         shell: bash
         run: |

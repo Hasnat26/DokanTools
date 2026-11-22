@@ -315,7 +315,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       await page.goto(new URL("/dashboard/stock", baseURL).toString());
       const stockForm = page.locator("form").first();
       await stockForm.getByLabel("পণ্যের নাম").fill(firstProduct);
-      await stockForm.getByLabel("ইউনিট").selectOption({ label: "পিস" });
+      await stockForm.getByLabel("ইউনিট").selectOption({ label: "pcs" });
       await stockForm.getByLabel("ক্রয়মূল্য / ইউনিট").fill("8.00");
       await stockForm.getByLabel("বিক্রয়মূল্য / ইউনিট").fill("12.50");
       await stockForm.getByLabel(/বর্তমান পরিমাণ/).fill("1");
