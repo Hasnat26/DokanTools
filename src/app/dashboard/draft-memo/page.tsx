@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabase, Shop } from "@/lib/supabase";
 import { calculateDraftMemo, type DraftMemoLine, type DraftMemoOptions } from "@/lib/draft-memo-domain.mjs";
 import { saveDraftMemo, listDraftMemos, deleteDraftMemo, type DraftMemo } from "@/lib/draft-memo-store.mjs";
+import QRCode from "qrcode";
+import { generatedShopLogoDataUrl, getShopQrDestination, validateGoogleMapsUrl } from "@/lib/shop-branding.mjs";
 
 type Product = { id:string; name:string; unit:string; sale_price:number; is_active:boolean };
 type Line = DraftMemoLine;
@@ -27,7 +29,7 @@ const errorText:Record<string,string>={
 };
 export default function DraftMemoPage(){
  const router=useRouter();const printRef=useRef<HTMLElement|null>(null);
- const [owner,setOwner]=useState("");const [shop,setShop]=useState<Shop|null>(null);
+ const [owner,setOwner]=useState("");const [shop,setShop]=useState<Shop|null>(null);const [billQr,setBillQr]=useState("");
  const [products,setProducts]=useState<Product[]>([]);const [lines,setLines]=useState<Line[]>([]);
  const [drafts,setDrafts]=useState<DraftMemo[]>([]);const [editing,setEditing]=useState<string|null>(null);
  const [options,setOptions]=useState<Options>({...DEFAULT_OPTIONS});
@@ -47,6 +49,7 @@ export default function DraftMemoPage(){
   setDrafts(await listDraftMemos(user.id,shopData.id));setLoading(false);
  },[router]);
  useEffect(()=>{document.title="DokanTools Bill Memo";void load();},[load]);
+ useEffect(()=>{let active=true;if(!shop){setBillQr("");return;}const target=getShopQrDestination(shop,window.location.origin);if(!target){setBillQr("");return;}void QRCode.toDataURL(target,{width:320,margin:1,errorCorrectionLevel:"M"}).then(data=>{if(active)setBillQr(data);}).catch(()=>{if(active)setBillQr("");});return()=>{active=false;};},[shop]);
  const result=useMemo(()=>calculateDraftMemo(lines,options),[lines,options]);
  const add=(productId:string)=>{const product=products.find(item=>item.id===productId);if(!product)return;setLines(current=>[...current,{product_id:product.id,item_name:product.name,unit:product.unit,quantity:"1",unit_price:Number(product.sale_price||0).toFixed(2)}]);setSaved(false);setError("");};
  const changeLine=(index:number,key:keyof Line,value:string)=>{setLines(current=>current.map((line,i)=>i===index?{...line,[key]:value}:line));setSaved(false);};
@@ -132,7 +135,7 @@ export default function DraftMemoPage(){
    <section className="card"><h2 className="font-bold">Saved bills / memos</h2>{drafts.length===0?<p className="muted mt-2">No drafts saved.</p>:<ul className="mt-3 space-y-2">{drafts.map(draft=><li key={draft.id} className="flex justify-between gap-2 border-b pb-2"><div><b>{draft.shop_name}</b><div className="muted text-xs">{draft.lines.length} products · {new Date(draft.updated_at||draft.created_at).toLocaleString()}</div></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={()=>edit(draft)}>Edit</button><button className="text-red-600" type="button" onClick={()=>remove(draft.id)}>Delete</button></div></li>)}</ul>}</section>
   </div>
   <section ref={printRef} className="memo-print" aria-label="A6 bill memo print preview">
-   <header><h1>{shop?.shop_name}</h1>{shop?.address&&<p>{shop.address}</p>}{shop?.phone&&<p>Phone: {shop.phone}</p>}</header>
+   <header className="shop-identity"><img className="shop-logo" data-testid="bill-shop-logo" src={shop?.logo_url||generatedShopLogoDataUrl(shop?.shop_name||"Shop")} alt="Shop logo"/><h1 data-testid="bill-shop-name">{shop?.shop_name}</h1>{shop?.owner_name&&<p>Owner: {shop.owner_name}</p>}{shop?.address&&<p>{shop.address}</p>}{shop?.phone&&<p>Phone: {shop.phone}</p>}{shop?.map_link&&validateGoogleMapsUrl(shop.map_link)&&<p className="shop-map"><a href={validateGoogleMapsUrl(shop.map_link)!} target="_blank" rel="noreferrer">Google Maps location</a></p>}</header>
    <h2>Bill / Memo</h2>
    <table><thead><tr><th>Product</th><th>Qty</th><th>Unit Price (BDT)</th><th>Line Total (BDT)</th></tr></thead>
     <tbody>{lines.map((line,index)=><tr key={index}><td>{line.item_name}</td><td>{line.quantity} {line.unit}</td><td>{money(Math.round(Number(line.unit_price)*100))}</td><td>{result.valid?money(result.lineTotals[index]||0):"—"}</td></tr>)}</tbody>
@@ -143,8 +146,8 @@ export default function DraftMemoPage(){
     <div className="print-grand"><span>Grand Total</span><span>BDT {result.valid?money(result.grandTotalMinor):"—"}</span></div>
     {options.paidEnabled&&<><div><span>Paid</span><span>BDT {result.valid?money(result.paidMinor):"—"}</span></div><div><span>Due</span><span>BDT {result.valid?money(result.dueMinor):"—"}</span></div></>}
    </div>
-   <p className="print-footer">DRAFT ONLY — NOT AN ISSUED INVOICE. Thank you for your business.</p>
+   {billQr&&<div className="shop-qr-footer"><img data-testid="shop-bill-qr" className="shop-bill-qr" src={billQr} alt="Shop location or public profile QR code"/><p>{shop?.map_link&&validateGoogleMapsUrl(shop.map_link)?"Scan for shop location":"Scan to visit shop profile"}</p></div>}<p className="print-footer">DRAFT ONLY — NOT AN ISSUED INVOICE. Thank you for your business.</p>
   </section>
-  <style jsx global>{'.memo-print{position:fixed;left:-10000px;top:0;display:block;visibility:hidden;width:98mm;height:142mm;overflow:hidden;box-sizing:border-box;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:8pt;line-height:1.15;color:#000;background:#fff;} .memo-print header{border-bottom:0.3mm solid #000;padding-bottom:2mm;margin-bottom:2mm;} .memo-print h1{font-size:12pt;font-weight:700;margin:0 0 1mm;} .memo-print h2{font-size:10pt;font-weight:700;margin:1mm 0 2mm;} .memo-print p{font-size:8pt;margin:1mm 0;} .memo-print table{width:100%;border-collapse:collapse;table-layout:fixed;margin:2mm 0;} .memo-print th,.memo-print td{border:0.2mm solid #000;padding:1mm;text-align:left;overflow-wrap:anywhere;word-break:break-word;font-size:8pt;} .memo-print .print-totals{margin-top:2mm;} .memo-print .print-totals>div{display:flex;justify-content:space-between;gap:2mm;margin:1mm 0;} .memo-print .print-grand{font-weight:700;border-top:0.3mm solid #000;padding-top:1mm;font-size:9pt;} .memo-print .print-footer{border-top:0.2mm solid #000;margin-top:3mm;padding-top:2mm;} @media print{@page{size:297.6378pt 419.5276pt;margin:8.50394pt;}html,body{margin:0!important;padding:0!important;background:#fff!important;} .container-page > :not(.memo-print){display:none!important;}body *{visibility:hidden!important;}.memo-print,.memo-print *{visibility:visible!important;}.memo-print{position:absolute;left:0;top:0;width:98mm;height:142mm;overflow:hidden;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;font-size:8pt;line-height:1.15;color:#000;background:#fff;}}'}</style>
+  <style jsx global>{'.memo-print{position:fixed;left:-10000px;top:0;display:block;visibility:hidden;width:98mm;height:142mm;overflow:hidden;box-sizing:border-box;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:8pt;line-height:1.15;color:#000;background:#fff;} .memo-print header{border-bottom:0.3mm solid #000;padding-bottom:1.5mm;margin-bottom:1.5mm;text-align:center;font-weight:400;} .memo-print .shop-logo{display:block;width:10mm;height:10mm;object-fit:contain;margin:0 auto 1mm;} .memo-print header h1{font-size:12pt;font-weight:700;margin:0 0 1mm;text-align:center;} .memo-print header p{font-size:8pt;font-weight:400;margin:0.5mm 0;text-align:center;overflow-wrap:anywhere;} .memo-print header .shop-map a{font-weight:400;color:#000;text-decoration:underline;} .memo-print h2{font-size:10pt;font-weight:700;margin:1mm 0 2mm;} .memo-print p{font-size:8pt;margin:1mm 0;} .memo-print table{width:100%;border-collapse:collapse;table-layout:fixed;margin:2mm 0;} .memo-print th,.memo-print td{border:0.2mm solid #000;padding:1mm;text-align:left;overflow-wrap:anywhere;word-break:break-word;font-size:8pt;} .memo-print .print-totals{margin-top:2mm;} .memo-print .print-totals>div{display:flex;justify-content:space-between;gap:2mm;margin:1mm 0;} .memo-print .print-grand{font-weight:700;border-top:0.3mm solid #000;padding-top:1mm;font-size:9pt;} .memo-print .shop-qr-footer{text-align:center;margin:2mm auto 1mm;} .memo-print .shop-bill-qr{display:block;width:18mm;height:18mm;object-fit:contain;margin:0 auto;} .memo-print .shop-qr-footer p{font-size:8pt;font-weight:400;margin:0.5mm 0;} .memo-print .print-footer{border-top:0.2mm solid #000;margin-top:2mm;padding-top:1mm;text-align:center;font-weight:400;} @media print{@page{size:297.6378pt 419.5276pt;margin:8.50394pt;}html,body{margin:0!important;padding:0!important;background:#fff!important;} .container-page > :not(.memo-print){display:none!important;}body *{visibility:hidden!important;}.memo-print,.memo-print *{visibility:visible!important;}.memo-print{position:absolute;left:0;top:0;width:98mm;height:142mm;overflow:hidden;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;font-size:8pt;line-height:1.15;color:#000;background:#fff;}}'}</style>
  </main>;
 }

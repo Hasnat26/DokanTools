@@ -1,9 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { execFileSync } from "node:child_process";
 const baseURL=process.env.DOKANTOOLS_QA_URL,email=process.env.DOKANTOOLS_QA_EMAIL,password=process.env.DOKANTOOLS_QA_PASSWORD;
 const pdfPath=process.env.DOKANTOOLS_A6_PDF_OUTPUT||"artifacts/dokantools-authenticated-a6.pdf";
-const shopName="DokanTools V1 QA Shop",categoryName="QA Category",renamedCategory="QA Category Edited";
+const shopName="DokanTools QA Grocery & Stationery",categoryName="QA Category",renamedCategory="QA Category Edited";
+const mapUrl="https://maps.google.com/?q=23.7806,0.4142";let shopPublicPath="";
+async function pngBuffer(page,color){const base64=await page.evaluate(color=>{const canvas=document.createElement("canvas");canvas.width=96;canvas.height=72;const context=canvas.getContext("2d");context.fillStyle=color;context.fillRect(0,0,canvas.width,canvas.height);return canvas.toDataURL("image/png").split(",")[1];},color);return Buffer.from(base64,"base64");}
+async function decodeBillQr(page,path){await mkdir(dirname(path),{recursive:true});const section=page.locator(".memo-print");await section.evaluate(el=>{el.style.visibility="visible";el.style.position="static";el.style.left="auto";el.style.top="auto";el.style.width="98mm";el.style.height="auto";el.style.overflow="visible";});const qr=page.getByTestId("shop-bill-qr");await qr.evaluate(el=>{el.style.width="240px";el.style.height="240px";});await qr.screenshot({path});const payload=execFileSync("zbarimg",["--quiet","--raw",path],{encoding:"utf8"}).trim();await section.evaluate(el=>{el.removeAttribute("style");el.querySelector("[data-testid=shop-bill-qr]")?.removeAttribute("style");});return payload;}
+
 const firstProduct="QA Product Edited",secondProduct="QA Product Two";
 test.use({trace:"retain-on-failure",screenshot:"only-on-failure",video:"retain-on-failure"});
 if(!baseURL||!email||!password)throw new Error("CH4_CONFIGURATION_ERROR: browser QA credentials and URL are mandatory.");
@@ -22,13 +27,20 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
    await page.getByRole("button",{name:"লগইন"}).click();
    await expect(page).toHaveURL(/\/dashboard(?:$|[/?#])/);await expect(page.getByRole("heading",{name:"আপনার দোকান তৈরি করুন"})).toBeVisible();
   });
-  await test.step("2. Shop Profile create, edit and reload",async()=>{
-   await page.getByLabel("দোকানের নাম *").fill(shopName);await page.getByLabel("মালিকের নাম").fill("Synthetic QA Owner");
-   await page.getByLabel("দোকানের ফোন").fill("01000000000");await page.getByLabel("ঠিকানা").fill("Isolated local QA");
-   await page.getByRole("button",{name:"দোকান তৈরি করুন"}).click();await expect(page.getByRole("heading",{name:shopName})).toBeVisible();
-   await page.getByRole("button",{name:"তথ্য সম্পাদনা"}).click();await page.getByLabel("মালিকের নাম").fill("Synthetic QA Owner Edited");
-   await page.getByRole("button",{name:"পরিবর্তন সংরক্ষণ"}).click();await expect(page.getByText("Synthetic QA Owner Edited")).toBeVisible();
-   await page.reload();await expect(page.getByRole("heading",{name:shopName})).toBeVisible();await expect(page.getByText("Synthetic QA Owner Edited")).toBeVisible();
+  await test.step("2. Shop Profile create/edit/reload, logo lifecycle, Maps validation and QR authorization",async()=>{
+   await page.getByLabel("দোকানের নাম *").fill(shopName);await page.getByLabel("মালিকের নাম").fill("Synthetic QA Owner");await page.getByLabel("দোকানের ফোন").fill("01000000000");await page.getByLabel("ঠিকানা").fill("Shop 7, Ground Floor, Road 12, Block C, Gulshan-1, Dhaka 1212, Bangladesh");
+   const mapInput=page.getByLabel("Google Maps লিংক");await mapInput.fill("https://maps.example.invalid/shop");await page.getByRole("button",{name:"দোকান তৈরি করুন"}).click();await expect(page.getByRole("alert")).toHaveText("Enter a valid Google Maps URL.");
+   await mapInput.fill(mapUrl);await page.getByRole("button",{name:"দোকান তৈরি করুন"}).click();await expect(page.getByRole("heading",{name:shopName})).toBeVisible();shopPublicPath=await page.locator('a[href^="/shop/"]').first().getAttribute("href");
+   await expect(page.getByTestId("shop-logo-preview")).toHaveAttribute("src",/^data:image\/svg\+xml/);await page.getByRole("button",{name:"তথ্য সম্পাদনা"}).click();const upload=page.getByLabel("Shop logo upload");
+   await upload.setInputFiles({name:"logo-original.png",mimeType:"image/png",buffer:await pngBuffer(page,"#222222")});await expect(page.getByTestId("shop-logo-preview")).toHaveAttribute("src",/^data:image\/png;base64,/);const firstLogo=await page.getByTestId("shop-logo-preview").getAttribute("src");
+   await upload.setInputFiles({name:"logo-replacement.png",mimeType:"image/png",buffer:await pngBuffer(page,"#555555")});await expect(page.getByTestId("shop-logo-preview")).not.toHaveAttribute("src",firstLogo);
+   await page.getByRole("button",{name:"Remove uploaded logo"}).click();await expect(page.getByTestId("shop-logo-preview")).toHaveAttribute("src",/^data:image\/svg\+xml/);await upload.setInputFiles({name:"logo-final.png",mimeType:"image/png",buffer:await pngBuffer(page,"#333333")});
+   await page.getByLabel("মালিকের নাম").fill("Synthetic QA Owner Edited");await page.getByRole("button",{name:"পরিবর্তন সংরক্ষণ"}).click();await expect(page.getByText("Synthetic QA Owner Edited")).toBeVisible();await page.reload();await expect(page.getByRole("heading",{name:shopName})).toBeVisible();
+   await page.getByRole("button",{name:"তথ্য সম্পাদনা"}).click();await expect(page.getByLabel("Google Maps লিংক")).toHaveValue(mapUrl);await expect(page.getByTestId("shop-logo-preview")).toHaveAttribute("src",/^data:image\/png;base64,/);await page.getByRole("button",{name:"বাতিল"}).click();
+   await page.getByRole("button",{name:"তথ্য সম্পাদনা"}).click();await page.getByLabel("Google Maps লিংক").fill("");await page.getByRole("button",{name:"পরিবর্তন সংরক্ষণ"}).click();await page.getByRole("button",{name:"পাবলিক পেজ প্রকাশ করুন"}).click();
+   await page.goto(new URL("/dashboard/draft-memo",baseURL).toString());await expect(page.getByTestId("shop-bill-qr")).toBeAttached();const publicPayload=await decodeBillQr(page,"artifacts/shop-public-profile-qr.png");expect(shopPublicPath).toBeTruthy();expect(publicPayload).toBe(new URL(shopPublicPath,baseURL).toString());
+   await page.goto(new URL("/dashboard",baseURL).toString());await page.getByRole("button",{name:"পাবলিক পেজ বন্ধ করুন"}).click();await page.goto(new URL("/dashboard/draft-memo",baseURL).toString());await expect(page.getByTestId("shop-bill-qr")).toHaveCount(0);
+   await page.goto(new URL("/dashboard",baseURL).toString());await page.getByRole("button",{name:"তথ্য সম্পাদনা"}).click();await page.getByLabel("Google Maps লিংক").fill(mapUrl);await page.getByRole("button",{name:"পরিবর্তন সংরক্ষণ"}).click();
   });
   let selectedCategoryId="";
   await test.step("3. Category create, rename, persistence and two product CRUD/association",async()=>{
@@ -100,21 +112,27 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
    await page.getByRole("button",{name:"Save / Update Draft"}).click();await expect(page.getByText("Draft saved locally.")).toBeVisible();
    await page.reload();await page.getByRole("button",{name:"Edit"}).click();await total("grand-total","51.15");await total("due","31.15");
   });
-  await test.step("5. Invoke application print handler and generate fresh A6 PDF",async()=>{
+  await test.step("5. Verify centered identity hierarchy, logo, Maps link and decoded QR",async()=>{
+   await expect(page.getByTestId("bill-shop-logo")).toHaveAttribute("src",/^data:image\/png;base64,/);await expect(page.getByTestId("bill-shop-name")).toHaveText(shopName);
+   const typography=await page.locator(".shop-identity").evaluate(header=>({alignment:getComputedStyle(header).textAlign,nameWeight:getComputedStyle(header.querySelector("h1")).fontWeight,otherWeight:getComputedStyle(header.querySelector("p")).fontWeight}));
+   expect(typography.alignment).toBe("center");expect(Number(typography.nameWeight)).toBeGreaterThanOrEqual(600);expect(Number(typography.otherWeight)).toBeLessThanOrEqual(400);
+   await expect(page.locator(".shop-map a")).toHaveAttribute("href",mapUrl);await expect(page.getByTestId("shop-bill-qr")).toBeAttached();const decoded=await decodeBillQr(page,"artifacts/shop-map-qr.png");expect(decoded).toBe(mapUrl);
+  });
+  await test.step("6. Invoke application print handler and generate fresh A6 PDF",async()=>{
    await page.evaluate(()=>{window.__dokantoolsPrintCalled=false;window.print=()=>{window.__dokantoolsPrintCalled=true;};});
    await page.getByRole("button",{name:"Generate A6 PDF / Print"}).click();
    await expect.poll(()=>page.evaluate(()=>window.__dokantoolsPrintCalled),{timeout:10000}).toBe(true);
-   await mkdir(dirname(pdfPath),{recursive:true});await page.emulateMedia({media:"print"});
+   await mkdir(dirname(pdfPath),{recursive:true});await page.emulateMedia({media:"screen"});await page.locator(".memo-print").evaluate(el=>{el.style.visibility="visible";el.style.position="static";el.style.left="auto";el.style.top="auto";el.style.width="98mm";el.style.height="auto";el.style.overflow="visible";});await page.locator(".memo-print").screenshot({path:"artifacts/dokantools-bill-header.png"});await page.locator(".memo-print").evaluate(el=>el.removeAttribute("style"));await page.emulateMedia({media:"print"});
    await page.pdf({path:pdfPath,printBackground:true,width:"105mm",height:"148mm",preferCSSPageSize:false,scale:1});await page.emulateMedia({media:"screen"});
    await writeFile("artifacts/dokantools-a6-expectations.json",JSON.stringify({
-    shopName,lines:[
+    shopName,ownerName:"Synthetic QA Owner Edited",address:"Shop 7, Ground Floor, Road 12, Block C, Gulshan-1, Dhaka 1212, Bangladesh",phone:"01000000000",mapsCaption:"Google Maps location",qrCaption:"Scan for shop location",qrDestination:mapUrl,logoPresent:true,qrPresent:true,lines:[
      {productName:firstProduct,quantity:"3",unit:"pcs",unitPrice:"12.50",lineTotal:"37.50"},
      {productName:secondProduct,quantity:"2",unit:"pcs",unitPrice:"5.00",lineTotal:"10.00"}
     ],subtotal:"47.50",discount:"1.00",taxRate:"10.00",tax:"4.65",grandTotal:"51.15",paid:"20.00",due:"31.15",
     discountEnabled:true,taxEnabled:true,paidEnabled:true,currency:"BDT"
    },null,2));
   });
-  await test.step("6. Delete saved draft, category and both products",async()=>{
+  await test.step("7. Delete saved draft, category and both products",async()=>{
    page.once("dialog",dialog=>dialog.accept());await page.getByRole("button",{name:"Delete"}).click();await expect(page.getByText("No drafts saved.")).toBeVisible();
    await page.goto(new URL("/dashboard/stock",baseURL).toString());let inputs=page.getByLabel("পণ্যের নাম",{exact:true});await expect(inputs).toHaveCount(2);
    page.once("dialog",dialog=>dialog.accept());await categoryRegion.getByRole("button",{name:`${renamedCategory} delete`}).click();

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import {readFile,writeFile,mkdir} from "node:fs/promises";
+import {readFile,writeFile,mkdir,readdir} from "node:fs/promises";
 import {spawnSync} from "node:child_process";
 import {resolve} from "node:path";
 const pdf=resolve(process.argv[2]||"artifacts/dokantools-authenticated-a6.pdf");
@@ -38,7 +38,10 @@ for(const line of expected.lines){required.push(line.productName,line.quantity,l
 if(expected.discountEnabled)required.push("Discount",expected.discount);
 if(expected.taxEnabled)required.push("VAT / Tax",expected.taxRate,expected.tax);
 if(expected.paidEnabled)required.push("Paid",expected.paid,"Due",expected.due);
+if(expected.ownerName)required.push("Owner:",expected.ownerName);if(expected.address)required.push(expected.address);if(expected.phone)required.push("Phone:",expected.phone);if(expected.mapsCaption)required.push(expected.mapsCaption);if(expected.qrCaption)required.push(expected.qrCaption);
 for(const value of required)assert.ok(extracted.includes(value),`PDF content missing: ${value}`);
+const imageList=run("pdfimages",["-list",pdf]);const imageRows=imageList.split(/\\r?\\n/).filter(line=>/^\\s*\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+/.test(line));if(expected.logoPresent&&expected.qrPresent)assert.ok(imageRows.length>=2,`PDF must contain logo and QR raster images; found ${imageRows.length}`);
+if(expected.qrDestination){run("pdfimages",["-png",pdf,"artifacts/bill-pdf-image"]);const images=(await readdir("artifacts")).filter(name=>name.startsWith("bill-pdf-image-")&&name.endsWith(".png"));let decodedQr=null;for(const name of images){const decoded=spawnSync("zbarimg",["--quiet","--raw",resolve("artifacts",name)],{encoding:"utf8"});if(decoded.status===0&&decoded.stdout.trim())decodedQr=decoded.stdout.trim();}assert.equal(decodedQr,expected.qrDestination,"QR embedded in fresh PDF must decode to the exact authorized destination");}
 assert.doesNotMatch(extracted,/[\u0980-\u09FF]/,"Printed bill must contain English-only text");
-const report={result:"PASS",file:pdf,pages,rotationDegrees:rotation,metadataTitle,pageSizePoints:[width,height],mediaBoxPoints:mediaBox,cropBoxPoints:cropBox,expectedA6PortraitPoints:[expectedWidth,expectedHeight],geometryTolerancePt:0.1,fontTable:fonts,bengaliFontDependency:false,englishOnlyTextVerified:true,minimumFontSizePt:minFontSize,safeContentMarginMm:3,textBoundingBoxesChecked:textBoxes.length,outOfBoundsTextBoxes:outOfBounds.length,expectedContentVerified:required};
+const report={result:"PASS",file:pdf,pages,rotationDegrees:rotation,metadataTitle,pageSizePoints:[width,height],mediaBoxPoints:mediaBox,cropBoxPoints:cropBox,expectedA6PortraitPoints:[expectedWidth,expectedHeight],geometryTolerancePt:0.1,fontTable:fonts,bengaliFontDependency:false,englishOnlyTextVerified:true,minimumFontSizePt:minFontSize,safeContentMarginMm:3,textBoundingBoxesChecked:textBoxes.length,outOfBoundsTextBoxes:outOfBounds.length,expectedContentVerified:required,embeddedRasterImageCount:imageRows.length,qrDecodedFromFreshPdf:expected.qrDestination||null};
 await mkdir("artifacts",{recursive:true});await writeFile("artifacts/dokantools-a6-validation.json",JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
