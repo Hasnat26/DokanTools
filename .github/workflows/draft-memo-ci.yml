@@ -201,6 +201,12 @@ jobs:
           cache: npm
       - name: Install PostgreSQL client and PDF inspection tools
         run: sudo apt-get update && sudo apt-get install -y postgresql-client poppler-utils
+      - name: Install pinned PDF box normalizer
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/pdf-tools"
+          "$RUNNER_TEMP/pdf-tools/bin/pip" install --disable-pip-version-check pypdf==5.9.0
+          echo "$RUNNER_TEMP/pdf-tools/bin" >> "$GITHUB_PATH"
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -273,6 +279,9 @@ jobs:
           if [ -f test-results/test-results.json ]; then
             node -e 'const fs=require("node:fs");const p="test-results/test-results.json";const r=JSON.parse(fs.readFileSync(p,"utf8"));r.metadata={...(r.metadata||{}),commitIdentity:JSON.parse(fs.readFileSync("artifacts/commit-identity.json","utf8"))};fs.writeFileSync(p,JSON.stringify(r,null,2));'
           fi
+      - name: Normalize fresh Chromium PDF page boxes to exact A6 without scaling content
+        if: success()
+        run: python scripts/normalize-generated-a6-pdf.py artifacts/dokantools-authenticated-a6.pdf
       - name: Verify fresh application-generated A6 PDF
         if: success()
         run: node scripts/verify-generated-a6-pdf.mjs artifacts/dokantools-authenticated-a6.pdf artifacts/dokantools-a6-expectations.json
