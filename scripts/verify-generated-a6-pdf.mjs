@@ -22,7 +22,7 @@ const expectedBox=[0,0,expectedWidth,expectedHeight];
 for(const [name,box] of [["MediaBox",mediaBox],["CropBox",cropBox]])box.forEach((value,index)=>assert.ok(Math.abs(value-expectedBox[index])<=0.1,`${name} geometry mismatch at index ${index}: ${value}`));
 const fonts=run("pdffonts",[pdf]);assert.doesNotMatch(fonts,/NotoSansBengali|Bengali/i,"PDF must not depend on a Bengali font");
 const xml=run("pdftohtml",["-xml","-stdout",pdf]);
-const fontSizes=[...xml.matchAll(/<fontspec\b[^>]*\bsize="(\d+)"/g)].map(match=>Number(match[1]));
+const fontSizes=[...xml.matchAll(/<fontspec\b[^>]*\bsize="(\d+)"/g)].map(match=>Number(match[1])/1.5);
 assert.ok(fontSizes.length>0,"PDF font metadata missing");const minFontSize=Math.min(...fontSizes);assert.ok(minFontSize>=8,`PDF text below 8pt: ${minFontSize}pt`);
 const pageTag=xml.match(/<page\b[^>]*>/)?.[0];assert.ok(pageTag,"PDF page dimensions missing");
 const xmlWidth=Number(pageTag.match(/\bwidth="([\d.]+)"/)?.[1]),xmlHeight=Number(pageTag.match(/\bheight="([\d.]+)"/)?.[1]);
