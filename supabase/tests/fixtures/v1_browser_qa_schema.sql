@@ -1,5 +1,6 @@
 -- Disposable local-browser QA schema. Not a migration and not for hosted databases.
--- Contains only V1 Shop Profile, catalogue and category tables; no stock/ledger/invoice schema.
+-- Contains V1 Shop Profile, catalogue/category tables, and a minimal stock_items linkage fixture.
+-- No stock RPC/deduction, ledger or invoice schema is provisioned.
 create table public.shops (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
