@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase, Shop } from "@/lib/supabase";
 import { normalizeProductName } from "@/lib/reliability-core.mjs";
+import { inventoryLinkedProductMutationReason, inventoryLinkedProductDeletionBlocked } from "@/lib/catalog-stock-guard.mjs";
 import { PRODUCT_PRESETS } from "@/lib/product-presets";
 
 type Category = { id: string; name: string; sort_order: number };
@@ -150,9 +151,11 @@ export default function ProductCataloguePage() {
     if (!shop || busy) return;
     if (!stockReady) { setError("Inventory linkage could not be verified; product changes are blocked until stock data loads."); return; }
     const baseline = catalogSaved[product.id];
-    const linkedStock = baseline ? stockItems.find(item => normalizeProductName(item.name) === normalizeProductName(baseline.name)) : undefined;
-    if (linkedStock && (normalizeProductName(product.name) !== normalizeProductName(baseline.name) || product.unit.trim() !== linkedStock.unit)) {
-      setError("Inventory-linked product name or unit cannot be changed directly; this would break stock matching.");
+    const mutationReason = inventoryLinkedProductMutationReason(stockItems, baseline, product);
+    if (mutationReason) {
+      setError(mutationReason === "NAME_CHANGE"
+        ? "Inventory-linked product name cannot be changed directly; this would break stock matching."
+        : "Inventory-linked product unit cannot be changed directly; this would break stock matching.");
       return;
     }
     if (!product.name.trim() || !product.unit.trim() ||
@@ -183,7 +186,7 @@ export default function ProductCataloguePage() {
     if (!shop || busy) return;
     if (!stockReady) { setError("Inventory linkage could not be verified; deletion is blocked until stock data loads."); return; }
     const baseline = catalogSaved[product.id];
-    if (stockItems.some(item => normalizeProductName(item.name) === normalizeProductName(baseline?.name || product.name))) {
+    if (inventoryLinkedProductDeletionBlocked(stockItems, baseline?.name, product.name)) {
       setError("এই পণ্যটি স্টকের সঙ্গে যুক্ত। স্টক-যুক্ত পণ্য ক্যাটালগ থেকে মুছবেন না; আগে সংযোগ যাচাই করুন।");
       return;
     }
