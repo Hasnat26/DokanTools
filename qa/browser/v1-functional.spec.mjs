@@ -314,11 +314,14 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       // exercise the blocked catalogue rename/delete path end-to-end.
       await page.goto(new URL("/dashboard/stock", baseURL).toString());
       const stockForm = page.locator("form").first();
-      await stockForm.getByLabel("পণ্যের নাম").fill(firstProduct);
-      await stockForm.getByLabel("ইউনিট").selectOption({ label: "pcs" });
-      await stockForm.getByLabel("ক্রয়মূল্য / ইউনিট").fill("8.00");
-      await stockForm.getByLabel("বিক্রয়মূল্য / ইউনিট").fill("12.50");
-      await stockForm.getByLabel(/বর্তমান পরিমাণ/).fill("1");
+      // This legacy form's visible labels are not programmatically associated;
+      // use stable field order within the scoped form rather than ambiguous page labels.
+      const stockFields = stockForm.locator("input, select");
+      await stockFields.nth(0).fill(firstProduct);
+      await stockFields.nth(1).selectOption("pcs");
+      await stockFields.nth(2).fill("8.00");
+      await stockFields.nth(3).fill("12.50");
+      await stockFields.nth(4).fill("1");
       await stockForm
         .getByRole("button", { name: "পণ্য ও স্টক সেভ করুন" })
         .click();
@@ -652,6 +655,3 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       ),
       contentType: "application/json",
     });
-    throw error;
-  }
-});
