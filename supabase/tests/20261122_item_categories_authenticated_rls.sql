@@ -4,7 +4,7 @@
 -- All writes are rolled back.
 begin;
 
--- Seed no category as table owner; all category operations below use authenticated.
+-- All category operations below execute as the non-owner authenticated role.
 set local role authenticated;
 
 do $$
@@ -29,8 +29,7 @@ begin
   where id = v_category_a and shop_id = v_shop_a;
   if v_count <> 1 then raise exception 'FAIL: User A cannot read own category'; end if;
 
-  -- Switch identity within the same authenticated role. User B must not see,
-  -- insert into, update, or delete User A's category.
+  -- User B must not read, insert into, update, or delete User A's category.
   perform set_config('request.jwt.claim.sub', v_user_b::text, true);
 
   select count(*) into v_count from public.item_categories
@@ -75,7 +74,7 @@ begin
   get diagnostics v_rows = row_count;
   if v_rows <> 1 then raise exception 'FAIL: User B cannot delete own category'; end if;
 
-  -- Switch back and prove User A's update/delete still work.
+  -- User A's legitimate update/delete must still work after switching identities.
   perform set_config('request.jwt.claim.sub', v_user_a::text, true);
   update public.item_categories set name = '__rls_user_a_category_updated'
   where id = v_category_a and shop_id = v_shop_a;
