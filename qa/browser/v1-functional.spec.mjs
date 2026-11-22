@@ -335,12 +335,14 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
         .getByLabel("পণ্যের নাম", { exact: true })
         .fill("QA Product Renamed Blocked");
       await row.getByRole("button", { name: "সেভ" }).click();
-      await expect(page.getByRole("alert")).toContainText(
+      await expect(page.locator('p[role="alert"]')).toContainText(
         "Inventory-linked product name cannot be changed",
       );
       await row.getByLabel("পণ্যের নাম", { exact: true }).fill(firstProduct);
       await row.getByRole("button", { name: "মুছুন" }).click();
-      await expect(page.getByRole("alert")).toContainText("স্টকের সঙ্গে যুক্ত");
+      await expect(page.locator('p[role="alert"]')).toContainText(
+        "স্টকের সঙ্গে যুক্ত",
+      );
     });
     await test.step("4. Multi-product calculation and optional discount/tax/paid/due", async () => {
       await page.goto(new URL("/dashboard/draft-memo", baseURL).toString());
