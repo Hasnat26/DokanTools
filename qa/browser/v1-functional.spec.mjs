@@ -118,7 +118,8 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
   await test.step("5. Verify centered identity hierarchy, logo, Maps link and decoded QR",async()=>{
    await expect(page.getByTestId("bill-shop-logo")).toHaveAttribute("src",/^data:image\/png;base64,/);await expect(page.getByTestId("bill-shop-name")).toHaveText(shopName);
    const typography=await page.locator(".shop-identity").evaluate(header=>({alignment:getComputedStyle(header).textAlign,nameWeight:getComputedStyle(header.querySelector("h1")).fontWeight,otherWeight:getComputedStyle(header.querySelector("p")).fontWeight}));
-   expect(typography.alignment).toBe("center");expect(Number(typography.nameWeight)).toBeGreaterThanOrEqual(600);expect(Number(typography.otherWeight)).toBeLessThanOrEqual(400);
+   const billTitleAlignment=await page.locator(".memo-print h2").evaluate(title=>getComputedStyle(title).textAlign);
+   expect(typography.alignment).toBe("center");expect(Number(typography.nameWeight)).toBeGreaterThanOrEqual(600);expect(Number(typography.otherWeight)).toBeLessThanOrEqual(400);expect(billTitleAlignment).toBe("center");
    await expect(page.locator(".shop-map a")).toHaveAttribute("href",mapUrl);await expect(page.getByTestId("shop-bill-qr")).toBeAttached();const decoded=await decodeBillQr(page,"artifacts/shop-map-qr.png");expect(decoded).toBe(mapUrl);
   });
   await test.step("6. Invoke application print handler and generate fresh A6 PDF",async()=>{
