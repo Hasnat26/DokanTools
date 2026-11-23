@@ -34,7 +34,7 @@ BEGIN
   END IF;
 
   -- A normalized-equivalent spelling preserves identity and remains safe.
-  UPDATE public.item_catalog SET name = 'Ｒice' WHERE name = 'Ｒice' AND shop_id='10000000-0000-4000-8000-000000000011';
+  UPDATE public.item_catalog SET name = 'Ｒice' WHERE name = 'Rice' AND shop_id='10000000-0000-4000-8000-000000000011';
   IF NOT FOUND THEN RAISE EXCEPTION 'FAIL: Unicode-equivalent identity update unexpectedly missed row'; END IF;
 
   v_blocked := false;
