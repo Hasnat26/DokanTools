@@ -592,6 +592,31 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       await test.step("6a. Generated PDF download and Web Share fallback", async () => {
         await page.getByRole("button", { name: "Generate PDF", exact: true }).click();
         await expect(page.getByRole("status")).toContainText("PDF ready");
+        // P2 regression: removing a line invalidates the prior PDF for both Download and Share.
+        await page.getByTestId("bill-line").nth(1).getByRole("button", { name: "Remove" }).click();
+        await expect(page.getByTestId("bill-line")).toHaveCount(1);
+        await expect(page.getByRole("button", { name: "Download PDF", exact: true })).toBeDisabled();
+        await expect(page.getByRole("button", { name: "Share PDF", exact: true })).toBeDisabled();
+        await total("grand-total", "40.15");
+        await page.getByRole("button", { name: "Generate PDF", exact: true }).click();
+        await expect(page.getByRole("status")).toContainText("PDF ready");
+        const updatedDownloadPromise = page.waitForEvent("download");
+        await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+        const updatedDownload = await updatedDownloadPromise;
+        const updatedPdfPath = await updatedDownload.path();
+        expect(updatedPdfPath).toBeTruthy();
+        const updatedPdfText = execFileSync("pdftotext", [updatedPdfPath, "-"], { encoding: "utf8" });
+        expect(updatedPdfText).toContain(firstProduct);
+        expect(updatedPdfText).not.toContain(secondProduct);
+        expect(updatedPdfText).toContain("40.15");
+        // Restore the second line and ensure add/edit mutations invalidate the replacement PDF too.
+        await page.getByLabel("Add catalogue product").selectOption(secondId);
+        await page.getByLabel("Quantity").nth(1).fill("2");
+        await page.getByLabel("Unit price").nth(1).fill("5.00");
+        await expect(page.getByRole("button", { name: "Download PDF", exact: true })).toBeDisabled();
+        await expect(page.getByRole("button", { name: "Share PDF", exact: true })).toBeDisabled();
+        await page.getByRole("button", { name: "Generate PDF", exact: true }).click();
+        await expect(page.getByRole("status")).toContainText("PDF ready");
         const downloadPromise = page.waitForEvent("download");
         await page.getByRole("button", { name: "Download PDF", exact: true }).click();
         const download = await downloadPromise;
