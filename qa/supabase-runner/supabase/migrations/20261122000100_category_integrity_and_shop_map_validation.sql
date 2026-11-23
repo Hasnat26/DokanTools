@@ -55,9 +55,9 @@ LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 SET search_path = pg_catalog
-AS $
+AS $norm$
   SELECT lower(regexp_replace(btrim(normalize(coalesce(p_name, ''), NFKC)), '[[:space:]]+', ' ', 'g'))
-$;
+$norm$;
 
 -- Server-side guard: catalogue identity (name/unit) cannot change or be deleted
 -- while a stock row is linked by normalized name. Price/category edits remain allowed.
