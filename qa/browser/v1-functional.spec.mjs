@@ -595,7 +595,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
         const downloadPromise = page.waitForEvent("download");
         await page.getByRole("button", { name: "Download PDF", exact: true }).click();
         const download = await downloadPromise;
-        expect(download.suggestedFilename()).toMatch(/\\.pdf$/i);
+        expect(download.suggestedFilename()).toMatch(/\.pdf$/i);
         const downloadedPath = await download.path();
         expect(downloadedPath).toBeTruthy();
         const downloadedBytes = await readFile(downloadedPath);
