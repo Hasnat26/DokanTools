@@ -76,7 +76,7 @@ export default function DraftMemoPage(){
   if(!shop)return;
   if(!result.valid){setError(errorText[result.reason||""]||"Correct the billing values before generating PDF.");return;}
   const printable=[shop.shop_name,shop.owner_name,shop.address,shop.phone,...lines.flatMap(line=>[line.item_name,line.unit])].filter(Boolean).join(" ");
-  if(/[\\u0980-\\u09FF]/.test(printable)){setError("The PDF is English-only. Use English shop and product details.");return;}
+  if(/[\u0980-\u09FF]/.test(printable)){setError("The PDF is English-only. Use English shop and product details.");return;}
   try{
    let logoDataUrl="";
    if(shop.logo_url){
