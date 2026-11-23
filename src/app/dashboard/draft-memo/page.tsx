@@ -6,6 +6,8 @@ import { supabase, Shop } from "@/lib/supabase";
 import { calculateDraftMemo, type DraftMemoLine, type DraftMemoOptions } from "@/lib/draft-memo-domain.mjs";
 import { saveDraftMemo, listDraftMemos, deleteDraftMemo, type DraftMemo } from "@/lib/draft-memo-store.mjs";
 import QRCode from "qrcode";
+import { createDraftMemoPdf } from "@/lib/draft-memo-pdf.mjs";
+import { sharePdfFile } from "@/lib/pdf-sharing.mjs";
 import { generatedShopLogoDataUrl, getShopQrDestination, validateGoogleMapsUrl } from "@/lib/shop-branding.mjs";
 
 type Product = { id:string; name:string; unit:string; sale_price:number; is_active:boolean };
@@ -33,7 +35,7 @@ export default function DraftMemoPage(){
  const [products,setProducts]=useState<Product[]>([]);const [lines,setLines]=useState<Line[]>([]);
  const [drafts,setDrafts]=useState<DraftMemo[]>([]);const [editing,setEditing]=useState<string|null>(null);
  const [options,setOptions]=useState<Options>({...DEFAULT_OPTIONS});
- const [error,setError]=useState("");const [saved,setSaved]=useState(false);const [loading,setLoading]=useState(true);
+ const [error,setError]=useState("");const [saved,setSaved]=useState(false);const [loading,setLoading]=useState(true);const [pdfFile,setPdfFile]=useState<File|null>(null);const [pdfStatus,setPdfStatus]=useState("");
  const load=useCallback(async()=>{
   const {data:{user},error:authError}=await supabase.auth.getUser();
   if(authError){setError(authError.message);setLoading(false);return;}
@@ -70,6 +72,36 @@ export default function DraftMemoPage(){
   catch(cause){setError(cause instanceof Error?cause.message:"Draft deletion failed.");}
  }
  function fresh(){setEditing(null);setLines([]);setOptions({...DEFAULT_OPTIONS});setError("");setSaved(false);}
+ async function generatePdf(){
+  if(!shop)return;
+  if(!result.valid){setError(errorText[result.reason||""]||"Correct the billing values before generating PDF.");return;}
+  const printable=[shop.shop_name,shop.owner_name,shop.address,shop.phone,...lines.flatMap(line=>[line.item_name,line.unit])].filter(Boolean).join(" ");
+  if(/[\\u0980-\\u09FF]/.test(printable)){setError("The PDF is English-only. Use English shop and product details.");return;}
+  try{
+   const pdf=createDraftMemoPdf({
+    shop:{name:shop.shop_name,owner:shop.owner_name||"",address:shop.address||"",phone:shop.phone||"",mapUrl:shop.map_link&&validateGoogleMapsUrl(shop.map_link)||""},
+    lines:lines.map((line,index)=>({name:line.item_name,quantity:line.quantity,unit:line.unit,unitPrice:money(Math.round(Number(line.unit_price)*100)),lineTotal:money(result.lineTotals[index]||0)})),
+    totals:{subtotal:money(result.subtotalMinor),discount:options.discountEnabled?money(result.discountMinor):null,tax:options.taxEnabled?money(result.taxMinor):null,taxLabel:options.taxEnabled?"VAT / Tax ("+options.taxRate+"%)":null,grandTotal:money(result.grandTotalMinor),paid:options.paidEnabled?money(result.paidMinor):null,due:options.paidEnabled?money(result.dueMinor):null},
+    qrDataUrl:billQr||"",logoDataUrl:""
+   });
+   const blob=pdf.output("blob");
+   if(blob.size<100||blob.type!=="application/pdf")throw new Error("PDF_GENERATION_FAILED");
+   const file=new File([blob],"DokanTools-Bill-"+(editing||"draft")+".pdf",{type:"application/pdf"});
+   setPdfFile(file);setPdfStatus("PDF ready. Download it or tap Share PDF to open your device share sheet.");setError("");
+  }catch(cause){setPdfFile(null);setPdfStatus("");setError(cause instanceof Error?cause.message:"PDF generation failed.");}
+ }
+ function downloadPdf(){
+  if(!pdfFile){setPdfStatus("Generate the PDF first.");return;}
+  const url=URL.createObjectURL(pdfFile);const anchor=document.createElement("a");anchor.href=url;anchor.download=pdfFile.name;document.body.appendChild(anchor);anchor.click();anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }
+ async function sharePdf(){
+  if(!pdfFile){setPdfStatus("Generate the PDF first, then tap Share PDF.");return;}
+  const outcome=await sharePdfFile(pdfFile,navigator);
+  if(outcome.shared)setPdfStatus("Share sheet opened. Select WhatsApp if it is available on your device.");
+  else if(outcome.reason==="unsupported")setPdfStatus("File sharing is not supported by this browser/device. Use Download PDF, then attach the saved PDF in WhatsApp.");
+  else if(outcome.reason==="cancelled")setPdfStatus("Sharing was cancelled. Your PDF is still available to download.");
+  else setPdfStatus("Could not open the share sheet. Download the PDF and attach it in WhatsApp.");
+ }
  async function printMemo(){
   if(!shop)return;
   if(!result.valid){setError(errorText[result.reason||""]||"Correct the billing values before printing.");return;}
@@ -130,7 +162,7 @@ export default function DraftMemoPage(){
     </section>
     {error&&<p role="alert" className="text-sm text-red-700">{error}</p>}
     {saved&&<p className="text-sm text-green-700">Draft saved locally.</p>}
-    <div className="flex flex-wrap gap-2"><button className="btn-primary" type="button" onClick={save} disabled={!lines.length}>Save / Update Draft</button><button className="btn-secondary" type="button" onClick={printMemo} disabled={!lines.length}>Generate A6 PDF / Print</button></div>
+    <div className="flex flex-wrap gap-2"><button className="btn-primary" type="button" onClick={save} disabled={!lines.length}>Save / Update Draft</button><button className="btn-secondary" type="button" onClick={generatePdf} disabled={!lines.length}>Generate PDF</button><button className="btn-secondary" type="button" onClick={downloadPdf} disabled={!pdfFile}>Download PDF</button><button className="btn-secondary" type="button" onClick={sharePdf} disabled={!pdfFile}>Share PDF</button><button className="btn-secondary" type="button" onClick={printMemo} disabled={!lines.length}>Print A6</button></div>{pdfStatus&&<p role="status" className="text-sm">{pdfStatus}</p>}
    </section>
    <section className="card"><h2 className="font-bold">Saved bills / memos</h2>{drafts.length===0?<p className="muted mt-2">No drafts saved.</p>:<ul className="mt-3 space-y-2">{drafts.map(draft=><li key={draft.id} className="flex justify-between gap-2 border-b pb-2"><div><b>{draft.shop_name}</b><div className="muted text-xs">{draft.lines.length} products · {new Date(draft.updated_at||draft.created_at).toLocaleString()}</div></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={()=>edit(draft)}>Edit</button><button className="text-red-600" type="button" onClick={()=>remove(draft.id)}>Delete</button></div></li>)}</ul>}</section>
   </div>
