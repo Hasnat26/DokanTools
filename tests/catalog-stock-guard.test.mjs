@@ -1,4 +1,5 @@
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { findInventoryLinkedProduct, inventoryLinkedProductMutationReason, inventoryLinkedProductDeletionBlocked } from "../src/lib/catalog-stock-guard.mjs";
 
@@ -25,4 +26,9 @@ test("unit mutation compares against saved catalogue baseline, not divergent sto
  const diverged=[{id:"stock-2",name:"QA Product",unit:"piece"}];
  assert.equal(inventoryLinkedProductMutationReason(diverged,{name:"QA Product",unit:"pcs"},{name:"QA Product",unit:"pcs"}),null);
  assert.equal(inventoryLinkedProductMutationReason(diverged,{name:"QA Product",unit:"pcs"},{name:"QA Product",unit:"kg"}),"UNIT_CHANGE");
+});
+
+test("stock screen enforces the tested saved-catalogue baseline guard", async()=>{
+ const source=await readFile(new URL("../src/app/dashboard/stock/page.tsx",import.meta.url),"utf8");
+ assert.match(source,/inventoryLinkedProductMutationReason\(items,baseline,p\)/);
 });
