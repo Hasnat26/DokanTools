@@ -1,5 +1,5 @@
--- Disposable local-browser QA schema. Not a migration and not for hosted databases.
--- Contains V1 Shop Profile, base catalogue table, and a minimal stock_items linkage fixture.
+-- Approved disposable local-browser QA baseline for the pre-category V1 schema.
+-- Used only by the isolated QA migration chain; never apply to hosted databases.
 -- No stock RPC/deduction, ledger or invoice schema is provisioned.
 create table public.shops (
   id uuid primary key default gen_random_uuid(),
