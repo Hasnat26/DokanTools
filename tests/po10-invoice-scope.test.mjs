@@ -55,10 +55,13 @@ test("Invoice-First contract/API has no adjustment inputs and issuance remains d
   assert.doesNotMatch(invoiceDomain, /discount|taxRate|paidAmount|dueMinor/i);
 });
 
-test("Invoice-First runtime request validator rejects adjustment fields",()=>{
+test("Invoice-First runtime request validator rejects all PO-10 adjustment fields at every contract level",()=>{
  const request={shopId:"10000000-0000-4000-8000-000000000011",requestId:"10000000-0000-4000-8000-000000000099",idempotencyNamespace:"invoice-create/v1",header:{shopName:"QA",shopAddress:"",shopPhone:"",mapUrl:""},lines:[{catalogItemId:null,itemName:"Item",unit:"pcs",quantity:"1",unitPrice:"10.00"}]};
  assert.equal(isValidInvoiceRequest(request),true);
- assert.equal(isValidInvoiceRequest({...request,discountAmount:"1.00"}),false);
- assert.equal(isValidInvoiceRequest({...request,header:{...request.header,taxRate:"5"}}),false);
- assert.equal(isValidInvoiceRequest({...request,lines:[{...request.lines[0],paidAmount:"1"}]}),false);
+ const excluded=["discount","discountAmount","tax","taxAmount","taxRate","vat","vatAmount","paid","paidAmount","due","dueAmount"];
+ for(const field of excluded){
+  assert.equal(isValidInvoiceRequest({...request,[field]:"1.00"}),false,`request-level ${field} must be rejected`);
+  assert.equal(isValidInvoiceRequest({...request,header:{...request.header,[field]:"1.00"}}),false,`header-level ${field} must be rejected`);
+  assert.equal(isValidInvoiceRequest({...request,lines:[{...request.lines[0],[field]:"1.00"}]}),false,`line-level ${field} must be rejected`);
+ }
 });
