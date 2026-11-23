@@ -164,7 +164,7 @@ jobs:
       - name: Install application dependencies
         run: npm ci
       - name: Start disposable local Supabase Auth and PostgreSQL
-        run: supabase --workdir qa/supabase start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector
+        run: supabase --workdir qa/supabase-runner start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector
       - name: Verify Supabase CLI migration inventory and local dry-run (no hosted target)
         run: |
           test ! -e supabase/migrations/202611180001_item_categories.down.sql
@@ -172,18 +172,18 @@ jobs:
           test ! -e supabase/migrations/202611110001_invoice_first_foundation.down.sql
           test -f supabase/rollbacks/202611110001_invoice_first_foundation.down.sql
           node scripts/verify-forward-migrations.mjs
-          supabase --workdir qa/supabase migration list
-          supabase --workdir qa/supabase db push --dry-run
+          supabase --workdir qa/supabase-runner migration list
+          supabase --workdir qa/supabase-runner db push --dry-run
       - name: Verify QA migration directory parity and rollback quarantine
         run: |
           node scripts/verify-qa-migration-parity.mjs
           node scripts/verify-forward-migrations.mjs
       - name: Reset disposable QA database using the complete repository migration chain
-        run: supabase --workdir qa/supabase db reset
+        run: supabase --workdir qa/supabase-runner db reset
       - name: Verify migration-applied schema parity and invoice issue remains OFF
         shell: bash
         run: |
-          supabase --workdir qa/supabase status -o env > "$RUNNER_TEMP/supabase.env"
+          supabase --workdir qa/supabase-runner status -o env > "$RUNNER_TEMP/supabase.env"
           set -a
           source "$RUNNER_TEMP/supabase.env"
           set +a
@@ -289,4 +289,4 @@ jobs:
           if-no-files-found: warn
       - name: Stop disposable local Supabase
         if: always()
-        run: supabase --workdir qa/supabase stop --no-backup
+        run: supabase --workdir qa/supabase-runner stop --no-backup
