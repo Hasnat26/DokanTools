@@ -1,0 +1,2 @@
+import type { jsPDF } from "jspdf";
+export function createDraftMemoPdf(data:{shop:{name:string;owner?:string;address?:string;phone?:string;mapUrl?:string};lines:Array<{name:string;quantity:string;unit:string;unitPrice:string;lineTotal:string}>;totals:{subtotal:string;discount:string|null;tax:string|null;taxLabel:string|null;grandTotal:string;paid:string|null;due:string|null};qrDataUrl?:string;logoDataUrl?:string}):jsPDF;
