@@ -174,9 +174,9 @@ jobs:
           node scripts/verify-forward-migrations.mjs
           supabase --workdir qa/supabase migration list
           supabase --workdir qa/supabase db push --dry-run
-      - name: Verify shared migration directory and rollback quarantine
+      - name: Verify QA migration directory parity and rollback quarantine
         run: |
-          test "$(realpath qa/supabase/migrations)" = "$(realpath supabase/migrations)"
+          node scripts/verify-qa-migration-parity.mjs
           node scripts/verify-forward-migrations.mjs
       - name: Reset disposable QA database using the complete repository migration chain
         run: supabase --workdir qa/supabase db reset
