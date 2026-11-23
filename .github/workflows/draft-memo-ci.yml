@@ -60,6 +60,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Verify forward migration directory contains no rollback scripts
+        run: node scripts/verify-forward-migrations.mjs
       - name: Install Node dependencies
         run: npm ci
       - name: Install Poppler required by A6 tests
