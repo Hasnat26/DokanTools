@@ -53,9 +53,9 @@ export default function DraftMemoPage(){
  useEffect(()=>{document.title="DokanTools Bill Memo";void load();},[load]);
  useEffect(()=>{let active=true;if(!shop){setBillQr("");return;}const target=getShopQrDestination(shop,window.location.origin);if(!target){setBillQr("");return;}void QRCode.toDataURL(target,{width:320,margin:1,errorCorrectionLevel:"M"}).then(data=>{if(active)setBillQr(data);}).catch(()=>{if(active)setBillQr("");});return()=>{active=false;};},[shop]);
  const result=useMemo(()=>calculateDraftMemo(lines,options),[lines,options]);
- const add=(productId:string)=>{const product=products.find(item=>item.id===productId);if(!product)return;if(/[\u0980-\u09FF]/.test(`${product.name} ${product.unit}`)){setError("The printed bill is English-only. Use English product name and unit before adding it to the bill.");return;}setLines(current=>[...current,{product_id:product.id,item_name:product.name,unit:product.unit,quantity:"1",unit_price:Number(product.sale_price||0).toFixed(2)}]);setSaved(false);setError("");};
- const changeLine=(index:number,key:keyof Line,value:string)=>{setLines(current=>current.map((line,i)=>i===index?{...line,[key]:value}:line));setSaved(false);};
- const changeOption=<K extends keyof Options>(key:K,value:Options[K])=>{setOptions(current=>({...current,[key]:value}));setSaved(false);};
+ const add=(productId:string)=>{setPdfFile(null);setPdfStatus("");const product=products.find(item=>item.id===productId);if(!product)return;if(/[\u0980-\u09FF]/.test(`${product.name} ${product.unit}`)){setError("The printed bill is English-only. Use English product name and unit before adding it to the bill.");return;}setLines(current=>[...current,{product_id:product.id,item_name:product.name,unit:product.unit,quantity:"1",unit_price:Number(product.sale_price||0).toFixed(2)}]);setSaved(false);setError("");};
+ const changeLine=(index:number,key:keyof Line,value:string)=>{setPdfFile(null);setPdfStatus("");setLines(current=>current.map((line,i)=>i===index?{...line,[key]:value}:line));setSaved(false);};
+ const changeOption=<K extends keyof Options>(key:K,value:Options[K])=>{setPdfFile(null);setPdfStatus("");setOptions(current=>({...current,[key]:value}));setSaved(false);};
  async function save(){
   if(!shop||!owner)return;
   if(!result.valid){setError(errorText[result.reason||""]||"Correct the highlighted billing values before saving.");return;}
@@ -65,13 +65,13 @@ export default function DraftMemoPage(){
   try{await saveDraftMemo(draft,owner,shop.id);setDrafts(await listDraftMemos(owner,shop.id));setEditing(id);setSaved(true);}
   catch(cause){setError(cause instanceof Error?cause.message:"Draft save failed.");}
  }
- function edit(draft:DraftMemo){setEditing(draft.id);setLines(draft.lines.map(line=>({...line})));setOptions({...DEFAULT_OPTIONS,...draft.options});setSaved(true);setError("");}
+ function edit(draft:DraftMemo){setPdfFile(null);setPdfStatus("");setEditing(draft.id);setLines(draft.lines.map(line=>({...line})));setOptions({...DEFAULT_OPTIONS,...draft.options});setSaved(true);setError("");}
  async function remove(id:string){
   if(!shop||!owner||!window.confirm("Delete this saved draft?"))return;
   try{await deleteDraftMemo(owner,shop.id,id);setDrafts(await listDraftMemos(owner,shop.id));if(editing===id){setEditing(null);setLines([]);setOptions({...DEFAULT_OPTIONS});setSaved(false);}}
   catch(cause){setError(cause instanceof Error?cause.message:"Draft deletion failed.");}
  }
- function fresh(){setEditing(null);setLines([]);setOptions({...DEFAULT_OPTIONS});setError("");setSaved(false);}
+ function fresh(){setPdfFile(null);setPdfStatus("");setEditing(null);setLines([]);setOptions({...DEFAULT_OPTIONS});setError("");setSaved(false);}
  async function generatePdf(){
   if(!shop)return;
   if(!result.valid){setError(errorText[result.reason||""]||"Correct the billing values before generating PDF.");return;}
