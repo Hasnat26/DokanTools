@@ -174,16 +174,20 @@ jobs:
           node scripts/verify-forward-migrations.mjs
           supabase --workdir qa/supabase migration list
           supabase --workdir qa/supabase db push --dry-run
-      - name: Create base V1 QA schema fixture and apply real category migrations
+      - name: Verify shared migration directory and rollback quarantine
+        run: |
+          test "$(realpath qa/supabase/migrations)" = "$(realpath supabase/migrations)"
+          node scripts/verify-forward-migrations.mjs
+      - name: Reset disposable QA database using the complete repository migration chain
+        run: supabase --workdir qa/supabase db reset
+      - name: Verify migration-applied schema parity and invoice issue remains OFF
         shell: bash
         run: |
           supabase --workdir qa/supabase status -o env > "$RUNNER_TEMP/supabase.env"
           set -a
           source "$RUNNER_TEMP/supabase.env"
           set +a
-          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/v1_browser_qa_schema.sql
-          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/202611180001_item_categories.sql
-          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/202611220001_category_integrity_and_shop_map_validation.sql
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/verify_v1_migration_parity.sql
           {
             echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
