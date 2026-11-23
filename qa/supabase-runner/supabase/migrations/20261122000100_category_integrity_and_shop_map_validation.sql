@@ -46,6 +46,19 @@ BEGIN
 END
 $$;
 
+-- Canonical identity normalization for inventory-linked catalogue rows.
+-- Mirrors normalizeProductName: NFKC, trim/collapse whitespace, then lowercase.
+-- PostgreSQL lower() follows the database locale; CI uses UTF-8 PostgreSQL 17.
+CREATE OR REPLACE FUNCTION public.normalize_inventory_product_name(p_name text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+SET search_path = pg_catalog
+AS $
+  SELECT lower(regexp_replace(btrim(normalize(coalesce(p_name, ''), NFKC)), '[[:space:]]+', ' ', 'g'))
+$;
+
 -- Server-side guard: catalogue identity (name/unit) cannot change or be deleted
 -- while a stock row is linked by normalized name. Price/category edits remain allowed.
 CREATE OR REPLACE FUNCTION public.guard_inventory_linked_catalog_identity()
@@ -59,7 +72,8 @@ BEGIN
   SELECT EXISTS (
     SELECT 1 FROM public.stock_items s
     WHERE s.shop_id = OLD.shop_id
-      AND lower(regexp_replace(trim(s.name), '\s+', ' ', 'g')) = lower(regexp_replace(trim(OLD.name), '\s+', ' ', 'g'))
+      AND public.normalize_inventory_product_name(s.name) <> ''
+      AND public.normalize_inventory_product_name(s.name) = public.normalize_inventory_product_name(OLD.name)
   ) INTO v_linked;
   IF NOT v_linked THEN
     IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
@@ -67,7 +81,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'INVENTORY_LINKED_CATALOG_DELETE_BLOCKED';
   END IF;
-  IF lower(regexp_replace(trim(NEW.name), '\s+', ' ', 'g')) <> lower(regexp_replace(trim(OLD.name), '\s+', ' ', 'g')) THEN
+  IF public.normalize_inventory_product_name(NEW.name) <> public.normalize_inventory_product_name(OLD.name) THEN
     RAISE EXCEPTION 'INVENTORY_LINKED_CATALOG_RENAME_BLOCKED';
   END IF;
   IF NEW.unit IS DISTINCT FROM OLD.unit THEN
