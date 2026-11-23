@@ -610,7 +610,10 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
         expect(updatedPdfText).not.toContain(secondProduct);
         expect(updatedPdfText).toContain("40.15");
         // Restore the second line and ensure add/edit mutations invalidate the replacement PDF too.
-        await page.getByLabel("Add catalogue product").selectOption(secondId);
+        const productSelect = page.getByLabel("Add catalogue product");
+        const secondOptionValue = await productSelect.locator("option").filter({ hasText: secondProduct }).getAttribute("value");
+        expect(secondOptionValue).toBeTruthy();
+        await productSelect.selectOption(secondOptionValue);
         await page.getByLabel("Quantity").nth(1).fill("2");
         await page.getByLabel("Unit price").nth(1).fill("5.00");
         await expect(page.getByRole("button", { name: "Download PDF", exact: true })).toBeDisabled();
