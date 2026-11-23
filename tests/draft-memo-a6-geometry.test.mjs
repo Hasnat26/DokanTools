@@ -23,3 +23,12 @@ test("fresh Chromium PDF acceptance uses explicit A6 page dimensions",()=>{
  assert.match(spec,/height:\s*"148mm"/);
  assert.match(spec,/preferCSSPageSize:\s*false/);
 });
+ 
+test("normalizer recognizes only measured Chromium page-box quantization and retains strict final A6 tolerance",()=>{
+ const normalizer=readFileSync("scripts/normalize-generated-a6-pdf.py","utf8");
+ assert.match(normalizer,/298\.07999/);
+ assert.match(normalizer,/known_chromium_quantization/);
+ assert.match(normalizer,/finalGeometryAcceptanceTolerancePt/);
+ assert.match(normalizer,/Decimal\("0\.1"\)/);
+ assert.match(normalizer,/contentScaled": False/);
+});
