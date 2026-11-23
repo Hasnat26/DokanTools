@@ -66,7 +66,7 @@ export function calculateMemoPreviewTotal(items) {
 }
 
 export function normalizeProductName(value) {
-  return String(value ?? "").normalize("NFKC").trim().replace(/\\s+/gu, " ").toLocaleLowerCase("en");
+  return String(value ?? "").normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en");
 }
 
 /** Pure reference implementation for stock checks, atomicity and idempotency tests. */
