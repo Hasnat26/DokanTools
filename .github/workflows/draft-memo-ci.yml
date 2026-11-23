@@ -64,8 +64,14 @@ jobs:
         run: node scripts/verify-forward-migrations.mjs
       - name: Install Node dependencies
         run: npm ci
-      - name: Install Poppler required by A6 tests
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - name: Ensure Poppler is available for A6 tests
+        shell: bash
+        run: |
+          if ! command -v pdftotext >/dev/null 2>&1; then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 180s apt-get install -y poppler-utils
+          fi
+          pdftotext -v
       - name: Run full test suite
         run: npm test
   category-integrity:
@@ -92,8 +98,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA and record workflow identity
         uses: ./.github/actions/verify-commit-identity
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Ensure PostgreSQL client is available
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 180s apt-get install -y postgresql-client
+          fi
+          psql --version
       - name: Bootstrap disposable Supabase-compatible schema
         env:
           PGPASSWORD: postgres
@@ -131,8 +143,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install PDF inspection tools
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - name: Ensure PDF inspection tools are available
+        shell: bash
+        run: |
+          if ! command -v pdfinfo >/dev/null 2>&1; then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 180s apt-get install -y poppler-utils
+          fi
+          pdfinfo -v
       - name: Verify retained A6 PDF geometry and content
         run: node scripts/verify-a6-pdf.mjs docs/evidence/draft-memo-a6-demo.pdf
   browser-e2e:
@@ -149,8 +167,20 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install PostgreSQL client, PDF inspection and QR decoding tools
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client poppler-utils zbar-tools
+      - name: Ensure PostgreSQL, PDF and QR tools are available
+        shell: bash
+        run: |
+          missing=()
+          command -v psql >/dev/null 2>&1 || missing+=(postgresql-client)
+          command -v pdfinfo >/dev/null 2>&1 || missing+=(poppler-utils)
+          command -v zbarimg >/dev/null 2>&1 || missing+=(zbar-tools)
+          if (("${#missing[@]}" > 0)); then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 180s apt-get install -y "${missing[@]}"
+          fi
+          psql --version
+          pdfinfo -v
+          zbarimg --version
       - name: Install pinned PDF box normalizer
         shell: bash
         run: |
