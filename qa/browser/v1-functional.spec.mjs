@@ -588,6 +588,27 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
           timeout: 10000,
         })
         .toBe(true);
+      await test.step("6a. Generated PDF download and Web Share fallback", async () => {
+        await page.getByRole("button", { name: "Generate PDF", exact: true }).click();
+        await expect(page.getByRole("status")).toContainText("PDF ready");
+        const downloadPromise = page.waitForEvent("download");
+        await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+        const download = await downloadPromise;
+        expect(download.suggestedFilename()).toMatch(/\\.pdf$/i);
+        await page.evaluate(() => {
+          Object.defineProperty(navigator, "canShare", { configurable: true, value: payload => !!payload?.files?.length });
+          Object.defineProperty(navigator, "share", { configurable: true, value: async payload => { window.__nativeSharePayload = payload; } });
+        });
+        await page.getByRole("button", { name: "Share PDF", exact: true }).click();
+        await expect(page.getByRole("status")).toContainText("Share sheet opened");
+        const shared = await page.evaluate(async () => { const file = window.__nativeSharePayload.files[0]; const bytes = new Uint8Array(await file.arrayBuffer()); return { type:file.type, signature:new TextDecoder().decode(bytes.slice(0,5)) }; });
+        expect(shared.type).toBe("application/pdf");
+        expect(shared.signature).toBe("%PDF-");
+        await page.evaluate(() => Object.defineProperty(navigator, "canShare", { configurable: true, value: () => false }));
+        await page.getByRole("button", { name: "Share PDF", exact: true }).click();
+        await expect(page.getByRole("status")).toContainText("not supported");
+        await expect(page.getByRole("button", { name: "Download PDF", exact: true })).toBeEnabled();
+      });
       await mkdir(dirname(pdfPath), { recursive: true });
       await page.emulateMedia({ media: "screen" });
       await page.locator(".memo-print").evaluate((el) => {
