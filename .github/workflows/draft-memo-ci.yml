@@ -209,6 +209,26 @@ jobs:
             echo "DOKANTOOLS_QA_USER_ID=$user_id"
           } >> "$GITHUB_ENV"
           unset password payload
+      - name: Create second disposable synthetic Supabase Auth user for tenant isolation
+        shell: bash
+        run: |
+          email="v1-browser-b-${GITHUB_RUN_ID}@example.test"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          payload="$(jq -n --arg email "$email" --arg password "$password" '{email:$email,password:$password,email_confirm:true}')"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/auth-user-b.json" -w '%{http_code}' \
+            -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/admin/users" \
+            -H "apikey: $DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" -d "$payload")"
+          test "$status" = "200" || test "$status" = "201"
+          user_id="$(jq -er '.id | select(type == "string" and length > 0)' "$RUNNER_TEMP/auth-user-b.json")"
+          {
+            echo "DOKANTOOLS_QA_EMAIL_2=$email"
+            echo "DOKANTOOLS_QA_PASSWORD_2=$password"
+            echo "DOKANTOOLS_QA_USER_ID_2=$user_id"
+          } >> "$GITHUB_ENV"
+          unset password payload
       - name: Build production application against local Supabase
         run: npm run build
       - name: Start production application
@@ -229,6 +249,8 @@ jobs:
       - name: Run real Chromium authenticated V1 workflow
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/test-results.json
+          DOKANTOOLS_QA_EMAIL_2: ${{ env.DOKANTOOLS_QA_EMAIL_2 }}
+          DOKANTOOLS_QA_PASSWORD_2: ${{ env.DOKANTOOLS_QA_PASSWORD_2 }}
         run: npx playwright test qa/browser/v1-functional.spec.mjs --reporter=line,json --workers=1
       - name: Stamp Playwright test results with exact commit identity
         if: always()
