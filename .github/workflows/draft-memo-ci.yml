@@ -169,6 +169,9 @@ jobs:
         run: |
           test ! -e supabase/migrations/202611180001_item_categories.down.sql
           test -f supabase/rollbacks/202611180001_item_categories.down.sql
+          test ! -e supabase/migrations/202611110001_invoice_first_foundation.down.sql
+          test -f supabase/rollbacks/202611110001_invoice_first_foundation.down.sql
+          node scripts/verify-forward-migrations.mjs
           supabase --workdir qa/supabase migration list
           supabase --workdir qa/supabase db push --dry-run
       - name: Create base V1 QA schema fixture and apply real category migrations
