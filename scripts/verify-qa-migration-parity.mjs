@@ -1,0 +1,11 @@
+import { realpath, readdir } from "node:fs/promises";
+import assert from "node:assert/strict";
+const shared = await realpath("supabase/migrations");
+const qa = await realpath("qa/supabase/migrations");
+assert.equal(qa, shared, "QA migration directory must resolve to the repository's complete forward migration chain");
+const files = await readdir(shared);
+const rollbackFiles = files.filter(name => /(?:\.down\.sql$|(?:^|[._-])rollback(?:[._-]|$))/i.test(name));
+assert.deepEqual(rollbackFiles, [], "forward migration directory contains rollback scripts");
+assert.ok(files.some(name => name === "202611180001_item_categories.sql"));
+assert.ok(files.some(name => name === "202611220001_category_integrity_and_shop_map_validation.sql"));
+console.log(`QA migration path parity passed: shared directory ${shared}; ${files.filter(name=>name.endsWith(".sql")).length} SQL files.`);
