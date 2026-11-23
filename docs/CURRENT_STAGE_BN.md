@@ -1,40 +1,57 @@
-# DokanTools — বর্তমান উন্নয়ন পর্যায়
+# DokanTools — বর্তমান V1 উন্নয়ন পর্যায়
 
-## পর্যায়
+## বর্তমান অবস্থা
 
-**Reliability Foundation / Pilot Preparation** — এটি এখনো production-ready release নয়। পুরোনো starter থেকে গুরুত্বপূর্ণ লেনদেনের কিছু ঝুঁকি কমানো হয়েছে; কিন্তু পূর্ণ MVP বা offline-ready অ্যাপ হিসেবে ঘোষণা করা যাবে না।
+**PR #47 সফটওয়্যার ইন্টিগ্রেশন সম্পন্ন।** PR #47 merge হয়েছে `delivery/dokantools-v1-2026-11-19` ব্রাঞ্চে। Merge commit / verified branch HEAD:
 
-## এই ZIP-এ অন্তর্ভুক্ত পরিবর্তন
+`2f257211e5f296d49b7ccf30e50fedcb2530a9f5`
 
-- মেমো ও স্টক হ্রাস একক PostgreSQL RPC-তে: কোনো stock guard ব্যর্থ হলে পুরো লেনদেন rollback হবে।
-- মেমো, স্টক তৈরি, স্টক সংশোধন ও বাকি-খাতা এন্ট্রিতে request ID-ভিত্তিক idempotency.
-- Opening stock, sale ও stock adjustment-এর জন্য stock movement ledger.
-- মেমোতে বাকি থাকলে একই database transaction-এ customer due ledger-এও এন্ট্রি হবে; বাকি থাকলে customer নির্বাচন করতে হবে। রেকর্ডেড বকেয়ার চেয়ে বেশি জমা গ্রহণ করা হবে না।
-- মেমো, বাকি/জমা, স্টক পরিবর্তন এবং product metadata পরিবর্তনের audit event.
-- কাস্টমার/দোকান ডিলিট করে আর্থিক ইতিহাস cascade-এ মুছে ফেলার সরাসরি অনুমতি নেই। স্টক পণ্যের base unit পরিবর্তন এবং implicit unit conversion পাইলট সংস্করণে বন্ধ।
-- দোকানদারের opt-in ছাড়া public shop page খোলা হবে না; product-ও আলাদাভাবে publish করতে হবে।
-- public page থেকে গ্রাহকের নাম/ফোন, বাকি, মেমো ও exact stock quantity আড়াল করা হয়েছে। ফোন নম্বর-নির্ভর public due lookup বাদ দেওয়া হয়েছে।
-- মূল্য ও ব্যবহারসীমার যাচাইহীন বিজ্ঞাপন সরানো হয়েছে।
-- Dependency-free domain unit tests এবং স্থানীয় microbenchmark যোগ করা হয়েছে।
+Post-merge CI [Run #199](https://github.com/Hasnat26/DokanTools/actions/runs/45166285135) — পাঁচটি required job-ই PASS। বিস্তারিত [PR #47 Post-Merge Closeout](./PR47-POST-MERGE-CLOSEOUT.md)-এ আছে।
 
-## এখনো অসম্পূর্ণ
+## যাচাইকৃত সফটওয়্যার
 
-1. Offline transaction outbox, retry queue, sync-status UI, conflict-resolution এবং multi-device synchronization.
-2. পূর্ণ purchase/payment/cash/expense ledger ও দৈনিক closing.
-3. memo-sale-এর cash/payment-method ledger ও manual due-entry-র duplicate prevention/linked settlement flow.
-4. explicit package/base-unit conversion rules (বর্তমানে mismatch হলে transaction fail-closed হয়)।
-5. Supabase staging database-এ RLS, RPC, migration, backup/restore এবং দুই-tenant isolation পরীক্ষা.
-6. সম্পূর্ণ Next.js production build, browser E2E ও authenticated performance/load test.
-7. Actual hosted deployment/commit ও live pilot acceptance.
+- Shop Profile create/edit, logo upload/replace/remove ও reload persistence.
+- Google Maps URL validation; public shop profile opt-in এবং QR destination.
+- Category create/rename/delete; product create/edit, category association ও persistence.
+- Stock-linked catalogue product rename/delete guard.
+- Multi-product Draft Memo; quantity, unit price, subtotal ও optional discount/VAT/tax/paid/due validation.
+- IndexedDB draft save/edit/reload/delete.
+- Fresh A6 PDF generation/download এবং line remove/edit করলে stale PDF invalidation.
+- Browser-এ Share API payload ও unsupported fallback simulation.
+- Disposable local Supabase Auth/PostgREST/RLS-এ দুই synthetic user-এর category tenant isolation.
+- PostgreSQL 17 category/stock identity integrity regression.
+- Full migration chain disposable local Supabase-এ reset/apply; migration parity এবং issuance-off check.
 
-## পাইলটের সিদ্ধান্ত-নিয়ম
+## CI ফলাফল
 
-- পরিকল্পিত প্রথম pilot: ১৪ দিন; প্রমাণ অসম্পূর্ণ হলে বাড়বে।
-- প্রথমে একটি সহযোগিতাপ্রবণ ছোট দোকান; পরের দল মাত্র ২–৩টি দোকান, আগের দলের প্রমাণ পর্যালোচনার পরে।
-- গুরুতর ডেটা বিচ্ছিন্নতা, ডুপ্লিকেট, stock/accounting, payment/due বা recovery test-এ কোনো অমীমাংসিত ব্যর্থতা গ্রহণযোগ্য নয়।
-- প্রযুক্তিগত গ্রহণযোগ্যতা ডেভেলপার/QA, হিসাব মিল দোকানদার বা অনুমোদিত প্রতিনিধি, এবং চূড়ান্ত go/no-go প্রকল্প দায়িত্বপ্রাপ্ত ব্যক্তি অনুমোদন করবেন।
-- নিরাপত্তা/হিসাবের গুরুতর সমস্যা হলে প্রভাবিত কাজ সীমিত বা pilot স্থগিত করতে হবে।
+| Job | Job ID | ফল |
+|---|---:|---|
+| Chromium authenticated V1 workflow + fresh A6 PDF | 137663956967 | PASS |
+| A6 PDF artifact verification | 137663957489 | PASS |
+| Unit tests | 137663957547 | PASS |
+| PostgreSQL 17 tenant integrity | 137663957570 | PASS |
+| Build, lint, typecheck, startup | 137663957626 | PASS |
 
-## প্রযুক্তিগত caveat
+Unit test: 113 total; 111 passed, 0 failed, 2 skipped. Chromium test: 1 passed, 0 skipped/unexpected/flaky.
 
-এই পরিবেশে npm registry-তে DNS/network failure হওয়ায় dependency install সম্পন্ন হয়নি। তাই Next.js build/lint এবং live Supabase/SQL runtime execution যাচাই করা যায়নি। এর পরিবর্তে Node.js core tests, SQL static check, TypeScript/TSX syntax parsing, archive integrity ও local CPU-only benchmark চালানো হবে। এই ফল database concurrency বা hosted performance-এর বিকল্প নয়।
+## Invoice issuance control
+
+Invoice issuance **OFF**। Valid Invoice-First request HTTP `423` এবং `INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL` পায়। Database runtime control false হিসেবে seed করা; authenticated role-এর table privilege revoked; security-definer transaction RPC disabled control যাচাই করে। API-তেও fail-closed guard আছে। কোনো invoice issue, production write বা financial transaction করা হয়নি।
+
+## এখনও অসম্পূর্ণ / NOT VERIFIED
+
+1. Android Chrome native share sheet বাস্তব device-এ পরীক্ষা.
+2. বাস্তব WhatsApp test recipient-কে PDF attachment পাঠানো এবং recipient-side open.
+3. Physical A6 printer/driver acceptance.
+4. Hosted migration, production deployment, environment configuration ও rollback readiness.
+5. Backup/restore drill.
+6. Full offline transaction outbox/sync ও conflict resolution; এগুলো PR #47-এর verified scope নয়.
+7. Customer pilot/live onboarding.
+
+CI-তে print handler এবং Web Share behavior simulated হয়েছে; তাই Android, WhatsApp recipient delivery বা physical printer PASS বলা যাবে না।
+
+## PO-controlled boundary
+
+Production deployment, hosted migration, production data change, invoice issuance activation, customer pilot/live onboarding এবং PO-10 scope change আলাদা PO decision ছাড়া অনুমোদিত নয়।
+
+**PM recommendation:** SOFTWARE CLOSEOUT COMPLETE — EXTERNAL ACCEPTANCE PENDING, documentation closeout PR merge হলে। এটি production release authorization নয়।
