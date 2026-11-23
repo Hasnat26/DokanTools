@@ -78,11 +78,24 @@ export default function DraftMemoPage(){
   const printable=[shop.shop_name,shop.owner_name,shop.address,shop.phone,...lines.flatMap(line=>[line.item_name,line.unit])].filter(Boolean).join(" ");
   if(/[\\u0980-\\u09FF]/.test(printable)){setError("The PDF is English-only. Use English shop and product details.");return;}
   try{
+   let logoDataUrl="";
+   if(shop.logo_url){
+    try{
+     if(/^data:image\/(?:png|jpeg|webp);base64,/i.test(shop.logo_url))logoDataUrl=shop.logo_url;
+     else{
+      const response=await fetch(shop.logo_url);
+      if(response.ok&&/^image\/(?:png|jpeg|webp)$/i.test(response.headers.get("content-type")||"")){
+       const imageBlob=await response.blob();
+       logoDataUrl=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(typeof reader.result==="string"?reader.result:"");reader.onerror=()=>resolve("");reader.readAsDataURL(imageBlob);});
+      }
+     }
+    }catch{/* A cross-origin logo may fall back to the vector shop mark. */}
+   }
    const pdf=createDraftMemoPdf({
     shop:{name:shop.shop_name,owner:shop.owner_name||"",address:shop.address||"",phone:shop.phone||"",mapUrl:shop.map_link&&validateGoogleMapsUrl(shop.map_link)||""},
     lines:lines.map((line,index)=>({name:line.item_name,quantity:line.quantity,unit:line.unit,unitPrice:money(Math.round(Number(line.unit_price)*100)),lineTotal:money(result.lineTotals[index]||0)})),
     totals:{subtotal:money(result.subtotalMinor),discount:options.discountEnabled?money(result.discountMinor):null,tax:options.taxEnabled?money(result.taxMinor):null,taxLabel:options.taxEnabled?"VAT / Tax ("+options.taxRate+"%)":null,grandTotal:money(result.grandTotalMinor),paid:options.paidEnabled?money(result.paidMinor):null,due:options.paidEnabled?money(result.dueMinor):null},
-    qrDataUrl:billQr||"",logoDataUrl:""
+    qrDataUrl:billQr||"",logoDataUrl
    });
    const blob=pdf.output("blob");
    if(blob.size<100||blob.type!=="application/pdf")throw new Error("PDF_GENERATION_FAILED");
