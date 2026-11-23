@@ -16,3 +16,10 @@ test("print stylesheet declares valid A6 portrait dimensions",()=>{
  const source=readFileSync("src/app/dashboard/draft-memo/page.tsx","utf8");
  assert.match(source,/@page\{size:297\.6378pt 419\.5276pt;margin:8\.50394pt;\}/);
 });
+ 
+test("fresh Chromium PDF acceptance uses explicit A6 page dimensions",()=>{
+ const spec=readFileSync("qa/browser/v1-functional.spec.mjs","utf8");
+ assert.match(spec,/width:\s*"105mm"/);
+ assert.match(spec,/height:\s*"148mm"/);
+ assert.match(spec,/preferCSSPageSize:\s*false/);
+});
