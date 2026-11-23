@@ -4,7 +4,11 @@ import { dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 const baseURL = process.env.DOKANTOOLS_QA_URL,
   email = process.env.DOKANTOOLS_QA_EMAIL,
-  password = process.env.DOKANTOOLS_QA_PASSWORD;
+  password = process.env.DOKANTOOLS_QA_PASSWORD,
+  email2 = process.env.DOKANTOOLS_QA_EMAIL_2,
+  password2 = process.env.DOKANTOOLS_QA_PASSWORD_2,
+  supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
+  anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const pdfPath =
   process.env.DOKANTOOLS_A6_PDF_OUTPUT ||
   "artifacts/dokantools-authenticated-a6.pdf";
@@ -76,9 +80,9 @@ test.use({
   screenshot: "only-on-failure",
   video: "retain-on-failure",
 });
-if (!baseURL || !email || !password)
+if (!baseURL || !email || !password || !email2 || !password2 || !supabaseUrl || !anonKey)
   throw new Error(
-    "CH4_CONFIGURATION_ERROR: browser QA credentials and URL are mandatory.",
+    "CH4_CONFIGURATION_ERROR: both synthetic Auth identities, Supabase URL/key and QA URL are mandatory.",
   );
 test("authenticated configurable multi-product bill, IndexedDB lifecycle and fresh A6 PDF", async ({
   page,
@@ -309,6 +313,64 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
           .locator("xpath=../..")
           .getByLabel("ক্যাটাগরি", { exact: true }),
       ).toHaveValue(selectedCategoryId);
+
+      await test.step("3b. Real Supabase Auth → PostgREST → RLS two-user tenant isolation", async () => {
+        const signIn = async (userEmail, userPassword) => {
+          const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+            method: "POST",
+            headers: { apikey: anonKey, "Content-Type": "application/json" },
+            body: JSON.stringify({ email: userEmail, password: userPassword }),
+          });
+          expect(response.ok, `Auth sign-in failed: ${response.status}`).toBe(true);
+          return (await response.json()).access_token;
+        };
+        const ownerToken = await signIn(email, password);
+        const otherToken = await signIn(email2, password2);
+        const headers = token => ({
+          apikey: anonKey,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        });
+        const ownerShopResponse = await fetch(
+          `${supabaseUrl}/rest/v1/shops?select=id&order=created_at.asc&limit=1`,
+          { headers: headers(ownerToken) },
+        );
+        expect(ownerShopResponse.ok).toBe(true);
+        const ownerShop = (await ownerShopResponse.json())[0];
+        expect(ownerShop?.id).toBeTruthy();
+        const ownerCategoryResponse = await fetch(
+          `${supabaseUrl}/rest/v1/item_categories?select=id,shop_id&shop_id=eq.${ownerShop.id}&name=eq.${encodeURIComponent(renamedCategory)}`,
+          { headers: headers(ownerToken) },
+        );
+        expect(ownerCategoryResponse.ok).toBe(true);
+        const ownerCategory = (await ownerCategoryResponse.json())[0];
+        expect(ownerCategory?.id).toBeTruthy();
+        expect(ownerCategory.shop_id).toBe(ownerShop.id);
+        const categoryUrl = `${supabaseUrl}/rest/v1/item_categories?id=eq.${ownerCategory.id}`;
+        const otherRead = await fetch(categoryUrl, { headers: headers(otherToken) });
+        expect(otherRead.ok).toBe(true);
+        expect(await otherRead.json()).toEqual([]);
+        const otherInsert = await fetch(`${supabaseUrl}/rest/v1/item_categories`, {
+          method: "POST",
+          headers: { ...headers(otherToken), Prefer: "return=minimal" },
+          body: JSON.stringify({ shop_id: ownerShop.id, name: "Cross Tenant Inject", sort_order: 0 }),
+        });
+        expect(otherInsert.status, "cross-tenant insert must be rejected by RLS").toBeGreaterThanOrEqual(400);
+        const otherUpdate = await fetch(categoryUrl, {
+          method: "PATCH",
+          headers: headers(otherToken),
+          body: JSON.stringify({ name: "Cross Tenant Rename" }),
+        });
+        expect(otherUpdate.ok).toBe(true);
+        expect(await otherUpdate.json()).toEqual([]);
+        const otherDelete = await fetch(categoryUrl, { method: "DELETE", headers: headers(otherToken) });
+        expect(otherDelete.ok).toBe(true);
+        expect(await otherDelete.json()).toEqual([]);
+        const ownerStillReads = await fetch(categoryUrl, { headers: headers(ownerToken) });
+        expect(ownerStillReads.ok).toBe(true);
+        expect((await ownerStillReads.json()).length).toBe(1);
+      });
 
       // Create a real inventory link through the preserved stock screen, then
       // exercise the blocked catalogue rename/delete path end-to-end.
