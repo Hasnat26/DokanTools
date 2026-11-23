@@ -68,7 +68,7 @@ export default function DraftMemoPage(){
  function edit(draft:DraftMemo){setPdfFile(null);setPdfStatus("");setEditing(draft.id);setLines(draft.lines.map(line=>({...line})));setOptions({...DEFAULT_OPTIONS,...draft.options});setSaved(true);setError("");}
  async function remove(id:string){
   if(!shop||!owner||!window.confirm("Delete this saved draft?"))return;
-  try{await deleteDraftMemo(owner,shop.id,id);setDrafts(await listDraftMemos(owner,shop.id));if(editing===id){setEditing(null);setLines([]);setOptions({...DEFAULT_OPTIONS});setSaved(false);}}
+  try{await deleteDraftMemo(owner,shop.id,id);setDrafts(await listDraftMemos(owner,shop.id));if(editing===id){setPdfFile(null);setPdfStatus("");setEditing(null);setLines([]);setOptions({...DEFAULT_OPTIONS});setSaved(false);}}
   catch(cause){setError(cause instanceof Error?cause.message:"Draft deletion failed.");}
  }
  function fresh(){setPdfFile(null);setPdfStatus("");setEditing(null);setLines([]);setOptions({...DEFAULT_OPTIONS});setError("");setSaved(false);}
@@ -143,7 +143,7 @@ export default function DraftMemoPage(){
      </select>
     </label>
     {lines.map((line,index)=><article key={index} className="rounded border p-3 space-y-2" data-testid="bill-line">
-     <div className="flex justify-between font-semibold"><span>{line.item_name} ({line.unit})</span><button type="button" className="text-red-600" onClick={()=>{setLines(current=>current.filter((_,i)=>i!==index));setSaved(false);}}>Remove</button></div>
+     <div className="flex justify-between font-semibold"><span>{line.item_name} ({line.unit})</span><button type="button" className="text-red-600" onClick={()=>{setPdfFile(null);setPdfStatus("");setLines(current=>current.filter((_,i)=>i!==index));setSaved(false);}}>Remove</button></div>
      <div className="grid grid-cols-2 gap-2">
       <label>Quantity<input aria-label="Quantity" className="field" type="number" min="0.001" step="0.001" value={line.quantity} onChange={event=>changeLine(index,"quantity",event.target.value)}/></label>
       <label>Unit price (BDT)<input aria-label="Unit price" className="field" type="number" min="0" step="0.01" value={line.unit_price} onChange={event=>changeLine(index,"unit_price",event.target.value)}/></label>
