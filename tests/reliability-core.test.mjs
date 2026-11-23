@@ -87,7 +87,7 @@ test("product-name normalization aligns NFKC, case and whitespace identity", () 
   assert.equal(normalizeProductName("  Rice  "), "rice");
   assert.equal(normalizeProductName("Ｒice"), normalizeProductName("Rice"));
   assert.equal(normalizeProductName("  RICE\t\t"), normalizeProductName("rice"));
-  assert.equal(normalizeProductName("Cafe\\u0301"), normalizeProductName("Café"));
+  assert.equal(normalizeProductName("Cafe\u0301"), normalizeProductName("Café"));
   assert.equal(normalizeProductName(null), "");
   assert.equal(normalizeProductName("   "), "");
 });
