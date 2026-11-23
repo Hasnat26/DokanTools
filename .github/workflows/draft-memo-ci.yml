@@ -15,6 +15,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact candidate SHA and record workflow identity
+        uses: ./.github/actions/verify-commit-identity
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -35,7 +39,8 @@ jobs:
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:3000/ -o /tmp/dokantools-home.html; then
               grep -q 'দোকানের হিসাব এখন' /tmp/dokantools-home.html
-              exit $?
+              node scripts/verify-invoice-issue-disabled.mjs http://127.0.0.1:3000
+              exit 0
             fi
             sleep 2
           done
@@ -47,26 +52,271 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact candidate SHA and record workflow identity
+        uses: ./.github/actions/verify-commit-identity
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Verify forward migration directory contains no rollback scripts
+        run: node scripts/verify-forward-migrations.mjs
       - name: Install Node dependencies
         run: npm ci
-      - name: Install Poppler required by A6 tests
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - name: Ensure Poppler is available for A6 tests
+        shell: bash
+        run: |
+          if ! command -v pdftotext >/dev/null 2>&1; then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 360s apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y poppler-utils
+          fi
+          pdftotext -v
       - name: Run full test suite
         run: npm test
+  category-integrity:
+    name: PostgreSQL 17 category tenant-integrity regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: dokantools_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dokantools_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact candidate SHA and record workflow identity
+        uses: ./.github/actions/verify-commit-identity
+      - name: Ensure PostgreSQL client is available
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 180s apt-get install -y postgresql-client
+          fi
+          psql --version
+      - name: Bootstrap disposable Supabase-compatible schema
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/category_integrity_schema.sql
+      - name: Apply category migration to disposable CI database
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/migrations/202611180001_item_categories.sql
+      - name: Apply forward tenant/map/stock-identity remediation migration
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/migrations/202611220001_category_integrity_and_shop_map_validation.sql
+      - name: Verify database-level inventory-linked catalogue guard
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/tests/20261122_catalog_stock_identity_guard.sql
+      - name: Run positive and negative category integrity tests (transaction rolls back)
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/tests/20261119_item_categories_tenant_integrity.sql
+      - name: Run two-authenticated-user category RLS isolation regression (transaction rolls back)
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d dokantools_test -v ON_ERROR_STOP=1 -f supabase/tests/20261122_item_categories_authenticated_rls.sql
   pdf-qa:
     name: A6 PDF artifact verification
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact candidate SHA and record workflow identity
+        uses: ./.github/actions/verify-commit-identity
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install PDF inspection tools
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
-      - name: Verify retained A6 PDF geometry, fonts and content
+      - name: Ensure PDF inspection tools are available
+        shell: bash
+        run: |
+          if ! command -v pdfinfo >/dev/null 2>&1; then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 180s apt-get install -y poppler-utils
+          fi
+          pdfinfo -v
+      - name: Verify retained A6 PDF geometry and content
         run: node scripts/verify-a6-pdf.mjs docs/evidence/draft-memo-a6-demo.pdf
+  browser-e2e:
+    name: Chromium authenticated V1 workflow and fresh A6 PDF
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact candidate SHA and record workflow identity
+        uses: ./.github/actions/verify-commit-identity
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Ensure PostgreSQL, PDF and QR tools are available
+        shell: bash
+        run: |
+          missing=()
+          command -v psql >/dev/null 2>&1 || missing+=(postgresql-client)
+          command -v pdfinfo >/dev/null 2>&1 || missing+=(poppler-utils)
+          command -v zbarimg >/dev/null 2>&1 || missing+=(zbar-tools)
+          if (("${#missing[@]}" > 0)); then
+            sudo timeout 240s apt-get update -o Acquire::Retries=3
+            sudo timeout 180s apt-get install -y "${missing[@]}"
+          fi
+          psql --version
+          pdfinfo -v
+          zbarimg --version
+      - name: Install pinned PDF box normalizer
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/pdf-tools"
+          "$RUNNER_TEMP/pdf-tools/bin/pip" install --disable-pip-version-check pypdf==5.9.0
+          echo "$RUNNER_TEMP/pdf-tools/bin" >> "$GITHUB_PATH"
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.1.0
+      - name: Install application dependencies
+        run: npm ci
+      - name: Start disposable local Supabase Auth and PostgreSQL
+        run: supabase --workdir qa/supabase-runner start -x studio,storage-api,realtime,imgproxy,mailpit,edge-runtime,logflare,vector
+      - name: Verify Supabase CLI migration inventory and local dry-run (no hosted target)
+        run: |
+          test ! -e supabase/migrations/202611180001_item_categories.down.sql
+          test -f supabase/rollbacks/202611180001_item_categories.down.sql
+          test ! -e supabase/migrations/202611110001_invoice_first_foundation.down.sql
+          test -f supabase/rollbacks/202611110001_invoice_first_foundation.down.sql
+          node scripts/verify-forward-migrations.mjs
+          supabase --workdir qa/supabase-runner migration list
+          supabase --workdir qa/supabase-runner db push --dry-run
+      - name: Verify QA migration directory parity and rollback quarantine
+        run: |
+          node scripts/verify-qa-migration-parity.mjs
+          node scripts/verify-forward-migrations.mjs
+      - name: Reset disposable QA database using the complete repository migration chain
+        run: supabase --workdir qa/supabase-runner db reset
+      - name: Verify migration-applied schema parity and invoice issue remains OFF
+        shell: bash
+        run: |
+          supabase --workdir qa/supabase-runner status -o env > "$RUNNER_TEMP/supabase.env"
+          set -a
+          source "$RUNNER_TEMP/supabase.env"
+          set +a
+          psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/tests/verify_v1_migration_parity.sql
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "DOKANTOOLS_QA_URL=http://127.0.0.1:3000"
+            echo "DOKANTOOLS_REQUIRE_CATEGORIES=true"
+          } >> "$GITHUB_ENV"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+      - name: Create disposable synthetic Supabase Auth user
+        shell: bash
+        run: |
+          email="v1-browser-${GITHUB_RUN_ID}@example.test"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          payload="$(jq -n --arg email "$email" --arg password "$password" '{email:$email,password:$password,email_confirm:true}')"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/auth-user.json" -w '%{http_code}' \
+            -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/admin/users" \
+            -H "apikey: $DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" -d "$payload")"
+          test "$status" = "200" || test "$status" = "201"
+          user_id="$(jq -er '.id | select(type == "string" and length > 0)' "$RUNNER_TEMP/auth-user.json")"
+          {
+            echo "DOKANTOOLS_QA_EMAIL=$email"
+            echo "DOKANTOOLS_QA_PASSWORD=$password"
+            echo "DOKANTOOLS_QA_USER_ID=$user_id"
+          } >> "$GITHUB_ENV"
+          unset password payload
+      - name: Create second disposable synthetic Supabase Auth user for tenant isolation
+        shell: bash
+        run: |
+          email="v1-browser-b-${GITHUB_RUN_ID}@example.test"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          payload="$(jq -n --arg email "$email" --arg password "$password" '{email:$email,password:$password,email_confirm:true}')"
+          status="$(curl --silent --show-error -o "$RUNNER_TEMP/auth-user-b.json" -w '%{http_code}' \
+            -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/admin/users" \
+            -H "apikey: $DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $DOKANTOOLS_LOCAL_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" -d "$payload")"
+          test "$status" = "200" || test "$status" = "201"
+          user_id="$(jq -er '.id | select(type == "string" and length > 0)' "$RUNNER_TEMP/auth-user-b.json")"
+          {
+            echo "DOKANTOOLS_QA_EMAIL_2=$email"
+            echo "DOKANTOOLS_QA_PASSWORD_2=$password"
+            echo "DOKANTOOLS_QA_USER_ID_2=$user_id"
+          } >> "$GITHUB_ENV"
+          unset password payload
+      - name: Build production application against local Supabase
+        run: npm run build
+      - name: Start production application
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 > "$RUNNER_TEMP/next.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/next.pid"
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/next.log"
+          exit 1
+      - name: Install pinned Playwright Chromium
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run real Chromium authenticated V1 workflow
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/test-results.json
+          DOKANTOOLS_QA_EMAIL_2: ${{ env.DOKANTOOLS_QA_EMAIL_2 }}
+          DOKANTOOLS_QA_PASSWORD_2: ${{ env.DOKANTOOLS_QA_PASSWORD_2 }}
+        run: npx playwright test qa/browser/v1-functional.spec.mjs --reporter=line,json --workers=1
+      - name: Stamp Playwright test results with exact commit identity
+        if: always()
+        shell: bash
+        run: |
+          if [ -f test-results/test-results.json ]; then
+            node -e 'const fs=require("node:fs");const p="test-results/test-results.json";const r=JSON.parse(fs.readFileSync(p,"utf8"));r.metadata={...(r.metadata||{}),commitIdentity:JSON.parse(fs.readFileSync("artifacts/commit-identity.json","utf8"))};fs.writeFileSync(p,JSON.stringify(r,null,2));'
+          fi
+      - name: Normalize fresh Chromium PDF page boxes to exact A6 without scaling content
+        if: success()
+        run: python scripts/normalize-generated-a6-pdf.py artifacts/dokantools-authenticated-a6.pdf
+      - name: Verify fresh application-generated A6 PDF
+        if: success()
+        run: node scripts/verify-generated-a6-pdf.mjs artifacts/dokantools-authenticated-a6.pdf artifacts/dokantools-a6-expectations.json
+      - name: Upload authenticated browser evidence and fresh PDF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dokantools-v1-chromium-a6-${{ github.run_id }}
+          path: |
+            artifacts/dokantools-authenticated-a6.pdf
+            artifacts/dokantools-a6-expectations.json
+            artifacts/dokantools-a6-validation.json
+            artifacts/dokantools-bill-header.png
+            artifacts/shop-map-qr.png
+            artifacts/shop-public-profile-qr.png
+            artifacts/commit-identity.json
+            test-results/
+          if-no-files-found: warn
+      - name: Stop disposable local Supabase
+        if: always()
+        run: supabase --workdir qa/supabase-runner stop --no-backup

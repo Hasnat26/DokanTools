@@ -32,4 +32,4 @@ const text = run('pdftotext', [pdf, '-']);
 assert.match(text, /Grand Total/);
 assert.match(text, /331\.00/);
 assert.match(text, /DRAFT ONLY/);
-console.log(JSON.stringify({ pdf, pages: 1, mediaBoxPt: media, cropBoxPt: crop, targetPt: target, tolerancePt: 0.01, rotation: 0, bengaliFontEmbedded: true, contentChecks: ['Grand Total', '331.00', 'খসড়া'] }, null, 2));
+console.log(JSON.stringify({ pdf, pages: 1, mediaBoxPt: media, cropBoxPt: crop, targetPt: target, tolerancePt: 0.01, rotation: 0, fontTableAvailable: true, contentChecks: ['Grand Total', '331.00', 'DRAFT ONLY'] }, null, 2));

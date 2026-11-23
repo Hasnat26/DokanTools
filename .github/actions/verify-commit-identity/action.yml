@@ -1,0 +1,20 @@
+name: Verify exact candidate SHA
+description: Assert checkout matches the PR head or workflow SHA and write commit-identity.json
+runs:
+  using: composite
+  steps:
+    - name: Verify exact candidate SHA and record workflow identity
+      shell: bash
+      env:
+        EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        WORKFLOW_EVENT: ${{ github.event_name }}
+      run: |
+        actual="$(git rev-parse HEAD)"
+        echo "PR head SHA: ${PR_HEAD_SHA:-not-applicable}" >> "$GITHUB_STEP_SUMMARY"
+        echo "Expected checkout SHA: $EXPECTED_HEAD_SHA" >> "$GITHUB_STEP_SUMMARY"
+        echo "Actual git rev-parse HEAD: $actual" >> "$GITHUB_STEP_SUMMARY"
+        echo "Workflow event: $WORKFLOW_EVENT" >> "$GITHUB_STEP_SUMMARY"
+        test "$actual" = "$EXPECTED_HEAD_SHA"
+        mkdir -p artifacts
+        printf '{"prHeadSha":"%s","expectedCheckoutSha":"%s","actualCheckoutSha":"%s","workflowEvent":"%s"}\n' "$PR_HEAD_SHA" "$EXPECTED_HEAD_SHA" "$actual" "$WORKFLOW_EVENT" > artifacts/commit-identity.json

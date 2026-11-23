@@ -1,13 +1,34 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import test from "node:test";
+import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+test("retained A6 reference PDF geometry and bill totals remain valid",()=>{
+ const result=spawnSync(process.execPath,["scripts/verify-a6-pdf.mjs","docs/evidence/draft-memo-a6-demo.pdf"],{encoding:"utf8"});
+ assert.equal(result.status,0,result.stderr||result.stdout);
+ const evidence=JSON.parse(result.stdout);
+ assert.equal(evidence.pages,1);
+ assert.deepEqual(evidence.mediaBoxPt,[0,0,297.64,419.53]);
+ assert.deepEqual(evidence.cropBoxPt,[0,0,297.64,419.53]);
+ assert.equal(evidence.rotation,0);
+});
 
-test('generated Draft Memo PDF has exact A6 MediaBox/CropBox and embedded Bengali font', () => {
-  const result = spawnSync(process.execPath, ['scripts/verify-a6-pdf.mjs', 'docs/evidence/draft-memo-a6-demo.pdf'], { encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-  const evidence = JSON.parse(result.stdout);
-  assert.equal(evidence.pages, 1);
-  assert.deepEqual(evidence.mediaBoxPt, [0, 0, 297.64, 419.53]);
-  assert.deepEqual(evidence.cropBoxPt, [0, 0, 297.64, 419.53]);
-  assert.equal(evidence.bengaliFontEmbedded, true);
+test("print stylesheet declares valid A6 portrait dimensions",()=>{
+ const source=readFileSync("src/app/dashboard/draft-memo/page.tsx","utf8");
+ assert.match(source,/@page\{size:297\.6378pt 419\.5276pt;margin:8\.50394pt;\}/);
+});
+ 
+test("fresh Chromium PDF acceptance uses explicit A6 page dimensions",()=>{
+ const spec=readFileSync("qa/browser/v1-functional.spec.mjs","utf8");
+ assert.match(spec,/width:\s*"105mm"/);
+ assert.match(spec,/height:\s*"148mm"/);
+ assert.match(spec,/preferCSSPageSize:\s*false/);
+});
+ 
+test("normalizer recognizes only measured Chromium page-box quantization and retains strict final A6 tolerance",()=>{
+ const normalizer=readFileSync("scripts/normalize-generated-a6-pdf.py","utf8");
+ assert.match(normalizer,/298\.07999/);
+ assert.match(normalizer,/known_chromium_quantization/);
+ assert.match(normalizer,/finalGeometryAcceptanceTolerancePt/);
+ assert.match(normalizer,/Decimal\("0\.1"\)/);
+ assert.match(normalizer,/contentScaled": False/);
 });

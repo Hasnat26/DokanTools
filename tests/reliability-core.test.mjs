@@ -83,9 +83,13 @@ test("a service line without an inventory record does not change stock", () => {
   assert.equal(result.movements.length, 0);
 });
 
-test("product-name normalization handles whitespace and Unicode normalization", () => {
+test("product-name normalization aligns NFKC, case and whitespace identity", () => {
   assert.equal(normalizeProductName("  Rice  "), "rice");
+  assert.equal(normalizeProductName("Ｒice"), normalizeProductName("Rice"));
+  assert.equal(normalizeProductName("  RICE\t\t"), normalizeProductName("rice"));
   assert.equal(normalizeProductName("Cafe\u0301"), normalizeProductName("Café"));
+  assert.equal(normalizeProductName(null), "");
+  assert.equal(normalizeProductName("   "), "");
 });
 
 test("sale rejects an implicit unit conversion", () => {

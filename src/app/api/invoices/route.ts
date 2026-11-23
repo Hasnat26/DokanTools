@@ -1,33 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { InvoiceCreateRequest, InvoiceDTO } from "@/lib/invoice-contract";
+import { isValidInvoiceRequest } from "@/lib/invoice-request-validation.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const decimal = (scale: number) => new RegExp("^(0|[1-9][0-9]*)([.][0-9]{1," + scale + "})?$");
 const fail = (status: number, code: string) => NextResponse.json({ error: { code } }, {
   status, headers: { "Cache-Control": "no-store", "Pragma": "no-cache" },
 });
-const obj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
-
-function valid(v: unknown): v is InvoiceCreateRequest {
-  if (!obj(v) || Object.keys(v).sort().join(",") !== "header,idempotencyNamespace,lines,requestId,shopId"
-    || v.idempotencyNamespace !== "invoice-create/v1"
-    || typeof v.shopId !== "string" || !UUID.test(v.shopId)
-    || typeof v.requestId !== "string" || !UUID.test(v.requestId)
-    || !obj(v.header) || !Array.isArray(v.lines) || v.lines.length < 1 || v.lines.length > 100) return false;
-  const h = v.header;
-  if (Object.keys(h).sort().join(",") !== "mapUrl,shopAddress,shopName,shopPhone"
-    || ![h.shopName, h.shopAddress, h.shopPhone, h.mapUrl].every(x => typeof x === "string")) return false;
-  return v.lines.every(line => obj(line)
-    && Object.keys(line).sort().join(",") === "catalogItemId,itemName,quantity,unit,unitPrice"
-    && (line.catalogItemId === null || (typeof line.catalogItemId === "string" && UUID.test(line.catalogItemId)))
-    && typeof line.itemName === "string"
-    && (line.unit === null || typeof line.unit === "string")
-    && typeof line.quantity === "string" && decimal(3).test(line.quantity)
-    && typeof line.unitPrice === "string" && decimal(2).test(line.unitPrice));
-}
 
 type InvoiceDbRow = {
   id: string; shop_id: string; bill_number: string | number; issued_at: string;
@@ -86,21 +67,25 @@ export async function POST(req: NextRequest) {
   // Read the body once and enforce a byte limit even when Content-Length is absent.
   const raw = await req.text();
   if (new TextEncoder().encode(raw).byteLength > 65536) return fail(413, "PAYLOAD_TOO_LARGE");
-  const client = await authenticatedClient(req);
-  if (!client) return fail(401, "UNAUTHENTICATED");
   let input: unknown;
   try { input = JSON.parse(raw); } catch { return fail(400, "INVALID_JSON"); }
-  if (!valid(input)) return fail(400, "INVALID_INVOICE_REQUEST");
+  if (!isValidInvoiceRequest(input)) return fail(400, "INVALID_INVOICE_REQUEST");
+  const invoiceInput = input as InvoiceCreateRequest;
 
   // Fail closed until PO-02/04/05/06 are approved. Not env-configurable.
+  // Validate request shape first so unsupported adjustment fields return 400;
+  // a valid Invoice-First request receives the deterministic disabled response.
   const INVOICE_ISSUE_ENABLED = false;
   if (!INVOICE_ISSUE_ENABLED) return fail(423, "INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL");
 
+  const client = await authenticatedClient(req);
+  if (!client) return fail(401, "UNAUTHENTICATED");
+
   const { data, error } = await client.rpc("create_invoice_transaction", {
-    p_shop_id: input.shopId,
-    p_idempotency_namespace: input.idempotencyNamespace,
-    p_request_id: input.requestId,
-    p_payload: { header: input.header, lines: input.lines },
+    p_shop_id: invoiceInput.shopId,
+    p_idempotency_namespace: invoiceInput.idempotencyNamespace,
+    p_request_id: invoiceInput.requestId,
+    p_payload: { header: invoiceInput.header, lines: invoiceInput.lines },
   });
   if (error) {
     if (error.code === "42501") return fail(403, "SHOP_ACCESS_DENIED");
@@ -110,7 +95,7 @@ export async function POST(req: NextRequest) {
   }
   const result = Array.isArray(data) ? data[0] : data;
   if (!result?.result_invoice_id) return fail(503, "INVOICE_RESULT_UNAVAILABLE");
-  const invoice = await loadInvoice(client, input.shopId, result.result_invoice_id);
+  const invoice = await loadInvoice(client, invoiceInput.shopId, result.result_invoice_id);
   if (!invoice) return fail(503, "INVOICE_RESULT_UNAVAILABLE");
   return NextResponse.json({ invoice, replayed: result.result_was_replay === true }, {
     status: result.result_was_replay ? 200 : 201,
