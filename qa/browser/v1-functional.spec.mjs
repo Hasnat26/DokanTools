@@ -544,10 +544,15 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
         .locator(".memo-print")
         .evaluate((el) => el.removeAttribute("style"));
       await page.emulateMedia({ media: "print" });
+      // Explicit physical page dimensions make the generated acceptance artifact
+      // deterministic across Chromium's CSS-page-size rounding. The application's
+      // @page rule is still separately asserted by the source-level regression.
       await page.pdf({
         path: pdfPath,
         printBackground: true,
-        preferCSSPageSize: true,
+        width: "105mm",
+        height: "148mm",
+        preferCSSPageSize: false,
         scale: 1,
       });
       await page.emulateMedia({ media: "screen" });
