@@ -33,13 +33,17 @@ BEGIN
     RAISE EXCEPTION 'FAIL: null/empty identity handling';
   END IF;
 
+  -- A normalized-equivalent spelling preserves identity and remains safe.
+  UPDATE public.item_catalog SET name = 'Ｒice' WHERE name = 'Ｒice' AND shop_id='10000000-0000-4000-8000-000000000011';
+  IF NOT FOUND THEN RAISE EXCEPTION 'FAIL: Unicode-equivalent identity update unexpectedly missed row'; END IF;
+
   v_blocked := false;
   BEGIN
-    UPDATE public.item_catalog SET name = 'Ｒice' WHERE name = 'Rice' AND shop_id='10000000-0000-4000-8000-000000000011';
+    UPDATE public.item_catalog SET name = 'Rice Flour' WHERE name = 'Ｒice' AND shop_id='10000000-0000-4000-8000-000000000011';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'INVENTORY_LINKED_CATALOG_RENAME_BLOCKED' THEN v_blocked := true; ELSE RAISE; END IF;
   END;
-  IF NOT v_blocked THEN RAISE EXCEPTION 'FAIL: Unicode-equivalent rename was not blocked'; END IF;
+  IF NOT v_blocked THEN RAISE EXCEPTION 'FAIL: rename from Unicode-equivalent linked identity was not blocked'; END IF;
 
   v_blocked := false;
   BEGIN
@@ -51,7 +55,7 @@ BEGIN
 
   v_blocked := false;
   BEGIN
-    UPDATE public.item_catalog SET unit = 'kg' WHERE name = 'Rice' AND shop_id='10000000-0000-4000-8000-000000000011';
+    UPDATE public.item_catalog SET unit = 'kg' WHERE name = 'Ｒice' AND shop_id='10000000-0000-4000-8000-000000000011';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'INVENTORY_LINKED_CATALOG_UNIT_CHANGE_BLOCKED' THEN v_blocked := true; ELSE RAISE; END IF;
   END;
@@ -59,15 +63,15 @@ BEGIN
 
   v_blocked := false;
   BEGIN
-    DELETE FROM public.item_catalog WHERE name = 'Rice' AND shop_id='10000000-0000-4000-8000-000000000011';
+    DELETE FROM public.item_catalog WHERE name = 'Ｒice' AND shop_id='10000000-0000-4000-8000-000000000011';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'INVENTORY_LINKED_CATALOG_DELETE_BLOCKED' THEN v_blocked := true; ELSE RAISE; END IF;
   END;
   IF NOT v_blocked THEN RAISE EXCEPTION 'FAIL: linked catalogue deletion was not blocked'; END IF;
 
-  UPDATE public.item_catalog SET sale_price = 19.99 WHERE name = 'Rice' AND shop_id='10000000-0000-4000-8000-000000000011';
+  UPDATE public.item_catalog SET sale_price = 19.99 WHERE name = 'Ｒice' AND shop_id='10000000-0000-4000-8000-000000000011';
   IF NOT FOUND THEN RAISE EXCEPTION 'FAIL: price-only update should remain allowed'; END IF;
-  UPDATE public.item_catalog SET category_id = null WHERE name = 'Rice' AND shop_id='10000000-0000-4000-8000-000000000011';
+  UPDATE public.item_catalog SET category_id = null WHERE name = 'Ｒice' AND shop_id='10000000-0000-4000-8000-000000000011';
   IF NOT FOUND THEN RAISE EXCEPTION 'FAIL: category-only update should remain allowed'; END IF;
 
   -- A stock row in another shop must not protect or block this tenant's catalogue row.
