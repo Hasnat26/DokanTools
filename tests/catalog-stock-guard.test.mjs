@@ -9,6 +9,9 @@ const baseline={name:"QA Product",unit:"pcs"};
 test("inventory matching uses normalized product identity",()=>{
  assert.equal(findInventoryLinkedProduct(stock,"qa product").id,"stock-1");
  assert.equal(findInventoryLinkedProduct(stock,"Unrelated"),undefined);
+ const unicodeStock=[{id:"unicode-stock",name:"  Ｒice   " ,unit:"pcs"}];
+ assert.equal(findInventoryLinkedProduct(unicodeStock,"rice").id,"unicode-stock");
+ assert.equal(findInventoryLinkedProduct(unicodeStock,"RICE").id,"unicode-stock");
 });
 
 test("inventory-linked product name and unit mutations are blocked but price edits are allowed",()=>{
