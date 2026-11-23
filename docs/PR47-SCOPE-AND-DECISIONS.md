@@ -2,7 +2,7 @@
 
 ## Intended scope
 
-PR #47 combines the V1 Draft Memo/catalogue workflow with shop-owned categories and tenant-integrity hardening. It includes Shop Profile fields/logo handling, catalogue CRUD and category assignment, Draft Memo save/edit/print, A6 PDF evidence, and CI/runtime regressions. The PR remains open and unmerged until the PO makes a separate merge decision. No deployment, hosted migration, production write, pilot, or invoice issuance is authorized by this change.
+PR #47 combines the V1 Draft Memo/catalogue workflow with shop-owned categories and tenant-integrity hardening. It includes Shop Profile fields/logo handling, catalogue CRUD and category assignment, Draft Memo save/edit/print, A6 PDF evidence, and CI/runtime regressions. PR #47 is MERGED into `delivery/dokantools-v1-2026-11-19` at merge commit `2f257211e5f296d49b7ccf30e50fedcb2530a9f5`. Post-merge CI Run #199 passed 5/5 required jobs. No deployment, hosted migration, production write, pilot, or invoice issuance is authorized by this merge.
 
 ## Invoice-First boundary (PO-10)
 
@@ -31,3 +31,8 @@ The current A6 print flow is English-only and blocks Bengali characters. Catalog
 ## Migration safety
 
 The destructive rollback is stored under `supabase/rollbacks/`, not the Supabase CLI migrations directory. The forward category-integrity migration is transaction-wrapped and requires PostgreSQL 15+ for column-targeted `ON DELETE SET NULL`. The local Supabase config is under `qa/supabase/` to isolate local QA configuration. CI uses disposable PostgreSQL/local Supabase only. No hosted migration was run.
+
+
+## Post-merge verification
+
+See [PR #47 Post-Merge Closeout](./PR47-POST-MERGE-CLOSEOUT.md) for the complete merged-state functional matrix, exact CI job IDs, test counts, A6 PDF hashes, security/tenant-integrity evidence and external acceptance gaps. CI verified the authenticated Draft Memo workflow and local Supabase/RLS in disposable infrastructure. Android native share, real WhatsApp recipient delivery and physical printer acceptance remain NOT VERIFIED. Invoice issuance remains OFF; production release is PO-controlled.
