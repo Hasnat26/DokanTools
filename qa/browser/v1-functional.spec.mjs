@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { mkdir, readFile, writeFile } from "node:fs/promises";\nimport { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 const baseURL = process.env.DOKANTOOLS_QA_URL,
