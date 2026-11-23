@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";\nimport { createHash } from "node:crypto";
 import { dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 const baseURL = process.env.DOKANTOOLS_QA_URL,
@@ -581,7 +581,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
         };
       });
       await page
-        .getByRole("button", { name: "Generate A6 PDF / Print" })
+        .getByRole("button", { name: "Print A6" })
         .click();
       await expect
         .poll(() => page.evaluate(() => window.__dokantoolsPrintCalled), {
@@ -595,15 +595,24 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
         await page.getByRole("button", { name: "Download PDF", exact: true }).click();
         const download = await downloadPromise;
         expect(download.suggestedFilename()).toMatch(/\\.pdf$/i);
+        const downloadedPath = await download.path();
+        expect(downloadedPath).toBeTruthy();
+        const downloadedBytes = await readFile(downloadedPath);
+        expect(downloadedBytes.byteLength).toBeGreaterThan(1000);
+        expect(downloadedBytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+        const downloadedSha256 = createHash("sha256").update(downloadedBytes).digest("hex");
         await page.evaluate(() => {
           Object.defineProperty(navigator, "canShare", { configurable: true, value: payload => !!payload?.files?.length });
           Object.defineProperty(navigator, "share", { configurable: true, value: async payload => { window.__nativeSharePayload = payload; } });
         });
         await page.getByRole("button", { name: "Share PDF", exact: true }).click();
         await expect(page.getByRole("status")).toContainText("Share sheet opened");
-        const shared = await page.evaluate(async () => { const file = window.__nativeSharePayload.files[0]; const bytes = new Uint8Array(await file.arrayBuffer()); return { type:file.type, signature:new TextDecoder().decode(bytes.slice(0,5)) }; });
+        const shared = await page.evaluate(async () => { const file = window.__nativeSharePayload.files[0]; const bytes = new Uint8Array(await file.arrayBuffer()); return { type:file.type, signature:new TextDecoder().decode(bytes.slice(0,5)), bytes:Array.from(bytes) }; });
         expect(shared.type).toBe("application/pdf");
         expect(shared.signature).toBe("%PDF-");
+        const sharedBytes = Buffer.from(shared.bytes);
+        expect(sharedBytes.byteLength).toBe(downloadedBytes.byteLength);
+        expect(createHash("sha256").update(sharedBytes).digest("hex")).toBe(downloadedSha256);
         await page.evaluate(() => Object.defineProperty(navigator, "canShare", { configurable: true, value: () => false }));
         await page.getByRole("button", { name: "Share PDF", exact: true }).click();
         await expect(page.getByRole("status")).toContainText("not supported");
