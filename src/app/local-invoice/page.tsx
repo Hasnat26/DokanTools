@@ -404,7 +404,7 @@ export default function LocalInvoicePage() {
 
       <section className="card">
         <h2 className="text-lg font-bold">Saved drafts ({invoices.length})</h2>
-        <p className="muted mt-1 text-sm">Drafts are stored in this browser profile's IndexedDB. Browser data may be cleared; export/Drive backup is essential.</p>
+        <p className="muted mt-1 text-sm">Drafts are stored in this browser profile&apos;s IndexedDB. Browser data may be cleared; export/Drive backup is essential.</p>
         <div className="mt-3 space-y-2">{invoices.map(invoice=><div key={invoice.id} className="rounded-lg border p-3">
           <div className="flex flex-wrap justify-between gap-2"><div><strong>{invoice.customer.name || "Walk-in customer"}</strong><p className="muted text-xs">{invoice.lines.length} lines · {new Date(invoice.updated_at).toLocaleString()}</p><p className="font-semibold">BDT {formatLocalBDT(invoice.total_minor)}</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={()=>editDraft(invoice)}>Edit</button><button className="text-red-600" type="button" onClick={()=>void deleteDraft(invoice.id)}>Delete</button></div></div>
         </div>)}{invoices.length===0&&<p className="muted">No local drafts yet.</p>}</div>
