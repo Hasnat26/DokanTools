@@ -98,7 +98,8 @@ export async function backupToDrive(token, backup) {
     headers: { "Content-Type": "multipart/related; boundary=" + boundary },
     body: multipartBody(metadata, backup, boundary),
   });
-  return response.json();
+  const saved = await response.json();
+  return { ...saved, duplicateBackupCount: Math.max(0, existing.length - 1) };
 }
 
 export async function restoreFromDrive(token) {
