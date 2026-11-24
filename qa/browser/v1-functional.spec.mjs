@@ -855,3 +855,36 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
     throw error;
   }
 });
+
+
+test("local A6 PDF is regenerated after edits and device file sharing is invoked", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "canShare", {
+      configurable: true,
+      value: payload => Boolean(payload?.files?.length && payload.files[0].type === "application/pdf"),
+    });
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async payload => {
+        if (!payload?.files?.[0]?.name?.endsWith(".pdf")) throw new Error("Expected PDF file");
+        window.__dokantoolsSharedFileName = payload.files[0].name;
+      },
+    });
+  });
+  await page.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  await page.getByLabel("Customer name").fill("Share QA Customer");
+  await page.getByLabel("Item").fill("Share QA Item");
+  await page.getByLabel("Unit").fill("pc");
+  await page.getByLabel("Quantity").fill("1");
+  await page.getByLabel("Unit price (BDT)").fill("20");
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("button", { name: "Share PDF" })).toBeEnabled();
+  await page.getByRole("button", { name: "Share PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("Device share sheet opened");
+  expect(await page.evaluate(() => window.__dokantoolsSharedFileName)).toMatch(/\.pdf$/);
+  await page.getByLabel("Quantity").fill("2");
+  await expect(page.getByRole("button", { name: "Share PDF" })).toBeDisabled();
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("button", { name: "Share PDF" })).toBeEnabled();
+});
