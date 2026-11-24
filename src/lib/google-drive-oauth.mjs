@@ -43,6 +43,6 @@ export async function requestGoogleDriveAccessToken(clientId) {
       },
       error_callback: error => reject(new Error(error?.type || "GOOGLE_OAUTH_POPUP_FAILED")),
     });
-    tokenClient.requestAccessToken({ prompt: "consent" });
+    tokenClient.requestAccessToken({ prompt: "" });
   });
 }
