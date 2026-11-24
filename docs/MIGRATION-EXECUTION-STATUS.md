@@ -237,3 +237,15 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - PR conversation acceptance report posted: https://github.com/Hasnat26/DokanTools/pull/55#issuecomment-7124489440.
 - This tracker documentation commit advances the branch and may trigger another full CI run. Run #251 remains the verified acceptance evidence for the exact code/test SHA above; do not claim that a later tracker-only SHA has passed until its own exact-head run completes.
 - Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain outstanding.
+
+## Run #252 — tracker-updated exact-head CI acceptance — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `74885ca3c8f4dc7db2e6fe5481d40863213e1f8f`; Run #252: https://github.com/Hasnat26/DokanTools/actions/runs/45344923075.
+- All five required jobs passed on this exact SHA: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- Live PR #55 HEAD and Run #252 artifact `head_sha` both equal `74885ca3c8f4dc7db2e6fe5481d40863213e1f8f`. Chromium commit-identity evidence confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` all match.
+- Browser evidence artifact `dokantools-v1-chromium-a6-45344923075`, ID `14897419164`, size 138,581 bytes; SHA-256 `ccc57f614d352260a73b4f41fe9bca00e5d2ebfdf856e81ca1c640da188580ba`. Artifact downloaded and inspected.
+- Playwright result: **3 passed, 0 skipped, 0 unexpected, 0 flaky**. Passed scenarios: offline local invoice persistence/calculation without Supabase; authenticated configurable multi-product invoice with IndexedDB lifecycle and fresh A6 PDF; PDF regeneration after edits and device sharing invocation.
+- Fresh generated PDF validation: **PASS**; one page, portrait A6 (297.638 × 419.528 pt), zero-degree rotation; 33 text bounding boxes checked, zero out-of-bounds text boxes, zero out-of-bounds images; expected content including `DRAFT ONLY` verified; QR decoded from fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Google Maps link annotation verified.
+- Failure-safe Supabase cleanup completed successfully. All Chromium job steps completed successfully; no acceptance step was skipped.
+- Run #252 validates tracker commit `74885ca3c8f4dc7db2e6fe5481d40863213e1f8f`. This entry advances the branch; the resulting new tracker HEAD requires its own full exact-head 5/5 CI confirmation. Do not claim that the new tracker HEAD has passed until that run completes.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain outstanding external setup items.
