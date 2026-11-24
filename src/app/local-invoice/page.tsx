@@ -192,7 +192,7 @@ export default function LocalInvoicePage() {
       customer: { name: customerName.trim(), phone: customerPhone.trim() },
       lines: lines.map((line, index) => ({
         name: line.name,
-        quantity: line.quantity + (line.unit ? " " + line.unit : ""),
+        quantity: line.quantity,
         unit: line.unit,
         unitPrice: formatLocalBDT(Math.round(Number(line.unitPrice) * 100)),
         lineTotal: formatLocalBDT(calculation.lineTotalsMinor[index]),
