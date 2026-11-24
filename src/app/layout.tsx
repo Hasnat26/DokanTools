@@ -5,7 +5,8 @@ import PwaRegister from "@/components/PwaRegister";
 
 export const metadata: Metadata = {
   title: "DokanTools — ছোট দোকানের ডিজিটাল সহকারী",
-  description: "Baki Khata, memo, stock alert এবং QR shop page — সহজে, বাংলায়।"
+  description: "Baki Khata, memo, stock alert এবং QR shop page — সহজে, বাংলায়।",
+  manifest: "/manifest.webmanifest"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
