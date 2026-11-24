@@ -55,16 +55,23 @@ async function driveFetch(token, url, options = {}) {
 }
 
 export async function findDriveBackup(token) {
-  const query = new URLSearchParams({
-    q: "name = '" + DRIVE_BACKUP_NAME + "' and 'appDataFolder' in parents and trashed = false",
-    spaces: "appDataFolder",
-    pageSize: "100",
-    orderBy: "modifiedTime desc",
-    fields: "files(id,name,modifiedTime,size,md5Checksum),nextPageToken",
-  });
-  const response = await driveFetch(token, API + "/files?" + query.toString());
-  const payload = await response.json();
-  return (payload.files || []).sort((a, b) => String(b.modifiedTime).localeCompare(String(a.modifiedTime)));
+  const files = [];
+  let pageToken = "";
+  do {
+    const query = new URLSearchParams({
+      q: "name = '" + DRIVE_BACKUP_NAME + "' and 'appDataFolder' in parents and trashed = false",
+      spaces: "appDataFolder",
+      pageSize: "100",
+      orderBy: "modifiedTime desc",
+      fields: "files(id,name,modifiedTime,size,md5Checksum),nextPageToken",
+      ...(pageToken ? { pageToken } : {}),
+    });
+    const response = await driveFetch(token, API + "/files?" + query.toString());
+    const payload = await response.json();
+    files.push(...(payload.files || []));
+    pageToken = payload.nextPageToken || "";
+  } while (pageToken);
+  return files.sort((a, b) => String(b.modifiedTime).localeCompare(String(a.modifiedTime)));
 }
 
 function multipartBody(metadata, payload, boundary) {
