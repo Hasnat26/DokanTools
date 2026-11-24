@@ -125,12 +125,9 @@ test("local invoice workspace persists and calculates offline without Supabase",
   expect(bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
 
   // Wait until the PWA service worker controls the page, then reload offline.
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-    if (!navigator.serviceWorker.controller) {
-      await new Promise(resolve => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true }));
-    }
-  });
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.reload();
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), { timeout: 10000 });
   await page.reload();
   await page.context().setOffline(true);
   await page.reload();
