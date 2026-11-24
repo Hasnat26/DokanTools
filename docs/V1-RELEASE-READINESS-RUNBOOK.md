@@ -129,6 +129,80 @@ Do not apply these directly to an empty database. Do not use `supabase/schema.sq
 
 No backup/restore drill is claimed complete. If the approved plan does not provide a restorable backup, stop and escalate rather than substituting a schema-only dump.
 
+### Provider-neutral PostgreSQL logical backup/restore rehearsal (procedure only; NOT RUN)
+
+This procedure is a **supplemental logical-dump rehearsal**, not a substitute for the selected provider's native snapshot/point-in-time backup. Do not execute it against any hosted source until the source and separate restore target are explicitly approved and classified non-production. No approved DokanTools V1 target is currently identified.
+
+#### Prerequisites
+
+- PostgreSQL client tools `pg_dump`, `pg_restore` and `psql` from major version 17, matching the identified PostgreSQL engine.
+- An approved disposable source database representing the intended schema/migration history.
+- A separate, empty disposable restore database with required extensions available.
+- Database URLs supplied securely by the approved secret manager/session environment; do not paste credentials into commands, tickets, logs or shell history.
+- A restricted local backup directory with adequate capacity. Use synthetic data only.
+- Approved test owner and a recorded start/end time.
+
+#### Export and integrity
+
+Run in a controlled shell after setting `SOURCE_DATABASE_URL` and `BACKUP_DIR` securely:
+
+```bash
+set -euo pipefail
+umask 077
+mkdir -p "$BACKUP_DIR"
+pg_dump --version
+pg_restore --version
+psql --version
+
+date -u +"backup_started_utc=%Y-%m-%dT%H:%M:%SZ" > "$BACKUP_DIR/metadata.txt"
+pg_dump --format=custom --no-owner --no-acl \
+  --dbname="$SOURCE_DATABASE_URL" \
+  --file="$BACKUP_DIR/dokantools-v1-logical.dump"
+pg_restore --list "$BACKUP_DIR/dokantools-v1-logical.dump" \
+  > "$BACKUP_DIR/dump-contents.txt"
+sha256sum "$BACKUP_DIR/dokantools-v1-logical.dump" \
+  | tee "$BACKUP_DIR/SHA256SUMS"
+date -u +"backup_finished_utc=%Y-%m-%dT%H:%M:%SZ" >> "$BACKUP_DIR/metadata.txt"
+```
+
+Record the source environment classification, exact source SHA/release, PostgreSQL version, migration ledger, dump size and elapsed time. Verify the checksum before restore. Protect and dispose of the dump under the approved retention policy.
+
+#### Restore to a separate disposable database
+
+Set `RESTORE_DATABASE_URL` to the separately provisioned empty target. Never restore over the source:
+
+```bash
+set -euo pipefail
+sha256sum --check "$BACKUP_DIR/SHA256SUMS"
+date -u +"restore_started_utc=%Y-%m-%dT%H:%M:%SZ" > "$BACKUP_DIR/restore-metadata.txt"
+pg_restore --exit-on-error --no-owner --no-acl \
+  --dbname="$RESTORE_DATABASE_URL" \
+  "$BACKUP_DIR/dokantools-v1-logical.dump"
+date -u +"restore_finished_utc=%Y-%m-%dT%H:%M:%SZ" >> "$BACKUP_DIR/restore-metadata.txt"
+
+psql -X -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" \
+  -c "select version, name from supabase_migrations.schema_migrations order by version;"
+psql -X -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" \
+  -c "select schemaname, tablename, rowsecurity from pg_tables where schemaname = 'public' order by tablename;"
+```
+
+If the provider's managed Auth/roles/extensions or privileges are not represented in the logical dump, restore them using the provider-supported configuration/migration procedure. Do not claim a complete service recovery from a database dump alone.
+
+#### Acceptance and evidence
+
+- [ ] Dump checksum verified and archive listing readable.
+- [ ] Restore completed into a separate target; elapsed restore duration recorded.
+- [ ] Migration ledger matches the expected approved baseline.
+- [ ] Schema/object parity and required extensions verified.
+- [ ] Synthetic data integrity checks pass.
+- [ ] RLS enabled and policies reviewed on tenant-owned tables.
+- [ ] Two synthetic authenticated users prove tenant isolation through the application/API (not a privileged DB-owner session).
+- [ ] Application smoke tests pass against restored target.
+- [ ] API guard and database invoice runtime control remain OFF; valid issue request returns 423 and creates no invoice row.
+- [ ] Sanitized logs, checksum, dump size, source/restore classifications and test sign-off retained.
+
+**Limitations:** These commands have not been executed for DokanTools V1. They do not establish provider-native backup retention, point-in-time recovery, Auth/storage restoration, cutover, or RPO/RTO. Those require the approved provider/target. A failed restore is NOT PASS and must be recorded with root cause and corrective action.
+
 ### Rollback
 
 Application:
