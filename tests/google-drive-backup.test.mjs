@@ -60,3 +60,63 @@ test("backup updates the newest duplicate and reports older duplicates", async (
     globalThis.fetch = original;
   }
 });
+
+test("Drive restore fetches and validates the latest appDataFolder backup", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  const backup = {
+    schemaVersion: 1,
+    workspace: { id: "workspace-restore" },
+    data: { invoices: [], products: [], customers: [] },
+  };
+  globalThis.fetch = async (url) => {
+    calls += 1;
+    if (calls === 1) {
+      assert.match(String(url), /spaces=appDataFolder/);
+      return new Response(JSON.stringify({
+        files: [{ id: "backup-latest", modifiedTime: "2026-11-24T12:00:00Z" }],
+      }), { status: 200 });
+    }
+    assert.match(String(url), /files\/backup-latest\?alt=media/);
+    return new Response(JSON.stringify(backup), { status: 200 });
+  };
+  try {
+    const { restoreFromDrive } = await import("../src/lib/google-drive-backup.mjs");
+    const result = await restoreFromDrive("valid-token-long-enough");
+    assert.equal(result.file.id, "backup-latest");
+    assert.deepEqual(result.backup, backup);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("Drive quota/rate-limit response retries within bounded retry policy", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    if (calls === 1) {
+      return new Response(JSON.stringify({
+        error: { errors: [{ reason: "userRateLimitExceeded" }] },
+      }), { status: 403, headers: { "Retry-After": "0.001" } });
+    }
+    return new Response(JSON.stringify({ files: [] }), { status: 200 });
+  };
+  try {
+    assert.deepEqual(await findDriveBackup("valid-token-long-enough"), []);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("Drive service unavailable is surfaced without corrupting local backup state", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "unavailable" } }), { status: 503 });
+  try {
+    await assert.rejects(findDriveBackup("valid-token-long-enough"), /DRIVE_SERVICE_UNAVAILABLE/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
