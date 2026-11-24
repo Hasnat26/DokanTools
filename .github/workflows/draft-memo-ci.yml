@@ -8,6 +8,9 @@ on:
       - delivery/dokantools-v1-2026-11-19
 permissions:
   contents: read
+concurrency:
+  group: dokantools-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   application:
     name: Application build and startup
