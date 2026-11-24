@@ -1,7 +1,7 @@
 # DokanTools V1 — Release Readiness Tracker
 
 **Delivery branch:** `delivery/dokantools-v1-2026-11-19`  
-**Current delivery HEAD:** `81cf30a3feb9779e0b0ef7f43c88302298be84ed`  
+**Delivery candidate SHA at PR #52 merge:** `81cf30a3feb9779e0b0ef7f43c88302298be84ed`  
 **PR #52:** MERGED — release readiness documentation  
 **Invoice issuance:** OFF  
 **Tracker status:** OPEN — blocked by no approved hosted target and incomplete physical acceptance/recovery evidence
