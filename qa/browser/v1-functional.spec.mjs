@@ -97,12 +97,12 @@ test("local invoice workspace persists and calculates offline without Supabase",
   await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
   await page.getByLabel("Shop name").fill("Local-Only QA Shop");
   await page.getByLabel("Address").fill("Local address");
-  await page.getByLabel("Phone").fill("01700000000");
+  await page.getByRole("textbox", { name: "Phone", exact: true }).fill("01700000000");
   await page.getByRole("button", { name: "Save shop profile locally" }).click();
   await page.getByLabel("Customer name").fill("Local QA Customer");
   await page.getByLabel("Customer phone").fill("01800000000");
   await page.getByLabel("Item").fill("Offline QA Product");
-  await page.getByLabel("Unit").fill("pcs");
+  await page.getByRole("textbox", { name: "Unit", exact: true }).fill("pcs");
   await page.getByLabel("Quantity").fill("2");
   await page.getByLabel("Unit price (BDT)").fill("15.50");
   await expect(page.getByText("Total", { exact: true }).last()).toBeVisible();
@@ -210,7 +210,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
       await expect(page.getByRole("heading", { name: shopName })).toBeVisible();
       shopPublicPath = await page
-        .locator('a[href^="/shop?shopId="]')
+        .locator('a[href^="/shop/?shopId="]')
         .first()
         .getAttribute("href");
       await page.getByRole("button", { name: "তথ্য সম্পাদনা" }).click();
@@ -875,7 +875,7 @@ test("local A6 PDF is regenerated after edits and device file sharing is invoked
   await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
   await page.getByLabel("Customer name").fill("Share QA Customer");
   await page.getByLabel("Item").fill("Share QA Item");
-  await page.getByLabel("Unit").fill("pc");
+  await page.getByRole("textbox", { name: "Unit", exact: true }).fill("pc");
   await page.getByLabel("Quantity").fill("1");
   await page.getByLabel("Unit price (BDT)").fill("20");
   await page.getByRole("button", { name: "Generate A6 PDF" }).click();
