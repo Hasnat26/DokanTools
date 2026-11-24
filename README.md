@@ -2,7 +2,7 @@
 
 DokanTools is a mobile-first shop-management application for small businesses in Bangladesh.
 
-> **V1 delivery baseline:** PR [#47](https://github.com/Hasnat26/DokanTools/pull/47) and documentation PRs [#50](https://github.com/Hasnat26/DokanTools/pull/50) and [#52](https://github.com/Hasnat26/DokanTools/pull/52) are merged into `delivery/dokantools-v1-2026-11-19`. Current delivery HEAD: `81cf30a3feb9779e0b0ef7f43c88302298be84ed`. Post-merge CI [Run #205](https://github.com/Hasnat26/DokanTools/actions/runs/45321068072) completed with all five required jobs PASS. This is software/CI verification, not production authorization or external acceptance.
+> **V1 delivery baseline:** PR [#47](https://github.com/Hasnat26/DokanTools/pull/47) and documentation PRs [#50](https://github.com/Hasnat26/DokanTools/pull/50) and [#52](https://github.com/Hasnat26/DokanTools/pull/52) are merged into `delivery/dokantools-v1-2026-11-19`. Delivery candidate SHA at PR #52 merge: `81cf30a3feb9779e0b0ef7f43c88302298be84ed`. Post-merge CI [Run #205](https://github.com/Hasnat26/DokanTools/actions/runs/45321068072) completed with all five required jobs PASS. This is software/CI verification, not production authorization or external acceptance.
 
 See the [V1 release readiness tracker](./docs/V1-RELEASE-READINESS-TRACKER.md) and [release runbook](./docs/V1-RELEASE-READINESS-RUNBOOK.md) for the current gate status.
 
