@@ -129,6 +129,16 @@ test("local invoice workspace persists and calculates offline without Supabase",
   await page.reload();
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), { timeout: 10000 });
   await page.reload();
+  const cachedShellAndAssets = await page.evaluate(async () => {
+    const cache = await caches.open("dokantools-shell-v1");
+    const shell = await cache.match("/local-invoice/");
+    const staticAssets = (await cache.keys()).filter(request =>
+      new URL(request.url).pathname.startsWith("/_next/static/")
+    );
+    return { shellCached: Boolean(shell), staticAssetCount: staticAssets.length };
+  });
+  expect(cachedShellAndAssets.shellCached).toBe(true);
+  expect(cachedShellAndAssets.staticAssetCount).toBeGreaterThan(0);
   await page.context().setOffline(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
