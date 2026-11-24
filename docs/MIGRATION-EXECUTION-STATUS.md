@@ -138,3 +138,12 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 ### Tracker revision CI record
 - Run #239: https://github.com/Hasnat26/DokanTools/actions/runs/45332999741 was triggered for tracker/code HEAD `2fa87ccedc7963ed03e9656e0371a52c11191ddf`; it was pending at this update. Run #238 is superseded by the tracker commit and must not be used as final acceptance.
 - The next run must validate the new tracker HEAD, including the selector and QR route fixes. Final acceptance remains 5/5 PASS on the exact current PR HEAD.
+
+
+## Run #240 unit-test root cause and correction — 2026-11-24
+
+- Exact tested SHA: `9e240d761662fefb9bd6185608e07b1fd0aeace5`.
+- Run #240: https://github.com/Hasnat26/DokanTools/actions/runs/45333044615. Verified PASS: Application build/startup, PostgreSQL 17 tenant-integrity, and retained A6 PDF artifact verification (3/5). Chromium was still executing when this tracker update was prepared.
+- Unit test job failed: 129 passed, 1 failed, 2 skipped (existing suite totals). Root cause is the QR destination unit test retained the old dynamic route expectation `/shop/qa-shop` after the application was correctly changed to static export route `/shop/?shopId=qa-shop`. The failing assertion is `tests/shop-branding.test.mjs` test “QR destination prioritizes configured Maps and only uses explicitly public profile fallback”. Actual output matches the static route used by dashboard/public shop.
+- Correction: update the unit test expected destination to `https://dokantools.example/shop/?shopId=qa-shop`. No production logic was reverted and no test was skipped or weakened.
+- This correction creates a new exact HEAD and a new full CI run. Run #240 remains useful for the Chromium result but cannot satisfy exact-head acceptance after this commit. Require all five jobs PASS on the new exact HEAD.
