@@ -2,7 +2,7 @@ import { validateLocalBackup } from "./local-first-invoice.mjs";
 
 const DB_NAME = "dokantools-local-first";
 const DB_VERSION = 1;
-const STORES = ["workspace", "invoices", "products", "customers"];
+const RECORD_STORES = ["invoices", "products", "customers"];
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -11,7 +11,7 @@ function openDb() {
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains("workspace")) db.createObjectStore("workspace", { keyPath: "id" });
-      for (const name of ["invoices", "products", "customers"]) {
+      for (const name of RECORD_STORES) {
         if (!db.objectStoreNames.contains(name)) {
           const store = db.createObjectStore(name, { keyPath: "id" });
           store.createIndex("workspace_id", "workspace_id", { unique: false });
@@ -40,17 +40,25 @@ export async function getOrCreateLocalWorkspace() {
   const db = await openDb();
   const tx = db.transaction("workspace", "readwrite");
   const store = tx.objectStore("workspace");
-  const existing = await new Promise((resolve, reject) => {
+  const pointer = await new Promise((resolve, reject) => {
     const request = store.get("active");
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error || new Error("WORKSPACE_READ_FAILED"));
   });
-  let workspace = existing;
+  let workspace = null;
+  if (pointer?.active_workspace_id) {
+    workspace = await new Promise((resolve, reject) => {
+      const request = store.get(pointer.active_workspace_id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("WORKSPACE_READ_FAILED"));
+    });
+  }
   if (!workspace) {
     const id = globalThis.crypto?.randomUUID?.();
     if (!id) { db.close(); throw new Error("SECURE_RANDOM_UNAVAILABLE"); }
-    workspace = { id, name: "My shop", created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-    store.put({ ...workspace, id: "active" });
+    workspace = { id, name: "My shop", address: "", phone: "", created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    store.put(workspace);
+    store.put({ id: "active", active_workspace_id: id });
   }
   await transactionDone(tx);
   db.close();
@@ -61,7 +69,9 @@ export async function saveLocalWorkspace(workspace) {
   if (!workspace?.id) throw new Error("WORKSPACE_ID_REQUIRED");
   const db = await openDb();
   const tx = db.transaction("workspace", "readwrite");
-  tx.objectStore("workspace").put({ ...workspace, id: "active", updated_at: new Date().toISOString() });
+  const store = tx.objectStore("workspace");
+  store.put({ ...workspace, updated_at: new Date().toISOString() });
+  store.put({ id: "active", active_workspace_id: workspace.id });
   await transactionDone(tx);
   db.close();
   return true;
@@ -116,7 +126,7 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false) 
     created_at: old?.created_at || record.created_at || now,
     updated_at: now,
     ...(storeName === "invoices" ? {
-      revision: Number(old?.revision || record.revision || 0) + 1,
+      revision: old ? Number(old.revision || 0) + 1 : Number(record.revision || 1),
       pdf_artifact: invalidatePdf ? null : record.pdf_artifact ?? old?.pdf_artifact ?? null,
     } : {}),
   };
@@ -126,27 +136,29 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false) 
   return next;
 }
 
+async function deleteRecord(storeName, id, workspaceId) {
+  const current = await getRecord(storeName, id);
+  if (!current) return false;
+  if (current.workspace_id !== workspaceId) throw new Error("WORKSPACE_MISMATCH");
+  const db = await openDb();
+  const tx = db.transaction(storeName, "readwrite");
+  tx.objectStore(storeName).delete(id);
+  await transactionDone(tx);
+  db.close();
+  return true;
+}
+
 export const localFirstStore = {
   getInvoice: id => getRecord("invoices", id),
   listInvoices: workspaceId => listRecords("invoices", workspaceId),
   saveInvoice: (invoice, workspaceId) => putRecord("invoices", invoice, workspaceId, true),
-  async deleteInvoice(id, workspaceId) {
-    const current = await getRecord("invoices", id);
-    if (!current) return false;
-    if (current.workspace_id !== workspaceId) throw new Error("WORKSPACE_MISMATCH");
-    const db = await openDb();
-    const tx = db.transaction("invoices", "readwrite");
-    tx.objectStore("invoices").delete(id);
-    await transactionDone(tx);
-    db.close();
-    return true;
-  },
+  deleteInvoice: (id, workspaceId) => deleteRecord("invoices", id, workspaceId),
   listProducts: workspaceId => listRecords("products", workspaceId),
   saveProduct: (product, workspaceId) => putRecord("products", product, workspaceId),
-  deleteProduct: async (id, workspaceId) => deleteRecord("products", id, workspaceId),
+  deleteProduct: (id, workspaceId) => deleteRecord("products", id, workspaceId),
   listCustomers: workspaceId => listRecords("customers", workspaceId),
   saveCustomer: (customer, workspaceId) => putRecord("customers", customer, workspaceId),
-  deleteCustomer: async (id, workspaceId) => deleteRecord("customers", id, workspaceId),
+  deleteCustomer: (id, workspaceId) => deleteRecord("customers", id, workspaceId),
   async exportBackup(workspace) {
     if (!workspace?.id) throw new Error("WORKSPACE_ID_REQUIRED");
     const [invoices, products, customers] = await Promise.all([
@@ -163,21 +175,35 @@ export const localFirstStore = {
     validateLocalBackup(backup);
     if (!activeWorkspace?.id || !["merge", "replace"].includes(mode)) throw new Error("RESTORE_OPTIONS_INVALID");
     const db = await openDb();
-    const tx = db.transaction(["invoices", "products", "customers"], "readwrite");
-    const storeNames = ["invoices", "products", "customers"];
-    if (mode === "replace") {
-      for (const name of storeNames) {
-        const store = tx.objectStore(name);
-        const request = store.index("workspace_id").openCursor(activeWorkspace.id);
+    const tx = db.transaction(RECORD_STORES, "readwrite");
+    const putImportedRecords = () => {
+      for (const name of RECORD_STORES) {
+        for (const record of backup.data[name]) {
+          tx.objectStore(name).put({
+            ...record,
+            workspace_id: activeWorkspace.id,
+            updated_at: record.updated_at || new Date().toISOString(),
+          });
+        }
+      }
+    };
+    if (mode === "merge") {
+      putImportedRecords();
+    } else {
+      let remaining = RECORD_STORES.length;
+      for (const name of RECORD_STORES) {
+        const request = tx.objectStore(name).index("workspace_id").openCursor(activeWorkspace.id);
         request.onsuccess = () => {
           const cursor = request.result;
-          if (cursor) { cursor.delete(); cursor.continue(); }
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          } else {
+            remaining -= 1;
+            if (remaining === 0) putImportedRecords();
+          }
         };
-      }
-    }
-    for (const name of storeNames) {
-      for (const record of backup.data[name]) {
-        tx.objectStore(name).put({ ...record, workspace_id: activeWorkspace.id, updated_at: record.updated_at || new Date().toISOString() });
+        request.onerror = () => tx.abort();
       }
     }
     await transactionDone(tx);
@@ -185,15 +211,3 @@ export const localFirstStore = {
     return true;
   },
 };
-
-async function deleteRecord(storeName, id, workspaceId) {
-  const current = await getRecord(storeName, id);
-  if (!current) return false;
-  if (current.workspace_id !== workspaceId) throw new Error("WORKSPACE_MISMATCH");
-  const db = await openDb();
-  const tx = db.transaction(storeName, "readwrite");
-  tx.objectStore(storeName).delete(id);
-  await transactionDone(tx);
-  db.close();
-  return true;
-}
