@@ -200,3 +200,14 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - Dependency correction worked: retry-safe apt installed `psql`, `pdfinfo` and `zbarimg`; Playwright Chromium installation completed; Supabase CLI setup succeeded; guarded cleanup completed. No acceptance assertion was removed or skipped.
 - This tracker update creates a new exact HEAD and a follow-up full CI run. Run #247 is validated evidence for the corrective commit, but the tracker-updated HEAD must complete 5/5 before current-head acceptance is reported.
 - Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
+
+
+## Tracker-updated exact-head acceptance — Run #248 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact tracker HEAD `fa1320599de1747ff80f9e357ad2e98c713f4e83`; Run #248: https://github.com/Hasnat26/DokanTools/actions/runs/45338869324.
+- All required jobs passed: application build/startup; unit tests including A6 assertions; PostgreSQL 17 tenant-integrity; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- Browser artifact `dokantools-v1-chromium-a6-45338869324`, ID `14895432441`, 139,346 bytes, SHA-256 `a6cb0743dcc22a552b9e2463fe386da9ee7368526be60e3f767316cb4138b2ae` was downloaded and inspected. The commit identity JSON confirms PR head, expected checkout and actual checkout all equal `fa1320599de1747ff80f9e357ad2e98c713f4e83`.
+- Playwright: 3 passed, 0 skipped, 0 unexpected, 0 flaky. All three scenarios passed: offline local invoice persistence/calculation without Supabase; authenticated multi-product invoice with IndexedDB lifecycle and fresh A6 PDF; PDF regeneration after edit and device sharing invocation.
+- Fresh PDF validation PASS: one-page portrait A6 (297.638 × 419.528 pt); 33 text boxes checked, zero out-of-bounds text/images; expected content and draft-only label verified; QR decoded from generated PDF and Maps annotation verified. The PDF artifact is 33,883 bytes, SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`.
+- This tracker entry itself advances the branch and triggers a new exact-head Run #249. Run #248 is successful evidence for the tracker revision; final current-head acceptance must be confirmed from Run #249 without another tracker edit.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
