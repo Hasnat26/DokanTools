@@ -5,6 +5,7 @@ import {
   createLocalInvoiceDraft,
   formatLocalBDT,
   invoiceContentFingerprint,
+  shouldApplyBackupRecord,
   validateLocalBackup,
 } from "../src/lib/local-first-invoice.mjs";
 
@@ -59,4 +60,27 @@ test("backup validation rejects malformed or cross-workspace invoice records", (
     ...valid,
     data: { ...valid.data, invoices: [{ ...valid.data.invoices[0], workspace_id: "other" }] },
   }), /INVALID_BACKUP_INVOICE/);
+});
+
+test("backup merge applies newer cloud records and preserves newer local edits", () => {
+  const local = { id: "i1", updated_at: "2026-11-24T10:00:00.000Z" };
+  const olderBackup = { id: "i1", updated_at: "2026-11-24T09:00:00.000Z" };
+  const newerBackup = { id: "i1", updated_at: "2026-11-24T11:00:00.000Z" };
+  assert.equal(shouldApplyBackupRecord(local, olderBackup), false);
+  assert.equal(shouldApplyBackupRecord(local, newerBackup), true);
+  assert.equal(shouldApplyBackupRecord(null, olderBackup), true);
+  assert.equal(shouldApplyBackupRecord(local, { id: "i1", updated_at: local.updated_at }), false);
+});
+
+test("backup validation rejects cross-workspace product and customer records", () => {
+  const base = {
+    schemaVersion: 1,
+    workspace: { id: "workspace-1" },
+    data: { invoices: [], products: [{ id: "p1", workspace_id: "workspace-1" }], customers: [] },
+  };
+  assert.equal(validateLocalBackup(base), true);
+  assert.throws(() => validateLocalBackup({
+    ...base,
+    data: { ...base.data, products: [{ id: "p1", workspace_id: "other" }] },
+  }), /INVALID_BACKUP_RECORD/);
 });
