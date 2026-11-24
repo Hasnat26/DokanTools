@@ -24,7 +24,7 @@ The versioned JSON backup contains the workspace, draft invoices, product catalo
 - A local JSON export/import is available independently of Drive.
 - Drive unavailable, expired authorization, network failure, HTTP 403 quota/rate-limit, HTTP 429 and 5xx responses do not delete or block local records.
 - Retry/backoff is bounded. Reconnect is required after token expiry/revocation.
-- Conflicting same-ID records are resolved by the user's explicit restore/merge action; this is not real-time multi-device synchronization.
+- Duplicate backup files are paginated and detected; manual backup updates the newest file and reports older duplicates without silently deleting them. Restore uses the newest modified backup and applies the timestamp-based record merge policy. This is not real-time multi-device synchronization.
 
 ## Privacy and storage limitation
 
