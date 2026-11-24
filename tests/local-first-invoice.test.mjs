@@ -59,7 +59,7 @@ test("backup validation rejects malformed or cross-workspace invoice records", (
   assert.throws(() => validateLocalBackup({
     ...valid,
     data: { ...valid.data, invoices: [{ ...valid.data.invoices[0], workspace_id: "other" }] },
-  }), /INVALID_BACKUP_INVOICE/);
+  }), /INVALID_BACKUP_RECORD/);
 });
 
 test("backup merge applies newer cloud records and preserves newer local edits", () => {
