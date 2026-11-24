@@ -12,7 +12,7 @@ The application uses Next.js output export. API routes and dynamic server routes
 
 ## Cloudflare Pages project
 
-1. Create a Pages project from the DokanTools Git repository.
+1. Inspect and reuse the existing DokanTools Pages project. Do not create a new project under this mandate. If no existing project is found, stop and obtain separate PO approval before creating one.
 2. Keep the existing production branch unchanged (normally `main`). Do NOT select the migration branch as production; configure it only as a preview branch.
 3. Configure the build command and output directory above.
 4. Set the environment variable NEXT_PUBLIC_GOOGLE_CLIENT_ID to the OAuth Web client ID only if Drive backup is being enabled. This is a public OAuth client identifier, not a client secret.

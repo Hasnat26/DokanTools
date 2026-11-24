@@ -44,6 +44,7 @@ jobs:
               grep -q 'দোকানের হিসাব এখন' /tmp/dokantools-home.html
               curl --fail --silent --show-error http://127.0.0.1:3000/local-invoice/ -o /tmp/dokantools-local-invoice.html
               curl --fail --silent --show-error http://127.0.0.1:3000/manifest.webmanifest -o /tmp/dokantools-manifest.json
+              npm run verify:preview -- http://127.0.0.1:3000
               node scripts/verify-invoice-issue-disabled.mjs http://127.0.0.1:3000
               exit 0
             fi
