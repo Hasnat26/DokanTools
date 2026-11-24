@@ -175,7 +175,20 @@ export const localFirstStore = {
     validateLocalBackup(backup);
     if (!activeWorkspace?.id || !["merge", "replace"].includes(mode)) throw new Error("RESTORE_OPTIONS_INVALID");
     const db = await openDb();
-    const tx = db.transaction(RECORD_STORES, "readwrite");
+    const tx = db.transaction([...RECORD_STORES, "workspace"], "readwrite");
+    const putImportedWorkspace = () => {
+      const workspaceStore = tx.objectStore("workspace");
+      if (mode === "replace") {
+        workspaceStore.put({ ...backup.workspace, id: activeWorkspace.id });
+      } else {
+        const request = workspaceStore.get(activeWorkspace.id);
+        request.onsuccess = () => {
+          if (shouldApplyBackupRecord(request.result || null, backup.workspace)) {
+            workspaceStore.put({ ...backup.workspace, id: activeWorkspace.id });
+          }
+        };
+      }
+    };
     const putImportedRecords = () => {
       for (const name of RECORD_STORES) {
         for (const record of backup.data[name]) {
@@ -188,6 +201,7 @@ export const localFirstStore = {
       }
     };
     if (mode === "merge") {
+      putImportedWorkspace();
       for (const name of RECORD_STORES) {
         const store = tx.objectStore(name);
         for (const record of backup.data[name]) {
@@ -211,7 +225,10 @@ export const localFirstStore = {
             cursor.continue();
           } else {
             remaining -= 1;
-            if (remaining === 0) putImportedRecords();
+            if (remaining === 0) {
+              putImportedWorkspace();
+              putImportedRecords();
+            }
           }
         };
         request.onerror = () => tx.abort();
