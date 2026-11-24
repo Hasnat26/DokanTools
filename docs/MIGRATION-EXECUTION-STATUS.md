@@ -167,3 +167,12 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - Corrections validated: static shop QR route, matching unit test expectation, precise invoice-line selectors, explicit offline saved-draft reopening. No acceptance steps were removed or skipped.
 - This tracker update creates a documentation-only commit and triggers a new CI run against the resulting tracker HEAD. Do not claim final exact-head acceptance until that follow-up run also passes 5/5.
 - Governance: PR #55 remains Draft/unmerged; invoice issuance OFF; no production promotion or paid infrastructure. Cloudflare preview remains external authorization-gated.
+
+
+## Tracker revision exact-head validation — Run #243 — 2026-11-24
+
+- Run #243: https://github.com/Hasnat26/DokanTools/actions/runs/45334590115
+- Result: **5/5 PASS** on tracker revision SHA `47efb3e6162e330a5abce37d0526d74b14440f7b`.
+- The tested SHA matched PR #55 HEAD at completion. Jobs PASS: application build/startup, unit tests, authenticated Chromium V1 workflow and fresh A6 PDF, PostgreSQL tenant-integrity, and A6 PDF artifact verification.
+- This entry is the final Run #243 result. Its documentation commit triggers one final CI run on the new tracker HEAD; record that exact-head result in the PR acceptance comment without further tracker edits to avoid an endless documentation-triggered run loop.
+- External preview blocker remains: Cloudflare Pages project/repository authorization. No preview URL or deployed SHA exists. Google OAuth is not required for Cloudflare preview.
