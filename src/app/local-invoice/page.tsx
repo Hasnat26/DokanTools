@@ -107,6 +107,9 @@ export default function LocalInvoicePage() {
     try {
       const existing = draftId ? await localFirstStore.getInvoice(draftId) as Invoice | null : null;
       const now = new Date().toISOString();
+      const updatedWorkspace = { ...workspace, name: shopName.trim(), address: shopAddress.trim(), phone: shopPhone.trim() };
+      await saveLocalWorkspace(updatedWorkspace);
+      setWorkspace(updatedWorkspace);
       const invoice = {
         id: draftId || crypto.randomUUID(),
         workspace_id: workspace.id,
@@ -266,8 +269,10 @@ export default function LocalInvoicePage() {
     try {
       const token = await getDriveToken();
       const backup = await localFirstStore.exportBackup(workspace);
-      await backupToDrive(token, backup);
-      setStatus("Manual backup completed in your Google Drive appData area.");
+      const result = await backupToDrive(token, backup);
+      setStatus(result.duplicateBackupCount > 0
+        ? "Backup updated in Google Drive. " + result.duplicateBackupCount + " older duplicate backup file(s) remain; the newest copy was updated."
+        : "Manual backup completed in your Google Drive appData area.");
     } catch (cause) {
       if (cause instanceof Error && /DRIVE_AUTH_EXPIRED/.test(cause.message)) {
         setDriveToken("");
@@ -288,7 +293,7 @@ export default function LocalInvoicePage() {
       const { backup } = await restoreFromDrive(token);
       await localFirstStore.restoreBackup(backup, workspace, "merge");
       await reload(workspace);
-      setStatus("Drive backup restored/merged. Local data was not deleted.");
+      setStatus("Latest Drive backup merged. Newer local records were preserved; local data was not deleted.");
     } catch (cause) {
       if (cause instanceof Error && /DRIVE_AUTH_EXPIRED/.test(cause.message)) {
         setDriveToken("");
@@ -329,6 +334,7 @@ export default function LocalInvoicePage() {
 
   async function importBackupFile(file?: File) {
     if (!workspace || !file) return;
+    if (!window.confirm("Import and merge this JSON backup? Newer records will win; existing local data will not be cleared.")) return;
     setBusy(true);
     try {
       const backup = JSON.parse(await file.text());
