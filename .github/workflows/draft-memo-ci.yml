@@ -31,20 +31,22 @@ jobs:
         run: npm run typecheck
       - name: Production build
         run: npm run build
-      - name: Start production server and smoke-test homepage
+      - name: Serve static export and smoke-test PWA routes
         run: |
-          npm run start -- --hostname 127.0.0.1 > /tmp/dokantools-next.log 2>&1 &
+          python3 -m http.server 3000 --directory out > /tmp/dokantools-static.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:3000/ -o /tmp/dokantools-home.html; then
               grep -q 'দোকানের হিসাব এখন' /tmp/dokantools-home.html
+              curl --fail --silent --show-error http://127.0.0.1:3000/local-invoice/ -o /tmp/dokantools-local-invoice.html
+              curl --fail --silent --show-error http://127.0.0.1:3000/manifest.webmanifest -o /tmp/dokantools-manifest.json
               node scripts/verify-invoice-issue-disabled.mjs http://127.0.0.1:3000
               exit 0
             fi
             sleep 2
           done
-          cat /tmp/dokantools-next.log
+          cat /tmp/dokantools-static.log
           exit 1
   tests:
     name: Unit tests (including A6 PDF assertions)
@@ -268,16 +270,19 @@ jobs:
           unset password payload
       - name: Build production application against local Supabase
         run: npm run build
-      - name: Start production application
+      - name: Serve static export for browser acceptance
         shell: bash
         run: |
-          npm run start -- --hostname 127.0.0.1 > "$RUNNER_TEMP/next.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/next.pid"
+          python3 -m http.server 3000 --directory out > "$RUNNER_TEMP/static.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/static.pid"
           for attempt in $(seq 1 60); do
-            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then
+              curl --fail --silent http://127.0.0.1:3000/local-invoice/ >/dev/null
+              exit 0
+            fi
             sleep 2
           done
-          cat "$RUNNER_TEMP/next.log"
+          cat "$RUNNER_TEMP/static.log"
           exit 1
       - name: Install pinned Playwright Chromium
         run: |
