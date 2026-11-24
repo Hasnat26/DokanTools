@@ -73,3 +73,33 @@ No Cloudflare account/project connection or deployment tool is available in this
 - Standalone `/local-invoice/` is the only route currently claimed local-first. Static query-string shop routing does not independently publish customer-owned IndexedDB data.
 - Controlled migration stages M1–M5 are documented in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md`.
 - Invoice issuance OFF. PR #55 remains Draft. No merge, production deploy, paid infrastructure, production data migration or issuance activation.
+## Run #232 Chromium failure investigation and correction
+
+### Evidence reviewed
+- Run #232 (`45329416066`) exact checkout: `f2af032c1af654bd20f525edad0533b4695a1b6a`.
+- Chromium artifact `dokantools-v1-chromium-a6-45329416066` (artifact ID `14891826593`): Playwright error-context snapshots, failure screenshots, retained videos and trace ZIPs were inspected.
+- Offline test screenshot/context showed `/local-invoice/` rendered normally and the test was still filling shop-profile fields. Trace recorded strict-mode failure on `getByLabel("Phone")` before service-worker/offline assertions began. Therefore Run #232 did not establish an offline runtime defect.
+- Shop Profile screenshot/context showed the rendered dashboard public-shop link was present at `/shop/?shopId=<uuid>`. The test locator expected `/shop?shopId=` and timed out; the static route's trailing slash was the mismatch.
+- PDF/share trace recorded strict-mode failure on `getByLabel("Unit")`, which matched both the Unit textbox and Unit price input before PDF generation/share began.
+
+### Corrections
+- Commit `111e675cd893ad2762d0b5b83f31009ee746a572`: exact role/name locator for shop Phone; exact Unit textbox locators; public shop link selector updated to `/shop/?shopId=`.
+- Offline assertions were not removed or skipped: the test still waits for service-worker readiness/control, reloads offline, verifies persisted draft and calculation, regenerates A6 PDF and verifies downloaded PDF signature, then checks browser-context isolation and forbidden network calls.
+- Public profile/QR behavior remains asserted by comparing decoded QR payload with the actual rendered public-shop href.
+- PDF/share test still must generate a fresh PDF, invoke Web Share with a PDF File, verify PDF invalidation after editing, and regenerate.
+
+### Exact-head CI
+- Run #233 (`45331330320`) was launched against correction commit `111e675cd893ad2762d0b5b83f31009ee746a572`. At tracker update time: application build, A6 artifact verification and PostgreSQL tenant-integrity jobs passed; unit tests and Chromium were still in progress. Do not treat 3/5 as final acceptance.
+- If this tracker update advances the branch, the next run must be used for final exact-head evidence; prior-run results are diagnostic only.
+
+### Cloudflare authorization status
+- No Cloudflare dashboard session/account/project authorization or Cloudflare deployment connector is available in this execution. Existing browser tabs were checked; no Cloudflare dashboard was open.
+- Required action: Cloudflare account owner/authorized project maintainer connects the GitHub Pages integration to `Hasnat26/DokanTools` and enables a preview deployment for `feature/browser-first-local-first-pwa-2026-11-24`. Keep production branch unchanged.
+- Project settings: build command `npm ci && npm run build`; output directory `out`; Node 20+; preview branch control includes the migration branch. Do not use this branch as production.
+- Git integration automatically creates/updates PR preview URLs for repository-origin PRs; official guide: https://developers.cloudflare.com/pages/configuration/git-integration/github-integration/ . Build settings: https://developers.cloudflare.com/pages/configuration/build-configuration/ .
+- Deployment remains NOT PERFORMED until the account/project authorization is available. No paid resource or production deployment is authorized.
+
+### Current release gate
+- Local invoice route remains draft-only; invoice issuance OFF.
+- Legacy Supabase-dependent modules remain listed in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md`; whole-app local-first is not claimed.
+- PR #55 remains Draft and unmerged. Hosted offline/IndexedDB/PDF validation and live Google Drive acceptance require the authorized preview origin; Drive is optional and not a prerequisite for local invoice use.
