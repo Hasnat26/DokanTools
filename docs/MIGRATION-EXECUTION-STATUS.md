@@ -187,3 +187,16 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - Follow-up workflow commit: `9bed7c83d9a3d3342c1172a91896461202ea9613` makes Supabase cleanup conditional on successful CLI setup and failure-safe; a missing CLI is not reported as a second cleanup failure, and cleanup warnings do not mask the primary failure.
 - All acceptance assertions and test commands remain unchanged. The full five-job workflow must run against the new tracker HEAD. Final acceptance requires the Chromium authenticated workflow to pass and evidence to show offline reload, tenant isolation, QR verification and a newly generated/validated A6 PDF actually executed.
 - Governance remains unchanged: PR #55 Draft/unmerged, invoice issuance OFF, no production deployment or paid infrastructure.
+
+
+## Corrective exact-head acceptance — Run #247 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR HEAD `2689bee7a18a74461cddeced0652a26600d6c168`; Run #247: https://github.com/Hasnat26/DokanTools/actions/runs/45337619629.
+- Job conclusions: Application build and startup — PASS; Unit tests (including A6 PDF assertions) — PASS; PostgreSQL 17 category tenant-integrity regression — PASS; A6 PDF artifact verification — PASS; Chromium authenticated V1 workflow and fresh A6 PDF — PASS.
+- Chromium commit-identity artifact confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` all equal `2689bee7a18a74461cddeced0652a26600d6c168`.
+- Playwright result: 3 passed, 0 skipped, 0 unexpected, 0 flaky. Passed scenarios: local invoice workspace offline persistence/calculation without Supabase; authenticated configurable multi-product bill with IndexedDB lifecycle and fresh A6 PDF; A6 PDF regeneration after edits and device-file-sharing invocation.
+- Evidence artifact `dokantools-v1-chromium-a6-45337619629`, ID `14895081972`, 138,825 bytes, SHA-256 `ccbb54104ff75f2c383a5ebf81c6ffd467ddd650e6f12e183ff2c673c97617fb`. Artifact ZIP was downloaded and inspected.
+- Fresh application-generated PDF: `artifacts/dokantools-authenticated-a6.pdf`, 33,883 bytes, one-page portrait A6 (297.638 × 419.528 pt), validation result PASS; 33 text bounding boxes checked, zero out-of-bounds text/images; expected invoice content verified; QR decoded from the fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Maps link annotation verified.
+- Dependency correction worked: retry-safe apt installed `psql`, `pdfinfo` and `zbarimg`; Playwright Chromium installation completed; Supabase CLI setup succeeded; guarded cleanup completed. No acceptance assertion was removed or skipped.
+- This tracker update creates a new exact HEAD and a follow-up full CI run. Run #247 is validated evidence for the corrective commit, but the tracker-updated HEAD must complete 5/5 before current-head acceptance is reported.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
