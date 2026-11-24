@@ -141,7 +141,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
       await expect(page.getByRole("heading", { name: shopName })).toBeVisible();
       shopPublicPath = await page
-        .locator('a[href^="/shop/"]')
+        .locator('a[href^="/shop?shopId="]')
         .first()
         .getAttribute("href");
       await page.getByRole("button", { name: "তথ্য সম্পাদনা" }).click();
