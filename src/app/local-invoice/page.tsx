@@ -292,7 +292,12 @@ export default function LocalInvoicePage() {
       const token = await getDriveToken();
       const { backup } = await restoreFromDrive(token);
       await localFirstStore.restoreBackup(backup, workspace, "merge");
-      await reload(workspace);
+      const restoredWorkspace = await getOrCreateLocalWorkspace() as Workspace;
+      setWorkspace(restoredWorkspace);
+      setShopName(restoredWorkspace.name || "");
+      setShopAddress(restoredWorkspace.address || "");
+      setShopPhone(restoredWorkspace.phone || "");
+      await reload(restoredWorkspace);
       setStatus("Latest Drive backup merged. Newer local records were preserved; local data was not deleted.");
     } catch (cause) {
       if (cause instanceof Error && /DRIVE_AUTH_EXPIRED/.test(cause.message)) {
@@ -339,7 +344,12 @@ export default function LocalInvoicePage() {
     try {
       const backup = JSON.parse(await file.text());
       await localFirstStore.restoreBackup(backup, workspace, "merge");
-      await reload(workspace);
+      const restoredWorkspace = await getOrCreateLocalWorkspace() as Workspace;
+      setWorkspace(restoredWorkspace);
+      setShopName(restoredWorkspace.name || "");
+      setShopAddress(restoredWorkspace.address || "");
+      setShopPhone(restoredWorkspace.phone || "");
+      await reload(restoredWorkspace);
       setStatus("Local backup imported/merged successfully.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "BACKUP_IMPORT_FAILED");
