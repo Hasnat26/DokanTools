@@ -224,3 +224,16 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - Retry-safe dependency bootstrap succeeded, including required PostgreSQL/PDF/QR tools, pinned Supabase CLI and Playwright Chromium. Supabase local migration parity/reset and synthetic tenant setup completed; cleanup completed. No acceptance checks were removed or skipped.
 - This tracker update creates a new exact-head Run #250. Run #249 is complete verified evidence; current-head acceptance will be reaffirmed by Run #250.
 - Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
+
+## Exact-current-HEAD acceptance — Run #251 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `a0c0cc1bc08e832c0895ae6317542a00d3681b46`; Run #251: https://github.com/Hasnat26/DokanTools/actions/runs/45342981504.
+- Live GitHub Actions job inspection confirms all five required jobs completed successfully on this run: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live head SHA and workflow run `head_sha` match `a0c0cc1bc08e832c0895ae6317542a00d3681b46`. PR remains open, Draft and unmerged.
+- Browser evidence artifact `dokantools-v1-chromium-a6-45342981504`, ID `14896559692`, size 139,041 bytes; downloadable from https://github.com/Hasnat26/DokanTools/actions/runs/45342981504/artifacts/14896559692.
+- Playwright results: 3 passed, 0 skipped, 0 unexpected, 0 flaky. Scenarios: offline invoice persistence/calculation without Supabase; authenticated multi-product invoice with IndexedDB lifecycle and fresh A6 PDF; PDF regeneration after edits and device file-sharing invocation.
+- Fresh application-generated PDF verification: PASS; one portrait A6 page (297.638 × 419.528 pt); 33 text bounding boxes checked; zero out-of-bounds text and zero out-of-bounds images; QR decoded from the fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Google Maps annotation verified.
+- Failure-safe Supabase cleanup: PASS. No acceptance checks were removed, skipped or suppressed.
+- PR conversation acceptance report posted: https://github.com/Hasnat26/DokanTools/pull/55#issuecomment-7124489440.
+- This tracker documentation commit advances the branch and may trigger another full CI run. Run #251 remains the verified acceptance evidence for the exact code/test SHA above; do not claim that a later tracker-only SHA has passed until its own exact-head run completes.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain outstanding.
