@@ -103,3 +103,33 @@ No Cloudflare account/project connection or deployment tool is available in this
 - Local invoice route remains draft-only; invoice issuance OFF.
 - Legacy Supabase-dependent modules remain listed in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md`; whole-app local-first is not claimed.
 - PR #55 remains Draft and unmerged. Hosted offline/IndexedDB/PDF validation and live Google Drive acceptance require the authorized preview origin; Drive is optional and not a prerequisite for local invoice use.
+
+## Run #236 failure analysis and final Chromium corrections — 2026-11-24
+
+### Complete artifact review
+- Run #236: https://github.com/Hasnat26/DokanTools/actions/runs/45332050415
+- Exact checkout SHA: `f3b2585fb65bda2c0e21e5dad65ef9ab07178edb`.
+- Artifact: `dokantools-v1-chromium-a6-45332050415`, ID `14892223297`. The Chromium job log and all three Playwright error-context snapshots, screenshots, videos and trace ZIPs were reviewed.
+- Result: 4/5 CI jobs passed; Chromium failed. Unit tests, PostgreSQL tenant-integrity, application build/startup and A6 artifact verification passed. The Chromium job failed before the fresh application-generated PDF verification steps, which were skipped.
+
+### Confirmed causes (not service-worker failure)
+1. Offline test failed at the Unit input locator: strict mode matched the local catalogue Unit field and invoice-line Unit field. The test had not yet reached service-worker readiness, cache inspection, offline reload or offline calculations. Run #236 therefore provides no evidence of a service-worker defect.
+2. Authenticated shop-profile test decoded QR destination `/shop/<id>`, while dashboard link was `/shop/?shopId=<id>`. Static public-shop page reads `shopId` from the query string. This was an application route-generation mismatch; the QR destination was corrected to the supported static query route.
+3. PDF/share test failed at the same ambiguous Unit selector before generating or sharing a PDF.
+
+### Corrections committed to PR branch
+- `9cd2c13c7418ba3b82d28cc98e7e5e377212b22e`: scope offline test Unit locator to the invoice-line container.
+- `84375182411d32586f853f8fff9e3d4a1edc78f8`: add stable `data-testid="local-invoice-line"` to local invoice line markup.
+- `7498168d58ccee07e56593fca015cef9fd905568`: align public-shop QR destination with `/shop/?shopId=<id>` used by static export and dashboard.
+
+### Acceptance sequence preserved
+No acceptance step was removed, skipped or weakened in the test source. The suite still requires online load, service-worker control, local invoice shell and static asset cache assertions, offline reload, IndexedDB draft reopen, offline edit/calculation, offline A6 PDF generation/download, no Supabase/invoice API requests, PDF invalidation/regeneration and device-share invocation.
+
+### Exact-head CI after correction
+- Run #238: https://github.com/Hasnat26/DokanTools/actions/runs/45332893169 was created for corrected code HEAD `7498168d58ccee07e56593fca015cef9fd905568`; it was pending/queued at this tracker revision and is not acceptance evidence.
+- Tracker update commit and its triggered run supersede Run #238 if the concurrency policy cancels it. Record the new exact-head run after it completes. Code-stage acceptance requires all five jobs PASS on the final branch HEAD.
+
+### Governance / external preview gate
+- PR #55 remains Draft and unmerged; invoice issuance OFF; no production promotion or paid infrastructure.
+- Cloudflare preview remains blocked on authorized repository/project integration. Deploy only as a non-production preview, keep production branch unchanged, then record actual preview URL and deployed SHA and validate hosted offline reload, IndexedDB and A6 PDF.
+- Google OAuth/Drive is optional and must not delay preview. No frontend client secret.
