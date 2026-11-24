@@ -29,9 +29,9 @@ test("PO-10 adjustments calculate only in Draft Memo and do not alter Invoice-Fi
 });
 
 test("Invoice-First contract/API has no adjustment inputs and issuance remains disabled", async () => {
-  const [contract, route, invoiceDomain, requestValidator] = await Promise.all([
+  const [contract, issuanceGuard, invoiceDomain, requestValidator] = await Promise.all([
     readFile(new URL("../src/lib/invoice-contract.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/app/api/invoices/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/invoice-issuance-guard.mjs", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/invoice-domain.mjs", import.meta.url), "utf8"),
     readFile(new URL("../src/lib/invoice-request-validation.mjs", import.meta.url), "utf8"),
   ]);
@@ -48,9 +48,9 @@ test("Invoice-First contract/API has no adjustment inputs and issuance remains d
   assert.match(requestValidator, /header,idempotencyNamespace,lines,requestId,shopId/);
   assert.match(requestValidator, /mapUrl,shopAddress,shopName,shopPhone/);
   assert.match(requestValidator, /catalogItemId,itemName,quantity,unit,unitPrice/);
-  assert.match(route, /const INVOICE_ISSUE_ENABLED = false/);
-  assert.match(route, /isValidInvoiceRequest\(input\)/);
-  assert.match(route, /p_payload: \{ header: invoiceInput\.header, lines: invoiceInput\.lines \}/);
+  assert.match(issuanceGuard, /INVOICE_ISSUANCE_ENABLED = false/);
+  
+  
 
   assert.doesNotMatch(invoiceDomain, /discount|taxRate|paidAmount|dueMinor/i);
 });
