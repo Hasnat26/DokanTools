@@ -102,7 +102,7 @@ test("local invoice workspace persists and calculates offline without Supabase",
   await page.getByLabel("Customer name").fill("Local QA Customer");
   await page.getByLabel("Customer phone").fill("01800000000");
   await page.getByLabel("Item").fill("Offline QA Product");
-  await page.getByRole("textbox", { name: "Unit", exact: true }).fill("pcs");
+  await page.getByTestId("local-invoice-line").first().getByLabel("Unit", { exact: true }).fill("pcs");
   await page.getByLabel("Quantity").fill("2");
   await page.getByLabel("Unit price (BDT)").fill("15.50");
   await expect(page.getByText("Total", { exact: true }).last()).toBeVisible();
@@ -885,7 +885,7 @@ test("local A6 PDF is regenerated after edits and device file sharing is invoked
   await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
   await page.getByLabel("Customer name").fill("Share QA Customer");
   await page.getByLabel("Item").fill("Share QA Item");
-  await page.getByRole("textbox", { name: "Unit", exact: true }).fill("pc");
+  await page.getByTestId("local-invoice-line").first().getByLabel("Unit", { exact: true }).fill("pc");
   await page.getByLabel("Quantity").fill("1");
   await page.getByLabel("Unit price (BDT)").fill("20");
   await page.getByRole("button", { name: "Generate A6 PDF" }).click();
