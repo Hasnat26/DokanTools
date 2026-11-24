@@ -211,3 +211,16 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - Fresh PDF validation PASS: one-page portrait A6 (297.638 × 419.528 pt); 33 text boxes checked, zero out-of-bounds text/images; expected content and draft-only label verified; QR decoded from generated PDF and Maps annotation verified. The PDF artifact is 33,883 bytes, SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`.
 - This tracker entry itself advances the branch and triggers a new exact-head Run #249. Run #248 is successful evidence for the tracker revision; final current-head acceptance must be confirmed from Run #249 without another tracker edit.
 - Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
+
+
+## Final exact-current-HEAD validation — Run #249 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact current PR HEAD `c038c2b107a51638a13df5fce8c19f55024448d3`; Run #249: https://github.com/Hasnat26/DokanTools/actions/runs/45339451761.
+- All five required jobs passed: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD and workflow `head_sha` both match `c038c2b107a51638a13df5fce8c19f55024448d3`. Browser artifact commit identity confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` are identical.
+- Chromium evidence artifact `dokantools-v1-chromium-a6-45339451761`, ID `14896765015`, size 139,125 bytes, SHA-256 `f1687af3870f549d24917721dced3e37642cd0ff175408c974bb4181275d4231`; downloaded and inspected.
+- Playwright summary: 3 expected/passed, 0 skipped, 0 unexpected, 0 flaky. Scenarios passed: offline invoice workspace persistence/calculation without Supabase; authenticated configurable multi-product bill with IndexedDB lifecycle and fresh A6 PDF; A6 PDF regeneration after edits and device file-sharing invocation.
+- Fresh PDF validation: PASS; 1 page portrait A6 (297.638 × 419.528 pt); 33 text bounding boxes checked, 0 out-of-bounds text; 0 out-of-bounds images; expected invoice content and `DRAFT ONLY` verified; QR decoded from the freshly generated PDF to `https://maps.google.com/?q=23.7806,40.4142`; Maps link annotation verified.
+- Retry-safe dependency bootstrap succeeded, including required PostgreSQL/PDF/QR tools, pinned Supabase CLI and Playwright Chromium. Supabase local migration parity/reset and synthetic tenant setup completed; cleanup completed. No acceptance checks were removed or skipped.
+- This tracker update creates a new exact-head Run #250. Run #249 is complete verified evidence; current-head acceptance will be reaffirmed by Run #250.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
