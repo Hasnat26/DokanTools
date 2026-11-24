@@ -75,6 +75,16 @@ export function createLocalInvoiceDraft({ workspaceId, shop, customer, lines, id
   };
 }
 
+export function shouldApplyBackupRecord(localRecord, incomingRecord) {
+  if (!localRecord) return true;
+  const localTime = Date.parse(localRecord.updated_at || localRecord.created_at || "");
+  const incomingTime = Date.parse(incomingRecord.updated_at || incomingRecord.created_at || "");
+  if (!Number.isFinite(localTime)) return Number.isFinite(incomingTime);
+  if (!Number.isFinite(incomingTime)) return false;
+  // Local record wins ties; a backup only replaces a record when it is newer.
+  return incomingTime > localTime;
+}
+
 export function validateLocalBackup(backup) {
   if (!backup || typeof backup !== "object" || backup.schemaVersion !== 1 ||
       !backup.workspace || typeof backup.workspace.id !== "string" ||
@@ -83,6 +93,13 @@ export function validateLocalBackup(backup) {
       !Array.isArray(backup.data.products) ||
       !Array.isArray(backup.data.customers)) {
     throw new Error("INVALID_BACKUP_FORMAT");
+  }
+  for (const storeName of ["invoices", "products", "customers"]) {
+    for (const record of backup.data[storeName]) {
+      if (!record || typeof record.id !== "string" || record.workspace_id !== backup.workspace.id) {
+        throw new Error("INVALID_BACKUP_RECORD");
+      }
+    }
   }
   for (const invoice of backup.data.invoices) {
     if (!invoice || typeof invoice.id !== "string" || invoice.workspace_id !== backup.workspace.id ||
