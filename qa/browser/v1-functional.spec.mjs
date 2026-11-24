@@ -142,6 +142,10 @@ test("local invoice workspace persists and calculates offline without Supabase",
   await page.context().setOffline(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  // A reload opens a fresh editor; explicitly reopen the IndexedDB draft from the saved-drafts list while offline.
+  await expect(page.getByText("Local QA Customer", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await expect(page.getByRole("status")).toContainText("Draft loaded from IndexedDB");
   await expect(page.getByLabel("Item")).toHaveValue("Offline QA Product");
   await page.getByLabel("Quantity").fill("3");
   await expect(page.getByText("BDT 46.50", { exact: true })).toBeVisible();
