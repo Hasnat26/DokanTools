@@ -323,3 +323,14 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - All acceptance checks were preserved. Browser acceptance ran three scenarios with zero skips/flaky/unexpected results.
 - This Run #257 entry records the exact SHA above. This tracker change triggers the final post-entry exact-head CI validation; do not report the post-entry SHA as accepted until its own five jobs have completed.
 - Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain separate external dependencies.
+
+
+## Run #258 — exact code-stage CI acceptance — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `2f180659df106c84f9c15c6dc0bbd8ec6cdace49`; Run #258: https://github.com/Hasnat26/DokanTools/actions/runs/45353746199.
+- All five required jobs completed successfully: application build/startup; unit tests (including A6 assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD and Run #258 checkout identity matched the exact SHA above. PR remained open, Draft and unmerged.
+- Chromium evidence artifact ID `14900658873`, size 133,119 bytes, SHA-256 `7a304fa8f5a9381bc5607c48ca924426eef041ab6c3442c67b7e3e8ee6c1fb64`; downloaded and inspected. Playwright: 3 passed, 0 skipped, 0 unexpected, 0 flaky.
+- Fresh A6 PDF validation PASS: one portrait A6 page (297.638 × 419.528 pt), 33 text boxes, zero text/image overflow, `DRAFT ONLY`; QR and Maps annotation verified; contentScaled false. PDF SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`.
+- Disposable Supabase cleanup PASS. This closes the code-stage Run #258 acceptance record. The new preview/demo work is a separate hosted acceptance gate and is not represented as completed by this CI run.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment, paid infrastructure or destructive migration.
