@@ -85,6 +85,78 @@ if (!baseURL || !email || !password || !email2 || !password2 || !supabaseUrl || 
   throw new Error(
     "CH4_CONFIGURATION_ERROR: both synthetic Auth identities, Supabase URL/key and QA URL are mandatory.",
   );
+
+test("local invoice workspace persists and calculates offline without Supabase", async ({ page }) => {
+  test.setTimeout(60000);
+  const forbiddenRequests = [];
+  page.on("request", request => {
+    const url = request.url();
+    if (url.includes("/api/invoices") || url.includes("supabase.co") || url.includes(":54321")) forbiddenRequests.push(url);
+  });
+  await page.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  await page.getByLabel("Shop name").fill("Local-Only QA Shop");
+  await page.getByLabel("Address").fill("Local address");
+  await page.getByLabel("Phone").fill("01700000000");
+  await page.getByRole("button", { name: "Save shop profile locally" }).click();
+  await page.getByLabel("Customer name").fill("Local QA Customer");
+  await page.getByLabel("Customer phone").fill("01800000000");
+  await page.getByLabel("Item").fill("Offline QA Product");
+  await page.getByLabel("Unit").fill("pcs");
+  await page.getByLabel("Quantity").fill("2");
+  await page.getByLabel("Unit price (BDT)").fill("15.50");
+  await expect(page.getByText("Total", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("BDT 31.00", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save draft locally" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved locally in IndexedDB");
+  await page.reload();
+  await expect(page.getByText("Local QA Customer", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await expect(page.getByLabel("Item")).toHaveValue("Offline QA Product");
+  await expect(page.getByLabel("Quantity")).toHaveValue("2");
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("A6 PDF generated in this browser");
+  const pdfDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const pdf = await pdfDownload;
+  const path = await pdf.path();
+  expect(path).toBeTruthy();
+  const bytes = await readFile(path);
+  expect(bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+
+  // Wait until the PWA service worker controls the page, then reload offline.
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) {
+      await new Promise(resolve => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true }));
+    }
+  });
+  await page.reload();
+  await page.context().setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  await expect(page.getByLabel("Item")).toHaveValue("Offline QA Product");
+  await page.getByLabel("Quantity").fill("3");
+  await expect(page.getByText("BDT 46.50", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("A6 PDF generated in this browser");
+  const offlineDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const offlinePdf = await offlineDownload;
+  expect((await readFile(await offlinePdf.path())).subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  await page.context().setOffline(false);
+  expect(forbiddenRequests).toEqual([]);
+
+  // A separate browser context has a separate IndexedDB namespace/workspace.
+  const browser = page.context().browser();
+  const isolatedContext = await browser.newContext();
+  const isolatedPage = await isolatedContext.newPage();
+  await isolatedPage.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(isolatedPage.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  await expect(isolatedPage.getByText("No local drafts yet.", { exact: true })).toBeVisible();
+  await isolatedContext.close();
+});
+
 test("authenticated configurable multi-product bill, IndexedDB lifecycle and fresh A6 PDF", async ({
   page,
 }) => {
