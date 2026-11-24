@@ -156,3 +156,14 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - Exact Chromium failure: after offline reload, test expected the active editor to auto-populate the previous draft. The screenshot/snapshot shows the local draft still persisted in IndexedDB and appears under “Saved drafts (1)” with the Edit action; the editor is a fresh empty draft until the user explicitly selects Edit. The trace proves the earlier online reload + Edit successfully restored “Offline QA Product” and quantity 2, then the later offline reload opened a blank editor. Therefore this is an acceptance-test assumption mismatch, not evidence of IndexedDB data loss or a service-worker defect.
 - Correction in this commit: after offline reload, assert the saved customer/draft is present, click the saved draft’s exact Edit button, assert status “Draft loaded from IndexedDB”, then verify line data and perform offline quantity edit/calculation and A6 PDF generation/download. This strengthens explicit offline draft reopening and preserves the complete cache/offline/no-network/PDF sequence; no step is skipped or weakened.
 - Run #241 was triggered for unit-test correction HEAD `b4dc53effa85245e12938c67cbf3c2669fdeef3`; it is superseded by this browser-test correction. New exact-head full CI is required; all five jobs must PASS.
+
+
+## Code-stage acceptance — Run #242 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact code/test SHA `d52b33cc0824e5103ba00e0deff5f1a5af1df73d`.
+- Run: https://github.com/Hasnat26/DokanTools/actions/runs/45334126944
+- Jobs PASS: Application build and startup; Unit tests (including A6 PDF assertions); Chromium authenticated V1 workflow and fresh A6 PDF; PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification.
+- Chromium artifact: `dokantools-v1-chromium-a6-45334126944`, ID `14893795975` (retained). The corrected browser test explicitly reopened the IndexedDB draft after offline reload and passed the offline calculation, PDF download and no-Supabase/no-invoice-API checks.
+- Corrections validated: static shop QR route, matching unit test expectation, precise invoice-line selectors, explicit offline saved-draft reopening. No acceptance steps were removed or skipped.
+- This tracker update creates a documentation-only commit and triggers a new CI run against the resulting tracker HEAD. Do not claim final exact-head acceptance until that follow-up run also passes 5/5.
+- Governance: PR #55 remains Draft/unmerged; invoice issuance OFF; no production promotion or paid infrastructure. Cloudflare preview remains external authorization-gated.
