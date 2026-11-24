@@ -161,7 +161,7 @@ jobs:
   browser-e2e:
     name: Chromium authenticated V1 workflow and fresh A6 PDF
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -172,17 +172,45 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Ensure PostgreSQL, PDF and QR tools are available
+      - name: Ensure PostgreSQL, PDF and QR tools are available (retry-safe apt)
         shell: bash
         run: |
+          set -euo pipefail
           missing=()
           command -v psql >/dev/null 2>&1 || missing+=(postgresql-client)
           command -v pdfinfo >/dev/null 2>&1 || missing+=(poppler-utils)
           command -v zbarimg >/dev/null 2>&1 || missing+=(zbar-tools)
+
           if (("${#missing[@]}" > 0)); then
-            sudo timeout 240s apt-get update -o Acquire::Retries=3
-            sudo timeout 180s apt-get install -y "${missing[@]}"
+            echo "Required packages: ${missing[*]}"
+            # Ubuntu runner mirrors were slow/intermittent in Run #244.
+            sudo timeout 300s apt-get update \
+              -o Acquire::Retries=5 \
+              -o Acquire::http::Timeout=45 \
+              -o Acquire::https::Timeout=45
+
+            installed=0
+            for attempt in 1 2 3; do
+              echo "apt install attempt ${attempt}/3"
+              if sudo timeout 900s apt-get install -y --no-install-recommends \
+                -o Acquire::Retries=5 \
+                -o Acquire::http::Timeout=45 \
+                -o Acquire::https::Timeout=45 \
+                "${missing[@]}"; then
+                installed=1
+                break
+              fi
+              if (( attempt < 3 )); then
+                echo "Package install attempt ${attempt} failed; retrying after partial package recovery."
+                sleep $((attempt * 20))
+              fi
+            done
+            test "$installed" -eq 1
           fi
+
+          command -v psql
+          command -v pdfinfo
+          command -v zbarimg
           psql --version
           pdfinfo -v
           zbarimg --version
@@ -193,6 +221,7 @@ jobs:
           "$RUNNER_TEMP/pdf-tools/bin/pip" install --disable-pip-version-check pypdf==5.9.0
           echo "$RUNNER_TEMP/pdf-tools/bin" >> "$GITHUB_PATH"
       - name: Install pinned Supabase CLI
+        id: supabase_cli
         uses: supabase/setup-cli@v1
         with:
           version: 3.1.0
@@ -325,6 +354,16 @@ jobs:
             artifacts/commit-identity.json
             test-results/
           if-no-files-found: warn
-      - name: Stop disposable local Supabase
+      - name: Stop disposable local Supabase (failure-safe cleanup)
         if: always()
-        run: supabase --workdir qa/supabase-runner stop --no-backup
+        shell: bash
+        run: |
+          if ! command -v supabase >/dev/null 2>&1; then
+            echo "Supabase CLI was not installed; cleanup skipped because no CLI-managed stack could have started."
+            exit 0
+          fi
+          if supabase --workdir qa/supabase-runner stop --no-backup; then
+            echo "Disposable Supabase stack stopped."
+          else
+            echo "::warning::Supabase cleanup did not complete; preserving the primary job failure."
+          fi
