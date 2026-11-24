@@ -2,7 +2,9 @@
 
 DokanTools is a mobile-first shop-management application for small businesses in Bangladesh.
 
-> **V1 software integration:** PR [#47](https://github.com/Hasnat26/DokanTools/pull/47) is merged into `delivery/dokantools-v1-2026-11-19` at `2f257211e5f296d49b7ccf30e50fedcb2530a9f5`. Post-merge CI [Run #199](https://github.com/Hasnat26/DokanTools/actions/runs/45166285135) completed with all five required jobs PASS. This is a software validation result, not production authorization.
+> **V1 delivery baseline:** PR [#47](https://github.com/Hasnat26/DokanTools/pull/47) and documentation PRs [#50](https://github.com/Hasnat26/DokanTools/pull/50) and [#52](https://github.com/Hasnat26/DokanTools/pull/52) are merged into `delivery/dokantools-v1-2026-11-19`. Delivery candidate SHA at PR #52 merge: `81cf30a3feb9779e0b0ef7f43c88302298be84ed`. Post-merge CI [Run #205](https://github.com/Hasnat26/DokanTools/actions/runs/45321068072) completed with all five required jobs PASS. This is software/CI verification, not production authorization or external acceptance.
+
+See the [V1 release readiness tracker](./docs/V1-RELEASE-READINESS-TRACKER.md) and [release runbook](./docs/V1-RELEASE-READINESS-RUNBOOK.md) for the current gate status.
 
 ## Verified V1 scope
 
@@ -16,7 +18,7 @@ DokanTools is a mobile-first shop-management application for small businesses in
 - Print handler, A6 PDF generation/download, PDF lifecycle invalidation and browser-simulated share fallback.
 - Authenticated two-user category isolation against disposable local Supabase Auth/PostgREST/RLS.
 
-See [PR #47 post-merge closeout](./docs/PR47-POST-MERGE-CLOSEOUT.md) for the job IDs, functional matrix, A6 artifact hashes, security evidence and remaining acceptance items.
+See [PR #47 post-merge closeout](./docs/PR47-POST-MERGE-CLOSEOUT.md) for the functional matrix, A6 artifact hashes, security evidence and accepted software scope.
 
 ## Run locally
 
@@ -50,8 +52,10 @@ The CI workflow additionally runs PostgreSQL 17 integrity tests, disposable loca
 
 ## Release boundary and remaining work
 
-PR #47 does not authorize deployment, hosted migration, production data changes, invoice issuance activation or customer pilot. Invoice issuance remains OFF. The API returns HTTP 423 with `INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL` for a valid issue request; the database runtime control is seeded disabled and inaccessible to the authenticated role, and the transaction RPC fails closed while disabled.
+PR #47 software integration and PR #52 release-readiness documentation are merged. Invoice issuance remains OFF. The API returns HTTP 423 with `INVOICE_ISSUE_DISABLED_PENDING_PO_APPROVAL` for a valid issue request; the database runtime control is seeded disabled and inaccessible to the authenticated role, and the transaction RPC fails closed while disabled.
 
-Not yet accepted: Android Chrome native share, WhatsApp delivery to a real recipient, physical A6 printer/driver acceptance, hosted migration, backup/restore drill, deployment/rollback readiness and live pilot. Full offline transaction outbox/sync, conflict resolution, and linked invoice-settlement workflows remain outside the verified PR #47 scope.
+Still outstanding: approved DokanTools hosting target identification, target-matched migration and backup/restore/rollback drills, physical Android Chrome native share, WhatsApp delivery to a real consenting recipient, and physical A6 printer/driver acceptance. These are tracked in the [release readiness tracker](./docs/V1-RELEASE-READINESS-TRACKER.md) and [Issue #51](https://github.com/Hasnat26/DokanTools/issues/51). Production deployment, hosted production migration, customer pilot and invoice activation require separate PO authorization; invoice issuance must remain OFF.
+
+Full offline transaction outbox/sync, conflict resolution, and linked invoice-settlement workflows remain outside the verified V1 scope.
 
 The separate browser-local demo at `/draft-memo-demo.html` is not the authenticated Supabase workflow. See [Draft Memo demo notes](./docs/DRAFT_MEMO_MVP_DEMO.md).
