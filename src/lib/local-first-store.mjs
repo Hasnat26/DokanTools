@@ -1,4 +1,4 @@
-import { validateLocalBackup } from "./local-first-invoice.mjs";
+import { shouldApplyBackupRecord, validateLocalBackup } from "./local-first-invoice.mjs";
 
 const DB_NAME = "dokantools-local-first";
 const DB_VERSION = 1;
@@ -188,7 +188,18 @@ export const localFirstStore = {
       }
     };
     if (mode === "merge") {
-      putImportedRecords();
+      for (const name of RECORD_STORES) {
+        const store = tx.objectStore(name);
+        for (const record of backup.data[name]) {
+          const request = store.get(record.id);
+          request.onsuccess = () => {
+            if (shouldApplyBackupRecord(request.result || null, record)) {
+              store.put({ ...record, workspace_id: activeWorkspace.id, updated_at: record.updated_at || new Date().toISOString() });
+            }
+          };
+          request.onerror = () => tx.abort();
+        }
+      }
     } else {
       let remaining = RECORD_STORES.length;
       for (const name of RECORD_STORES) {
