@@ -133,3 +133,8 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - PR #55 remains Draft and unmerged; invoice issuance OFF; no production promotion or paid infrastructure.
 - Cloudflare preview remains blocked on authorized repository/project integration. Deploy only as a non-production preview, keep production branch unchanged, then record actual preview URL and deployed SHA and validate hosted offline reload, IndexedDB and A6 PDF.
 - Google OAuth/Drive is optional and must not delay preview. No frontend client secret.
+
+
+### Tracker revision CI record
+- Run #239: https://github.com/Hasnat26/DokanTools/actions/runs/45332999741 was triggered for tracker/code HEAD `2fa87ccedc7963ed03e9656e0371a52c11191ddf`; it was pending at this update. Run #238 is superseded by the tracker commit and must not be used as final acceptance.
+- The next run must validate the new tracker HEAD, including the selector and QR route fixes. Final acceptance remains 5/5 PASS on the exact current PR HEAD.
