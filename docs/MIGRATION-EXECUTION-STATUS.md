@@ -176,3 +176,14 @@ No acceptance step was removed, skipped or weakened in the test source. The suit
 - The tested SHA matched PR #55 HEAD at completion. Jobs PASS: application build/startup, unit tests, authenticated Chromium V1 workflow and fresh A6 PDF, PostgreSQL tenant-integrity, and A6 PDF artifact verification.
 - This entry is the final Run #243 result. Its documentation commit triggers one final CI run on the new tracker HEAD; record that exact-head result in the PR acceptance comment without further tracker edits to avoid an endless documentation-triggered run loop.
 - External preview blocker remains: Cloudflare Pages project/repository authorization. No preview URL or deployed SHA exists. Google OAuth is not required for Cloudflare preview.
+
+
+## Run #244 dependency-bootstrap failure and correction — 2026-11-24
+
+- Run #244 (`45335120716`) failed on exact PR HEAD `b783eacbc6008dd37b54e5b3c8198f610805cb4f`; 4/5 jobs passed and Chromium job failed before acceptance.
+- Chromium log evidence: `apt-get update` completed in approximately 86 seconds. Package installation then stalled on intermittent Ubuntu mirror downloads (`Ign` responses) and was terminated by the existing 180-second timeout with exit code 124. Required commands `psql`, `pdfinfo` and `zbarimg` were not available, so authenticated Chromium, offline, QR and fresh A6 PDF checks did not execute.
+- Run #244 artifact `dokantools-v1-chromium-a6-45335120716` (ID `14894301279`) was only 287 bytes; no browser screenshots, trace, test result or fresh PDF was produced. The subsequent cleanup failure was secondary: `supabase` was not installed because setup had not been reached.
+- Corrective workflow commit: `bbfdcdb803d4b4c8d662972db61964737f84c13e` increases the browser job timeout, adds apt mirror retry/HTTP timeout controls and up to three 15-minute package-install attempts with partial-install recovery, and verifies all three tools after installation.
+- Follow-up workflow commit: `9bed7c83d9a3d3342c1172a91896461202ea9613` makes Supabase cleanup conditional on successful CLI setup and failure-safe; a missing CLI is not reported as a second cleanup failure, and cleanup warnings do not mask the primary failure.
+- All acceptance assertions and test commands remain unchanged. The full five-job workflow must run against the new tracker HEAD. Final acceptance requires the Chromium authenticated workflow to pass and evidence to show offline reload, tenant isolation, QR verification and a newly generated/validated A6 PDF actually executed.
+- Governance remains unchanged: PR #55 Draft/unmerged, invoice issuance OFF, no production deployment or paid infrastructure.
