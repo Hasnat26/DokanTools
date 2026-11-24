@@ -37,3 +37,39 @@ This branch has not yet completed its own CI run at the time of this status file
 
 - NEXT_PUBLIC_GOOGLE_CLIENT_ID: optional public OAuth Web client ID for Drive backup. Never set a client secret.
 - Existing Supabase public URL/anon key: still needed by legacy cloud-backed dashboard features; not required by /local-invoice/.
+
+## PO directive execution update — 2026-11-24
+
+### Exact-head CI history
+- Run #228 (`45328575927`) was superseded/cancelled by PR concurrency after branch updates. Four completed jobs passed; Chromium job did not finish. It is not final acceptance.
+- Run #230 (`45329181519`) targeted code candidate `1b6dcccf95452ad1203b1b0510fc4fb269b30305`. PostgreSQL category integrity passed; remaining jobs were in progress at the time of this tracker update.
+- Drive restore, quota/rate-limit retry and service-unavailable tests were added in commit `655f6044bf8e6b421ca806842f3574ea4ecd58df`.
+- Browser test coverage for local PDF invalidation/regeneration and device share invocation was added in commit `1b6dcccf95452ad1203b1b0510fc4fb269b30305`.
+- Legacy migration sequence was documented in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md` (commit `407fedef24a7e12b83269b4aa85d9e9801230931`).
+- This tracker revision must itself pass exact-head CI before the migration code stage is accepted. Record the final run and validated HEAD in the PR discussion after the run completes.
+
+### Local invoice browser coverage added
+The Chromium test suite now covers local calculation, IndexedDB save/reload/edit/reopen, local A6 PDF generation/download, offline reload/calculation/PDF, request monitoring for Supabase and invoice API calls, and PDF invalidation/regeneration plus device-share invocation. The test has not yet been accepted until the exact current-head Chromium job passes.
+
+### Cloudflare Pages preview — blocked on account/project authorization
+Required:
+1. A Cloudflare account and Pages project connected to the DokanTools Git repository, or authorized deployment access for the project.
+2. Project name/account context and a non-production preview branch/deployment.
+3. For CLI/GitHub Actions deployment only: account ID and a Pages-scoped API token stored as GitHub Actions secrets, never committed or pasted into chat.
+4. Build command `npm ci && npm run build`, output directory `out`, Node 20+; preview must use the migration branch.
+5. Record the actual preview URL and deployed commit SHA, then validate offline reload, IndexedDB and PDF from that hosted origin.
+
+No Cloudflare account/project connection or deployment tool is available in this execution. No preview deployment has occurred.
+
+### Google Drive acceptance — blocked on OAuth configuration and hosted origin
+- Required configuration: public Google OAuth Web client ID in `NEXT_PUBLIC_GOOGLE_CLIENT_ID`; it is an identifier, not a client secret.
+- Add the exact authorized Cloudflare preview origin to Google OAuth JavaScript origins.
+- Live acceptance must cover OAuth consent/token flow, backup, restore/merge, expired/revoked authorization, Drive unavailable, quota/rate-limit and token non-persistence.
+- Automated client tests now cover latest backup restore, 401 expired-token classification, quota/rate-limit retry and service-unavailable classification.
+- Live account acceptance remains NOT RUN because no client ID or preview origin is configured. Never place a client secret in the browser.
+
+### Remaining scope / acceptance boundary
+- Supabase remains required for legacy Auth/dashboard, cloud shop administration, catalogue/customer data, stock, memo, baki and public storefront data.
+- Standalone `/local-invoice/` is the only route currently claimed local-first. Static query-string shop routing does not independently publish customer-owned IndexedDB data.
+- Controlled migration stages M1–M5 are documented in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md`.
+- Invoice issuance OFF. PR #55 remains Draft. No merge, production deploy, paid infrastructure, production data migration or issuance activation.
