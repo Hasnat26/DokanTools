@@ -355,7 +355,7 @@ jobs:
             test-results/
           if-no-files-found: warn
       - name: Stop disposable local Supabase (failure-safe cleanup)
-        if: always()
+        if: always() && steps.supabase_cli.outcome == 'success'
         shell: bash
         run: |
           if ! command -v supabase >/dev/null 2>&1; then
