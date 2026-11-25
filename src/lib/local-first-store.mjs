@@ -137,15 +137,34 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false) 
 }
 
 async function deleteRecord(storeName, id, workspaceId) {
-  const current = await getRecord(storeName, id);
-  if (!current) return false;
-  if (current.workspace_id !== workspaceId) throw new Error("WORKSPACE_MISMATCH");
+  if (!id || !workspaceId) throw new Error("LOCAL_RECORD_ID_REQUIRED");
   const db = await openDb();
   const tx = db.transaction(storeName, "readwrite");
-  tx.objectStore(storeName).delete(id);
-  await transactionDone(tx);
+  const store = tx.objectStore(storeName);
+  let mismatch = false;
+  let found = false;
+  const request = store.get(id);
+  request.onsuccess = () => {
+    const current = request.result;
+    if (!current) return;
+    found = true;
+    if (current.workspace_id !== workspaceId) {
+      mismatch = true;
+      tx.abort();
+      return;
+    }
+    store.delete(id);
+  };
+  request.onerror = () => tx.abort();
+  try {
+    await transactionDone(tx);
+  } catch (error) {
+    db.close();
+    if (mismatch) throw new Error("WORKSPACE_MISMATCH");
+    throw error;
+  }
   db.close();
-  return true;
+  return found;
 }
 
 export const localFirstStore = {
