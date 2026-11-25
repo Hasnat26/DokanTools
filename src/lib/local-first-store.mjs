@@ -102,7 +102,7 @@ async function listRecords(storeName, workspaceId) {
   return rows.sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
 }
 
-async function putRecord(storeName, record, workspaceId, invalidatePdf = false) {
+async function putRecord(storeName, record, workspaceId, invalidatePdf = false, requireExisting = false) {
   if (!record?.id || !workspaceId) throw new Error("LOCAL_RECORD_ID_REQUIRED");
   if (record.workspace_id && record.workspace_id !== workspaceId) throw new Error("WORKSPACE_MISMATCH");
   const db = await openDb();
@@ -117,6 +117,11 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false) 
     tx.abort();
     db.close();
     throw new Error("WORKSPACE_MISMATCH");
+  }
+  if (requireExisting && !old) {
+    tx.abort();
+    db.close();
+    throw new Error("LOCAL_RECORD_NOT_FOUND");
   }
   const now = new Date().toISOString();
   const next = {
@@ -174,9 +179,11 @@ export const localFirstStore = {
   deleteInvoice: (id, workspaceId) => deleteRecord("invoices", id, workspaceId),
   listProducts: workspaceId => listRecords("products", workspaceId),
   saveProduct: (product, workspaceId) => putRecord("products", product, workspaceId),
+  updateProduct: (product, workspaceId) => putRecord("products", product, workspaceId, false, true),
   deleteProduct: (id, workspaceId) => deleteRecord("products", id, workspaceId),
   listCustomers: workspaceId => listRecords("customers", workspaceId),
   saveCustomer: (customer, workspaceId) => putRecord("customers", customer, workspaceId),
+  updateCustomer: (customer, workspaceId) => putRecord("customers", customer, workspaceId, false, true),
   deleteCustomer: (id, workspaceId) => deleteRecord("customers", id, workspaceId),
   async exportBackup(workspace) {
     if (!workspace?.id) throw new Error("WORKSPACE_ID_REQUIRED");
