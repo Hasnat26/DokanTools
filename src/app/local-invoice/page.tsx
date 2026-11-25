@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createDraftMemoPdf } from "@/lib/draft-memo-pdf.mjs";
-import { calculateLocalInvoice, formatLocalBDT, invoiceContentFingerprint } from "@/lib/local-first-invoice.mjs";
+import { calculateLocalInvoice, formatLocalBDT, invoiceContentFingerprint, validateLocalUnitPrice } from "@/lib/local-first-invoice.mjs";
 import { localFirstStore, getOrCreateLocalWorkspace, saveLocalWorkspace } from "@/lib/local-first-store.mjs";
 import { backupToDrive, restoreFromDrive, disconnectDrive } from "@/lib/google-drive-backup.mjs";
 import { requestGoogleDriveAccessToken } from "@/lib/google-drive-oauth.mjs";
@@ -32,6 +32,10 @@ export default function LocalInvoicePage() {
   const [productName, setProductName] = useState("");
   const [productUnit, setProductUnit] = useState("pc");
   const [productPrice, setProductPrice] = useState("");
+  const [productEditId, setProductEditId] = useState("");
+  const [customerEditId, setCustomerEditId] = useState("");
+  const [customerFormName, setCustomerFormName] = useState("");
+  const [customerFormPhone, setCustomerFormPhone] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -124,16 +128,6 @@ export default function LocalInvoicePage() {
         pdf_artifact: null,
       };
       await localFirstStore.saveInvoice(invoice, workspace.id);
-      if (customerName.trim() || customerPhone.trim()) {
-        const old = customers.find(customer => customer.phone && customer.phone === customerPhone.trim()) ||
-          customers.find(customer => customer.name.toLowerCase() === customerName.trim().toLowerCase());
-        await localFirstStore.saveCustomer({
-          id: old?.id || crypto.randomUUID(),
-          workspace_id: workspace.id,
-          name: customerName.trim(),
-          phone: customerPhone.trim(),
-        }, workspace.id);
-      }
       setDraftId(invoice.id);
       await reload(workspace);
       invalidatePdf();
@@ -167,20 +161,67 @@ export default function LocalInvoicePage() {
     setStatus("Local draft deleted.");
   }
 
-  async function addProduct() {
-    if (!workspace || !productName.trim() || !productPrice.trim()) return;
-    const product: Product = {
-      id: crypto.randomUUID(),
-      workspace_id: workspace.id,
-      name: productName.trim(),
-      unit: productUnit.trim() || "pc",
-      unitPrice: productPrice.trim(),
-    };
-    await localFirstStore.saveProduct(product, workspace.id);
-    setProductName("");
-    setProductPrice("");
-    await reload(workspace);
-    setStatus("Product saved locally.");
+  async function saveProduct() {
+    if (!workspace || !productName.trim()) return;
+    const priceCheck = validateLocalUnitPrice(productPrice);
+    if (!priceCheck.valid) { setError("Unit price must be greater than zero and use up to 2 decimal places."); return; }
+    setBusy(true); setError("");
+    try {
+      await localFirstStore.saveProduct({
+        id: productEditId || crypto.randomUUID(), workspace_id: workspace.id,
+        name: productName.trim(), unit: productUnit.trim() || "pc", unitPrice: productPrice.trim(),
+      }, workspace.id);
+      setProductEditId(""); setProductName(""); setProductUnit("pc"); setProductPrice("");
+      await reload(workspace); setStatus(productEditId ? "Product updated locally." : "Product created locally.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "PRODUCT_SAVE_FAILED"); }
+    finally { setBusy(false); }
+  }
+
+  function editProduct(product: Product) {
+    setProductEditId(product.id); setProductName(product.name); setProductUnit(product.unit); setProductPrice(product.unitPrice);
+    setError(""); setStatus("Editing Product catalogue record.");
+  }
+
+  async function deleteProduct(id: string) {
+    if (!workspace || !window.confirm("Delete this Product from the local catalogue? Saved drafts will not change.")) return;
+    try { await localFirstStore.deleteProduct(id, workspace.id); if (productEditId === id) { setProductEditId(""); setProductName(""); setProductUnit("pc"); setProductPrice(""); }
+      await reload(workspace); setStatus("Product deleted from catalogue. Saved drafts are unchanged.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "PRODUCT_DELETE_FAILED"); }
+  }
+
+  async function saveCustomer() {
+    if (!workspace || !customerFormName.trim()) { setError("Customer name is required."); return; }
+    const phone = customerFormPhone.trim();
+    const duplicates = customers.filter(c => c.id !== customerEditId &&
+      ((phone && c.phone.trim() === phone) || c.name.trim().toLowerCase() === customerFormName.trim().toLowerCase()));
+    if (!customerEditId && duplicates.length && !window.confirm("A Customer with the same name or phone exists. Create a separate Customer record anyway?")) return;
+    setBusy(true); setError("");
+    try {
+      await localFirstStore.saveCustomer({ id: customerEditId || crypto.randomUUID(), workspace_id: workspace.id,
+        name: customerFormName.trim(), phone }, workspace.id);
+      const savedId = customerEditId;
+      setCustomerEditId(""); setCustomerFormName(""); setCustomerFormPhone("");
+      await reload(workspace); setStatus(savedId ? "Customer updated locally." : "Customer created locally.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "CUSTOMER_SAVE_FAILED"); }
+    finally { setBusy(false); }
+  }
+
+  function editCustomer(customer: {id:string;name:string;phone:string}) {
+    setCustomerEditId(customer.id); setCustomerFormName(customer.name); setCustomerFormPhone(customer.phone);
+    setError(""); setStatus("Editing Customer catalogue record.");
+  }
+
+  async function deleteCustomer(id: string) {
+    if (!workspace || !window.confirm("Delete this Customer from the local catalogue? Saved drafts will not change.")) return;
+    try { await localFirstStore.deleteCustomer(id, workspace.id); if (customerEditId === id) { setCustomerEditId(""); setCustomerFormName(""); setCustomerFormPhone(""); }
+      await reload(workspace); setStatus("Customer deleted from catalogue. Saved drafts are unchanged.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "CUSTOMER_DELETE_FAILED"); }
+  }
+
+  function selectCustomer(id: string) {
+    const customer = customers.find(c => c.id === id);
+    if (!customer) return;
+    setCustomerName(customer.name); setCustomerPhone(customer.phone); invalidatePdf();
   }
 
   function addProductToInvoice(product: Product) {
@@ -381,17 +422,22 @@ export default function LocalInvoicePage() {
     <div className="mt-5 grid gap-5 lg:grid-cols-2">
       <section className="card space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">{draftId ? "Edit local draft" : "New local draft"}</h2><button className="btn-secondary" type="button" onClick={startNew}>New draft</button></div>
-        <label className="text-sm">Customer name<input className="field mt-1" list="local-customers" value={customerName} onChange={e=>{setCustomerName(e.target.value);invalidatePdf();}} /></label>
-        <datalist id="local-customers">{customers.map(c=><option key={c.id} value={c.name}>{c.phone}</option>)}</datalist>
+        <label className="text-sm">Select saved Customer (optional)<select className="field mt-1" value="" onChange={e=>selectCustomer(e.target.value)}><option value="">Choose Customer…</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone ? " · "+c.phone : ""}</option>)}</select></label>
+        <label className="text-sm">Customer name<input className="field mt-1" value={customerName} onChange={e=>{setCustomerName(e.target.value);invalidatePdf();}} /></label>
         <label className="text-sm">Customer phone<input className="field mt-1" value={customerPhone} onChange={e=>{setCustomerPhone(e.target.value);invalidatePdf();}} /></label>
-        <div className="border-t pt-3"><h3 className="font-semibold">Local product catalogue</h3>
+        <div className="border-t pt-3"><h3 className="font-semibold">Product catalogue</h3>
           <div className="mt-2 grid gap-2 sm:grid-cols-4">
-            <input className="field sm:col-span-2" placeholder="Product name" value={productName} onChange={e=>setProductName(e.target.value)} />
-            <input className="field" placeholder="Unit" value={productUnit} onChange={e=>setProductUnit(e.target.value)} />
-            <input className="field" type="number" min="0.01" step="0.01" placeholder="Price" value={productPrice} onChange={e=>setProductPrice(e.target.value)} />
+            <input className="field sm:col-span-2" aria-label="Product name" placeholder="Product name" value={productName} onChange={e=>setProductName(e.target.value)} />
+            <input className="field" aria-label="Product unit" placeholder="Unit" value={productUnit} onChange={e=>setProductUnit(e.target.value)} />
+            <input className="field" aria-label="Product price" type="number" min="0.01" step="0.01" placeholder="Price (BDT)" value={productPrice} onChange={e=>setProductPrice(e.target.value)} />
           </div>
-          <button className="btn-secondary mt-2" type="button" onClick={()=>void addProduct()} disabled={!productName.trim()||!productPrice.trim()}>Add product locally</button>
-          {products.length>0&&<div className="mt-2 flex flex-wrap gap-2">{products.map(p=><button key={p.id} type="button" className="rounded border px-2 py-1 text-sm" onClick={()=>addProductToInvoice(p)}>{p.name} · ৳{p.unitPrice}</button>)}</div>}
+          <div className="mt-2 flex flex-wrap gap-2"><button className="btn-secondary" type="button" onClick={()=>void saveProduct()} disabled={!productName.trim()||!productPrice.trim()||busy}>{productEditId ? "Update Product" : "Create Product"}</button>{productEditId&&<button className="btn-secondary" type="button" onClick={()=>{setProductEditId("");setProductName("");setProductUnit("pc");setProductPrice("");}}>Cancel edit</button>}</div>
+          {products.length>0&&<div className="mt-2 space-y-2">{products.map(p=><div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"><div><strong>{p.name}</strong><p className="text-xs">Unit: {p.unit} · Price: BDT {p.unitPrice}</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={()=>addProductToInvoice(p)}>Add to invoice</button><button className="btn-secondary" type="button" onClick={()=>editProduct(p)}>Edit</button><button className="text-red-600" type="button" onClick={()=>void deleteProduct(p.id)}>Delete</button></div></div>)}</div>}
+        </div>
+        <div className="border-t pt-3"><h3 className="font-semibold">Customer catalogue</h3>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3"><input className="field" aria-label="Customer catalogue name" placeholder="Customer name" value={customerFormName} onChange={e=>setCustomerFormName(e.target.value)} /><input className="field" aria-label="Customer catalogue phone" placeholder="Phone (optional)" value={customerFormPhone} onChange={e=>setCustomerFormPhone(e.target.value)} /><button className="btn-secondary" type="button" onClick={()=>void saveCustomer()} disabled={!customerFormName.trim()||busy}>{customerEditId ? "Update Customer" : "Create Customer"}</button></div>
+          {customerEditId&&<button className="text-sm underline" type="button" onClick={()=>{setCustomerEditId("");setCustomerFormName("");setCustomerFormPhone("");}}>Cancel edit</button>}
+          {customers.length>0&&<div className="mt-2 space-y-2">{customers.map(c=><div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"><div><strong>{c.name}</strong><p className="text-xs">{c.phone || "No phone"}</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={()=>selectCustomer(c.id)}>Use</button><button className="btn-secondary" type="button" onClick={()=>editCustomer(c)}>Edit</button><button className="text-red-600" type="button" onClick={()=>void deleteCustomer(c.id)}>Delete</button></div></div>)}</div>}
         </div>
         <div className="border-t pt-3"><div className="flex items-center justify-between"><h3 className="font-semibold">Invoice lines</h3><button className="btn-secondary" type="button" onClick={()=>{invalidatePdf();setLines(current=>[...current,{...emptyLine}]);}}>+ Line</button></div>
           {lines.map((line,index)=><div key={index} data-testid="local-invoice-line" className="mt-3 rounded-lg border p-3 space-y-2">
