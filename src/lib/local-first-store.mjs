@@ -116,36 +116,45 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false, 
   const db = await openDb();
   const tx = db.transaction(storeName, "readwrite");
   const store = tx.objectStore(storeName);
-  const old = await new Promise((resolve, reject) => {
-    const request = store.get(record.id);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error || new Error("LOCAL_RECORD_READ_FAILED"));
-  });
-  if (old) {
-    try { assertLocalWorkspaceOwnership(old, workspaceId); }
-    catch (error) { tx.abort(); db.close(); throw error; }
+  try {
+    const old = await new Promise((resolve, reject) => {
+      const request = store.get(record.id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("LOCAL_RECORD_READ_FAILED"));
+    });
+    let ownershipError = null;
+    if (old) {
+      try { assertLocalWorkspaceOwnership(old, workspaceId); }
+      catch (error) { ownershipError = error; }
+    } else if (requireExisting) {
+      ownershipError = new Error("LOCAL_RECORD_NOT_FOUND");
+    }
+    if (ownershipError) {
+      await transactionDone(tx);
+      throw ownershipError;
+    }
+    const now = new Date().toISOString();
+    const next = {
+      ...old,
+      ...record,
+      workspace_id: workspaceId,
+      created_at: old?.created_at || record.created_at || now,
+      updated_at: now,
+      ...(storeName === "invoices" ? {
+        revision: old ? Number(old.revision || 0) + 1 : Number(record.revision || 1),
+        pdf_artifact: invalidatePdf ? null : record.pdf_artifact ?? old?.pdf_artifact ?? null,
+      } : {}),
+    };
+    store.put(next);
+    await transactionDone(tx);
+    return next;
+  } catch (error) {
+    try { if (tx.readyState !== "done") tx.abort(); } catch {}
+    throw error;
+  } finally {
+    db.close();
   }
-  if (requireExisting && !old) {
-    tx.abort(); db.close(); throw new Error("LOCAL_RECORD_NOT_FOUND");
-  }
-  const now = new Date().toISOString();
-  const next = {
-    ...old,
-    ...record,
-    workspace_id: workspaceId,
-    created_at: old?.created_at || record.created_at || now,
-    updated_at: now,
-    ...(storeName === "invoices" ? {
-      revision: old ? Number(old.revision || 0) + 1 : Number(record.revision || 1),
-      pdf_artifact: invalidatePdf ? null : record.pdf_artifact ?? old?.pdf_artifact ?? null,
-    } : {}),
-  };
-  store.put(next);
-  await transactionDone(tx);
-  db.close();
-  return next;
 }
-
 async function deleteRecord(storeName, id, workspaceId) {
   if (!id || !workspaceId) throw new Error("LOCAL_RECORD_ID_REQUIRED");
   const db = await openDb();
@@ -161,7 +170,6 @@ async function deleteRecord(storeName, id, workspaceId) {
     try { assertLocalWorkspaceOwnership(current, workspaceId); }
     catch (error) {
       mismatch = error instanceof Error && error.message === "WORKSPACE_MISMATCH";
-      tx.abort();
       return;
     }
     store.delete(id);
@@ -169,15 +177,12 @@ async function deleteRecord(storeName, id, workspaceId) {
   request.onerror = () => tx.abort();
   try {
     await transactionDone(tx);
-  } catch (error) {
-    db.close();
     if (mismatch) throw new Error("WORKSPACE_MISMATCH");
-    throw error;
+    return found;
+  } finally {
+    db.close();
   }
-  db.close();
-  return found;
 }
-
 export const localFirstStore = {
   getInvoice: id => getRecord("invoices", id),
   listInvoices: workspaceId => listRecords("invoices", workspaceId),
