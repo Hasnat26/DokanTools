@@ -15,7 +15,7 @@ export default function Home() {
         <div><span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-brand-700 shadow-sm">বাংলাদেশের ছোট দোকানের জন্য</span>
           <h1 className="mt-5 text-4xl font-black leading-tight md:text-5xl">দোকানের হিসাব এখন <span className="text-brand-700">এক জায়গায়</span></h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">বাকি খাতা, মেমো, স্টক অ্যালার্ট ও দোকানের QR পেজ—মোবাইল থেকেই সহজে ব্যবহার করুন।</p>
-          <div className="mt-7 flex flex-wrap gap-3"><Link className="btn-primary" href="/signup">ফ্রি শুরু করুন</Link><Link className="btn-secondary" href="/#features">ফিচার দেখুন</Link></div>
+          <div className="mt-7 flex flex-wrap gap-3"><Link className="btn-primary" href="/signup">ফ্রি শুরু করুন</Link><Link className="btn-secondary" href="/#features">ফিচার দেখুন</Link><Link className="btn-secondary" href="/local-invoice/">Local Invoice · Offline-ready</Link></div>
           <p className="mt-4 text-sm text-slate-500">স্বল্প খরচে শুরু · পাইলট সংস্করণ · মূল্য ও ব্যবহারসীমা যাচাইাধীন</p>
         </div>
         <div className="card"><div className="flex items-center justify-between"><div><p className="muted">আজকের দোকান</p><h2 className="text-2xl font-bold">আমার দোকান</h2></div><div className="rounded-xl bg-brand-50 p-3 text-3xl">▦</div></div>

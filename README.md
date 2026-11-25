@@ -6,6 +6,19 @@ DokanTools is a mobile-first shop-management application for small businesses in
 
 See the [V1 release readiness tracker](./docs/V1-RELEASE-READINESS-TRACKER.md) and [release runbook](./docs/V1-RELEASE-READINESS-RUNBOOK.md) for the current gate status.
 
+## PO-approved browser-first local invoice workspace
+
+The approved migration is tracked in [Draft PR #55](https://github.com/Hasnat26/DokanTools/pull/55). Open `/local-invoice/` for the standalone browser-only invoice workspace.
+
+- Invoice calculation, IndexedDB draft persistence, A6 PDF generation, download and device sharing run in the browser.
+- The local invoice path does not require Supabase Auth, PostgreSQL or an invoice API.
+- Google Drive backup/restore is manual and uses the customer's OAuth authorization with the Drive appDataFolder scope. Configure `NEXT_PUBLIC_GOOGLE_CLIENT_ID` with a public OAuth Web client ID only; never add a client secret.
+- Next.js is configured for static export to `out/`; Cloudflare Pages build output is `out`.
+- The local invoice workflow is draft-only. Invoice issuance remains OFF.
+- Legacy shop administration, catalogue, stock, memo, baki and public-shop features still use Supabase and are not yet local-first.
+
+See [architecture audit](./docs/ARCHITECTURE-AUDIT-BROWSER-FIRST-LOCAL-FIRST.md), [architecture diagram](./docs/ARCHITECTURE-BROWSER-FIRST-LOCAL-FIRST.md), [Cloudflare Pages setup](./docs/CLOUDFLARE-PAGES-STATIC-DEPLOYMENT.md), and [Google Drive backup setup](./docs/GOOGLE-DRIVE-BACKUP-SETUP.md).
+
 ## Verified V1 scope
 
 - Authenticated Shop Profile create/edit, logo lifecycle and reload persistence.

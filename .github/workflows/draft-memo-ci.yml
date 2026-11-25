@@ -8,6 +8,9 @@ on:
       - delivery/dokantools-v1-2026-11-19
 permissions:
   contents: read
+concurrency:
+  group: dokantools-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   application:
     name: Application build and startup
@@ -31,20 +34,23 @@ jobs:
         run: npm run typecheck
       - name: Production build
         run: npm run build
-      - name: Start production server and smoke-test homepage
+      - name: Serve static export and smoke-test PWA routes
         run: |
-          npm run start -- --hostname 127.0.0.1 > /tmp/dokantools-next.log 2>&1 &
+          python3 -m http.server 3000 --directory out > /tmp/dokantools-static.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:3000/ -o /tmp/dokantools-home.html; then
               grep -q 'দোকানের হিসাব এখন' /tmp/dokantools-home.html
+              curl --fail --silent --show-error http://127.0.0.1:3000/local-invoice/ -o /tmp/dokantools-local-invoice.html
+              curl --fail --silent --show-error http://127.0.0.1:3000/manifest.webmanifest -o /tmp/dokantools-manifest.json
+              npm run verify:preview -- http://127.0.0.1:3000
               node scripts/verify-invoice-issue-disabled.mjs http://127.0.0.1:3000
               exit 0
             fi
             sleep 2
           done
-          cat /tmp/dokantools-next.log
+          cat /tmp/dokantools-static.log
           exit 1
   tests:
     name: Unit tests (including A6 PDF assertions)
@@ -156,7 +162,7 @@ jobs:
   browser-e2e:
     name: Chromium authenticated V1 workflow and fresh A6 PDF
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -167,17 +173,45 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Ensure PostgreSQL, PDF and QR tools are available
+      - name: Ensure PostgreSQL, PDF and QR tools are available (retry-safe apt)
         shell: bash
         run: |
+          set -euo pipefail
           missing=()
           command -v psql >/dev/null 2>&1 || missing+=(postgresql-client)
           command -v pdfinfo >/dev/null 2>&1 || missing+=(poppler-utils)
           command -v zbarimg >/dev/null 2>&1 || missing+=(zbar-tools)
+
           if (("${#missing[@]}" > 0)); then
-            sudo timeout 240s apt-get update -o Acquire::Retries=3
-            sudo timeout 180s apt-get install -y "${missing[@]}"
+            echo "Required packages: ${missing[*]}"
+            # Ubuntu runner mirrors were slow/intermittent in Run #244.
+            sudo timeout 300s apt-get update \
+              -o Acquire::Retries=5 \
+              -o Acquire::http::Timeout=45 \
+              -o Acquire::https::Timeout=45
+
+            installed=0
+            for attempt in 1 2 3; do
+              echo "apt install attempt ${attempt}/3"
+              if sudo timeout 900s apt-get install -y --no-install-recommends \
+                -o Acquire::Retries=5 \
+                -o Acquire::http::Timeout=45 \
+                -o Acquire::https::Timeout=45 \
+                "${missing[@]}"; then
+                installed=1
+                break
+              fi
+              if (( attempt < 3 )); then
+                echo "Package install attempt ${attempt} failed; retrying after partial package recovery."
+                sleep $((attempt * 20))
+              fi
+            done
+            test "$installed" -eq 1
           fi
+
+          command -v psql
+          command -v pdfinfo
+          command -v zbarimg
           psql --version
           pdfinfo -v
           zbarimg --version
@@ -188,6 +222,7 @@ jobs:
           "$RUNNER_TEMP/pdf-tools/bin/pip" install --disable-pip-version-check pypdf==5.9.0
           echo "$RUNNER_TEMP/pdf-tools/bin" >> "$GITHUB_PATH"
       - name: Install pinned Supabase CLI
+        id: supabase_cli
         uses: supabase/setup-cli@v1
         with:
           version: 3.1.0
@@ -268,16 +303,19 @@ jobs:
           unset password payload
       - name: Build production application against local Supabase
         run: npm run build
-      - name: Start production application
+      - name: Serve static export for browser acceptance
         shell: bash
         run: |
-          npm run start -- --hostname 127.0.0.1 > "$RUNNER_TEMP/next.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/next.pid"
+          python3 -m http.server 3000 --directory out > "$RUNNER_TEMP/static.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/static.pid"
           for attempt in $(seq 1 60); do
-            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then
+              curl --fail --silent http://127.0.0.1:3000/local-invoice/ >/dev/null
+              exit 0
+            fi
             sleep 2
           done
-          cat "$RUNNER_TEMP/next.log"
+          cat "$RUNNER_TEMP/static.log"
           exit 1
       - name: Install pinned Playwright Chromium
         run: |
@@ -317,6 +355,16 @@ jobs:
             artifacts/commit-identity.json
             test-results/
           if-no-files-found: warn
-      - name: Stop disposable local Supabase
-        if: always()
-        run: supabase --workdir qa/supabase-runner stop --no-backup
+      - name: Stop disposable local Supabase (failure-safe cleanup)
+        if: always() && steps.supabase_cli.outcome == 'success'
+        shell: bash
+        run: |
+          if ! command -v supabase >/dev/null 2>&1; then
+            echo "Supabase CLI was not installed; cleanup skipped because no CLI-managed stack could have started."
+            exit 0
+          fi
+          if supabase --workdir qa/supabase-runner stop --no-backup; then
+            echo "Disposable Supabase stack stopped."
+          else
+            echo "::warning::Supabase cleanup did not complete; preserving the primary job failure."
+          fi

@@ -85,6 +85,177 @@ if (!baseURL || !email || !password || !email2 || !password2 || !supabaseUrl || 
   throw new Error(
     "CH4_CONFIGURATION_ERROR: both synthetic Auth identities, Supabase URL/key and QA URL are mandatory.",
   );
+
+test("local invoice workspace persists and calculates offline without Supabase", async ({ page }) => {
+  test.setTimeout(60000);
+  const forbiddenRequests = [];
+  page.on("request", request => {
+    const url = request.url();
+    if (url.includes("/api/invoices") || url.includes("supabase.co") || url.includes(":54321")) forbiddenRequests.push(url);
+  });
+  await page.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  await page.getByLabel("Shop name").fill("Local-Only QA Shop");
+  await page.getByLabel("Address").fill("Local address");
+  await page.getByRole("textbox", { name: "Phone", exact: true }).fill("01700000000");
+  await page.getByRole("button", { name: "Save shop profile locally" }).click();
+  await page.getByLabel("Customer name").fill("Local QA Customer");
+  await page.getByLabel("Customer phone").fill("01800000000");
+  await page.getByLabel("Item").fill("Offline QA Product");
+  await page.getByTestId("local-invoice-line").first().getByLabel("Unit", { exact: true }).fill("pcs");
+  await page.getByLabel("Quantity").fill("2");
+  await page.getByLabel("Unit price (BDT)").fill("15.50");
+  await expect(page.getByText("Total", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("BDT 31.00", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save draft locally" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved locally in IndexedDB");
+  await page.reload();
+  await expect(page.getByText("Local QA Customer", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await expect(page.getByLabel("Item")).toHaveValue("Offline QA Product");
+  await expect(page.getByLabel("Quantity")).toHaveValue("2");
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("A6 PDF generated in this browser");
+  const pdfDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const pdf = await pdfDownload;
+  const path = await pdf.path();
+  expect(path).toBeTruthy();
+  const bytes = await readFile(path);
+  expect(bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+
+  // Wait until the PWA service worker controls the page, then reload offline.
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.reload();
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), { timeout: 10000 });
+  await page.reload();
+  const cachedShellAndAssets = await page.evaluate(async () => {
+    const cache = await caches.open("dokantools-shell-v1");
+    const shell = await cache.match("/local-invoice/");
+    const staticAssets = (await cache.keys()).filter(request =>
+      new URL(request.url).pathname.startsWith("/_next/static/")
+    );
+    return { shellCached: Boolean(shell), staticAssetCount: staticAssets.length };
+  });
+  expect(cachedShellAndAssets.shellCached).toBe(true);
+  expect(cachedShellAndAssets.staticAssetCount).toBeGreaterThan(0);
+  await page.context().setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  // A reload opens a fresh editor; explicitly reopen the IndexedDB draft from the saved-drafts list while offline.
+  await expect(page.getByText("Local QA Customer", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await expect(page.getByRole("status")).toContainText("Draft loaded from IndexedDB");
+  await expect(page.getByLabel("Item")).toHaveValue("Offline QA Product");
+  await page.getByLabel("Quantity").fill("3");
+  await expect(page.getByText("BDT 46.50", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("A6 PDF generated in this browser");
+  const offlineDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const offlinePdf = await offlineDownload;
+  expect((await readFile(await offlinePdf.path())).subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  await page.context().setOffline(false);
+  expect(forbiddenRequests).toEqual([]);
+
+  // A separate browser context has a separate IndexedDB namespace/workspace.
+  const browser = page.context().browser();
+  const isolatedContext = await browser.newContext();
+  const isolatedPage = await isolatedContext.newPage();
+  await isolatedPage.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(isolatedPage.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  await expect(isolatedPage.getByText("No local drafts yet.", { exact: true })).toBeVisible();
+  await isolatedContext.close();
+});
+
+test("local Product and Customer CRUD persists and protects saved invoice snapshots", async ({ browser }) => {
+  test.setTimeout(90000);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+
+  // Create synthetic catalogue records only.
+  await page.getByLabel("Product name").fill("QA CRUD Product Original");
+  await page.getByLabel("Product unit").fill("box");
+  await page.getByLabel("Product price").fill("0");
+  await page.getByRole("button", { name: "Create Product" }).click();
+  await expect(page.getByRole("alert")).toContainText("Unit price must be greater than zero");
+  await expect(page.getByText("QA CRUD Product Original", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Product price").fill("25.50");
+  await page.getByRole("button", { name: "Create Product" }).click();
+  await expect(page.getByText("QA CRUD Product Original", { exact: true })).toBeVisible();
+
+  await page.getByLabel("Customer catalogue name").fill("QA CRUD Customer Original");
+  await page.getByLabel("Customer catalogue phone").fill("01000000071");
+  await page.getByRole("button", { name: "Create Customer" }).click();
+  await expect(page.getByText("QA CRUD Customer Original", { exact: true })).toBeVisible();
+
+  // Duplicate phone is warned about, but an explicit confirmation creates a separate stable-ID record.
+  await page.getByLabel("Customer catalogue name").fill("QA CRUD Customer Duplicate");
+  await page.getByLabel("Customer catalogue phone").fill("01000000071");
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Create Customer" }).click();
+  await expect(page.getByText("QA CRUD Customer Duplicate", { exact: true })).toBeVisible();
+
+  const customerRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Customer Original" }).first();
+  await customerRow.getByRole("button", { name: "Use" }).click();
+  const productRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Product Original" }).first();
+  await productRow.getByRole("button", { name: "Add to invoice" }).click();
+  await page.getByRole("button", { name: "Save draft locally" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved locally in IndexedDB");
+
+  // Edit catalogue records; the saved invoice must retain the original copied values.
+  await productRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Product name").fill("QA CRUD Product Updated");
+  await page.getByLabel("Product unit").fill("pack");
+  await page.getByLabel("Product price").fill("99.00");
+  await page.getByRole("button", { name: "Update Product" }).click();
+
+  const customerUpdatedRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Customer Original" }).first();
+  await customerUpdatedRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Customer catalogue name").fill("QA CRUD Customer Updated");
+  await page.getByLabel("Customer catalogue phone").fill("01000000072");
+  await page.getByRole("button", { name: "Update Customer" }).click();
+
+  const draftsSection = page.getByRole("heading", { name: /Saved drafts/ }).locator("xpath=..");
+  await draftsSection.getByRole("button", { name: "Edit" }).first().click();
+  await expect(page.getByLabel("Customer name")).toHaveValue("QA CRUD Customer Original");
+  await expect(page.getByLabel("Customer phone")).toHaveValue("01000000071");
+  await expect(page.getByLabel("Item")).toHaveValue("QA CRUD Product Original");
+  await expect(page.getByLabel("Unit", { exact: true }).first()).toHaveValue("box");
+  await expect(page.getByLabel("Unit price (BDT)")).toHaveValue("25.50");
+  await expect(page.getByLabel("Quantity")).toHaveValue("1");
+  await expect(page.getByText("BDT 25.50", { exact: true })).toBeVisible();
+
+  // Delete catalogue records; draft snapshots must still be recoverable.
+  const updatedProductRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Product Updated" }).first();
+  page.once("dialog", dialog => dialog.accept());
+  await updatedProductRow.getByRole("button", { name: "Delete" }).click();
+  const updatedCustomerRow2 = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Customer Updated" }).first();
+  page.once("dialog", dialog => dialog.accept());
+  await updatedCustomerRow2.getByRole("button", { name: "Delete" }).click();
+
+  await draftsSection.getByRole("button", { name: "Edit" }).first().click();
+  await expect(page.getByLabel("Customer name")).toHaveValue("QA CRUD Customer Original");
+  await expect(page.getByLabel("Customer phone")).toHaveValue("01000000071");
+  await expect(page.getByLabel("Item")).toHaveValue("QA CRUD Product Original");
+  await expect(page.getByLabel("Unit", { exact: true }).first()).toHaveValue("box");
+  await expect(page.getByLabel("Unit price (BDT)")).toHaveValue("25.50");
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("A6 PDF generated in this browser");
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const download = await downloadEvent;
+  const pdfPath = await download.path();
+  expect(pdfPath).toBeTruthy();
+  const pdfText = execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" });
+  expect(pdfText).toContain("QA CRUD Product Original");
+  expect(pdfText).toContain("QA CRUD Customer Original");
+  expect(pdfText).toContain("25.50");
+  await context.close();
+});
+
 test("authenticated configurable multi-product bill, IndexedDB lifecycle and fresh A6 PDF", async ({
   page,
 }) => {
@@ -141,7 +312,7 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
       await page.getByRole("button", { name: "দোকান তৈরি করুন" }).click();
       await expect(page.getByRole("heading", { name: shopName })).toBeVisible();
       shopPublicPath = await page
-        .locator('a[href^="/shop/"]')
+        .locator('a[href^="/shop/?shopId="]')
         .first()
         .getAttribute("href");
       await page.getByRole("button", { name: "তথ্য সম্পাদনা" }).click();
@@ -785,4 +956,37 @@ test("authenticated configurable multi-product bill, IndexedDB lifecycle and fre
     });
     throw error;
   }
+});
+
+
+test("local A6 PDF is regenerated after edits and device file sharing is invoked", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "canShare", {
+      configurable: true,
+      value: payload => Boolean(payload?.files?.length && payload.files[0].type === "application/pdf"),
+    });
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async payload => {
+        if (!payload?.files?.[0]?.name?.endsWith(".pdf")) throw new Error("Expected PDF file");
+        window.__dokantoolsSharedFileName = payload.files[0].name;
+      },
+    });
+  });
+  await page.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+  await page.getByLabel("Customer name").fill("Share QA Customer");
+  await page.getByLabel("Item").fill("Share QA Item");
+  await page.getByTestId("local-invoice-line").first().getByLabel("Unit", { exact: true }).fill("pc");
+  await page.getByLabel("Quantity").fill("1");
+  await page.getByLabel("Unit price (BDT)").fill("20");
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("button", { name: "Share PDF" })).toBeEnabled();
+  await page.getByRole("button", { name: "Share PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("Device share sheet opened");
+  expect(await page.evaluate(() => window.__dokantoolsSharedFileName)).toMatch(/\.pdf$/);
+  await page.getByLabel("Quantity").fill("2");
+  await expect(page.getByRole("button", { name: "Share PDF" })).toBeDisabled();
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("button", { name: "Share PDF" })).toBeEnabled();
 });

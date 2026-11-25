@@ -22,6 +22,7 @@ export default function Header() {
       <Link href="/" className="text-xl font-extrabold text-brand-700">DokanTools</Link>
       <nav className="flex items-center gap-3 text-sm">
         <Link href="/#features" className="hidden sm:inline hover:text-brand-700">ফিচার</Link>
+        <Link href="/local-invoice/" className="hidden sm:inline font-semibold text-brand-700">Local Invoice</Link>
         {email ? <><Link href="/dashboard" className="font-semibold">ড্যাশবোর্ড</Link><button onClick={logout} className="btn-secondary">লগআউট</button></> : <><Link href="/login" className="hover:text-brand-700">লগইন</Link><Link href="/signup" className="btn-primary">ফ্রি শুরু করুন</Link></>}
       </nav>
     </div>

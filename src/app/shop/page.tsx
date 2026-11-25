@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { money, normalizeBdPhone, todayIso } from "@/lib/utils";
 import { validateGoogleMapsUrl } from "@/lib/shop-branding.mjs";
@@ -10,9 +9,9 @@ type PublicProfile={id:string;shop_name:string;owner_name:string|null;phone:stri
 type PublicProduct={id:string;shop_id:string;name:string;unit:string;price:number;in_stock:boolean};
 type PublicOffer={id:string;shop_id:string;title:string;details:string|null;valid_until:string|null;created_at:string};
 export default function PublicShop(){
- const params=useParams<{shopId:string}>();const shopId=params.shopId;
+ const [shopId,setShopId]=useState("");
  const [shop,setShop]=useState<PublicProfile|null>(null);const [products,setProducts]=useState<PublicProduct[]>([]);const [offers,setOffers]=useState<PublicOffer[]>([]);const [loading,setLoading]=useState(true);
- useEffect(()=>{let alive=true;async function load(){
+ useEffect(()=>{let alive=true;const requestedShopId=new URLSearchParams(window.location.search).get("shopId")||"";setShopId(requestedShopId);if(!requestedShopId){setLoading(false);return;}async function load(){
   const [s,p,o]=await Promise.all([
    supabase.from("public_shop_profiles").select("id,shop_name,owner_name,phone,address,map_link,logo_url,created_at").eq("id",shopId).maybeSingle(),
    supabase.from("public_shop_products").select("id,shop_id,name,unit,price,in_stock").eq("shop_id",shopId).order("name"),

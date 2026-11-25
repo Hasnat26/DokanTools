@@ -1,0 +1,12 @@
+{
+  "name": "DokanTools Local Invoice Workspace",
+  "short_name": "DokanTools",
+  "description": "Browser-first local invoice drafts and A6 PDF generation.",
+  "start_url": "/local-invoice/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#176b52",
+  "lang": "bn",
+  "icons": [{ "src": "/icon.svg", "sizes": "192x192 512x512", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

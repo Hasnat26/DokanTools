@@ -1,0 +1,336 @@
+# Browser-first / local-first migration — execution status
+
+**PO approval:** 2026-11-24  
+**Branch:** feature/browser-first-local-first-pwa-2026-11-24  
+**Baseline:** 357a69690d43f640b2850f900bb871c79e8eda0a
+
+## Implemented in this migration branch
+
+- Added dependency audit and identified Node/dynamic invoice API routes and dynamic public-shop route as static-export blockers.
+- Added a separate local invoice workspace route that does not import Supabase or call invoice API endpoints.
+- Added browser-side integer-minor-unit invoice calculation; total-only fields are retained.
+- Added IndexedDB workspace, invoice, product and customer storage with workspace-bound record operations.
+- Added local JSON backup/export and merge restore.
+- Added Google Drive appDataFolder backup/restore client, bounded retry/backoff, OAuth token acquisition and explicit disconnect.
+- Added local A6 PDF generation/download and browser Web Share API path.
+- Added PWA manifest, service-worker shell caching and static export configuration.
+- Removed the Supabase invoice API route handlers from the migration branch; no static invoice issuance endpoint remains.
+- Converted public shop profile routing to /shop?shopId=... for static hosting.
+- Kept invoice issuance explicitly disabled through a fail-closed client guard and draft-only UI.
+
+## Validation status
+
+This branch has not yet completed its own CI run at the time of this status file. Do not infer acceptance from the previous delivery branch's Run #210.
+
+## Remaining migration work
+
+- Validate static export build and repair any Next.js static compatibility failures.
+- Add automated IndexedDB transaction/recovery tests and browser workflow tests.
+- Complete UI integration tests for local save/reopen, stale PDF invalidation, offline calculation and Drive backup/restore.
+- Verify OAuth with an authorized Google Cloud Web client and Cloudflare preview origin.
+- Verify the actual Cloudflare Pages preview deployment; no deployment has been performed.
+- Review legacy Supabase-backed dashboard features. They remain cloud-dependent and are outside the standalone local invoice route's current implementation.
+- Update final architecture diagram, exact-head CI evidence and release tracker after tests.
+- Keep invoice issuance OFF and do not merge to main or promote production without separate PO approval.
+
+## Required environment configuration
+
+- NEXT_PUBLIC_GOOGLE_CLIENT_ID: optional public OAuth Web client ID for Drive backup. Never set a client secret.
+- Existing Supabase public URL/anon key: still needed by legacy cloud-backed dashboard features; not required by /local-invoice/.
+
+## PO directive execution update — 2026-11-24
+
+### Exact-head CI history
+- Run #228 (`45328575927`) was superseded/cancelled by PR concurrency after branch updates. Four completed jobs passed; Chromium job did not finish. It is not final acceptance.
+- Run #230 (`45329181519`) targeted code candidate `1b6dcccf95452ad1203b1b0510fc4fb269b30305`. PostgreSQL category integrity passed; remaining jobs were in progress at the time of this tracker update.
+- Drive restore, quota/rate-limit retry and service-unavailable tests were added in commit `655f6044bf8e6b421ca806842f3574ea4ecd58df`.
+- Browser test coverage for local PDF invalidation/regeneration and device share invocation was added in commit `1b6dcccf95452ad1203b1b0510fc4fb269b30305`.
+- Legacy migration sequence was documented in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md` (commit `407fedef24a7e12b83269b4aa85d9e9801230931`).
+- This tracker revision must itself pass exact-head CI before the migration code stage is accepted. Record the final run and validated HEAD in the PR discussion after the run completes.
+
+### Local invoice browser coverage added
+The Chromium test suite now covers local calculation, IndexedDB save/reload/edit/reopen, local A6 PDF generation/download, offline reload/calculation/PDF, request monitoring for Supabase and invoice API calls, and PDF invalidation/regeneration plus device-share invocation. The test has not yet been accepted until the exact current-head Chromium job passes.
+
+### Cloudflare Pages preview — blocked on account/project authorization
+Required:
+1. A Cloudflare account and Pages project connected to the DokanTools Git repository, or authorized deployment access for the project.
+2. Project name/account context and a non-production preview branch/deployment.
+3. For CLI/GitHub Actions deployment only: account ID and a Pages-scoped API token stored as GitHub Actions secrets, never committed or pasted into chat.
+4. Build command `npm ci && npm run build`, output directory `out`, Node 20+; preview must use the migration branch.
+5. Record the actual preview URL and deployed commit SHA, then validate offline reload, IndexedDB and PDF from that hosted origin.
+
+No Cloudflare account/project connection or deployment tool is available in this execution. No preview deployment has occurred.
+
+### Google Drive acceptance — blocked on OAuth configuration and hosted origin
+- Required configuration: public Google OAuth Web client ID in `NEXT_PUBLIC_GOOGLE_CLIENT_ID`; it is an identifier, not a client secret.
+- Add the exact authorized Cloudflare preview origin to Google OAuth JavaScript origins.
+- Live acceptance must cover OAuth consent/token flow, backup, restore/merge, expired/revoked authorization, Drive unavailable, quota/rate-limit and token non-persistence.
+- Automated client tests now cover latest backup restore, 401 expired-token classification, quota/rate-limit retry and service-unavailable classification.
+- Live account acceptance remains NOT RUN because no client ID or preview origin is configured. Never place a client secret in the browser.
+
+### Remaining scope / acceptance boundary
+- Supabase remains required for legacy Auth/dashboard, cloud shop administration, catalogue/customer data, stock, memo, baki and public storefront data.
+- Standalone `/local-invoice/` is the only route currently claimed local-first. Static query-string shop routing does not independently publish customer-owned IndexedDB data.
+- Controlled migration stages M1–M5 are documented in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md`.
+- Invoice issuance OFF. PR #55 remains Draft. No merge, production deploy, paid infrastructure, production data migration or issuance activation.
+## Run #232 Chromium failure investigation and correction
+
+### Evidence reviewed
+- Run #232 (`45329416066`) exact checkout: `f2af032c1af654bd20f525edad0533b4695a1b6a`.
+- Chromium artifact `dokantools-v1-chromium-a6-45329416066` (artifact ID `14891826593`): Playwright error-context snapshots, failure screenshots, retained videos and trace ZIPs were inspected.
+- Offline test screenshot/context showed `/local-invoice/` rendered normally and the test was still filling shop-profile fields. Trace recorded strict-mode failure on `getByLabel("Phone")` before service-worker/offline assertions began. Therefore Run #232 did not establish an offline runtime defect.
+- Shop Profile screenshot/context showed the rendered dashboard public-shop link was present at `/shop/?shopId=<uuid>`. The test locator expected `/shop?shopId=` and timed out; the static route's trailing slash was the mismatch.
+- PDF/share trace recorded strict-mode failure on `getByLabel("Unit")`, which matched both the Unit textbox and Unit price input before PDF generation/share began.
+
+### Corrections
+- Commit `111e675cd893ad2762d0b5b83f31009ee746a572`: exact role/name locator for shop Phone; exact Unit textbox locators; public shop link selector updated to `/shop/?shopId=`.
+- Offline assertions were not removed or skipped: the test still waits for service-worker readiness/control, reloads offline, verifies persisted draft and calculation, regenerates A6 PDF and verifies downloaded PDF signature, then checks browser-context isolation and forbidden network calls.
+- Public profile/QR behavior remains asserted by comparing decoded QR payload with the actual rendered public-shop href.
+- PDF/share test still must generate a fresh PDF, invoke Web Share with a PDF File, verify PDF invalidation after editing, and regenerate.
+
+### Exact-head CI
+- Run #233 (`45331330320`) was launched against correction commit `111e675cd893ad2762d0b5b83f31009ee746a572`. At tracker update time: application build, A6 artifact verification and PostgreSQL tenant-integrity jobs passed; unit tests and Chromium were still in progress. Do not treat 3/5 as final acceptance.
+- If this tracker update advances the branch, the next run must be used for final exact-head evidence; prior-run results are diagnostic only.
+
+### Cloudflare authorization status
+- No Cloudflare dashboard session/account/project authorization or Cloudflare deployment connector is available in this execution. Existing browser tabs were checked; no Cloudflare dashboard was open.
+- Required action: Cloudflare account owner/authorized project maintainer connects the GitHub Pages integration to `Hasnat26/DokanTools` and enables a preview deployment for `feature/browser-first-local-first-pwa-2026-11-24`. Keep production branch unchanged.
+- Project settings: build command `npm ci && npm run build`; output directory `out`; Node 20+; preview branch control includes the migration branch. Do not use this branch as production.
+- Git integration automatically creates/updates PR preview URLs for repository-origin PRs; official guide: https://developers.cloudflare.com/pages/configuration/git-integration/github-integration/ . Build settings: https://developers.cloudflare.com/pages/configuration/build-configuration/ .
+- Deployment remains NOT PERFORMED until the account/project authorization is available. No paid resource or production deployment is authorized.
+
+### Current release gate
+- Local invoice route remains draft-only; invoice issuance OFF.
+- Legacy Supabase-dependent modules remain listed in `docs/LEGACY-SUPABASE-MIGRATION-SEQUENCE.md`; whole-app local-first is not claimed.
+- PR #55 remains Draft and unmerged. Hosted offline/IndexedDB/PDF validation and live Google Drive acceptance require the authorized preview origin; Drive is optional and not a prerequisite for local invoice use.
+
+## Run #236 failure analysis and final Chromium corrections — 2026-11-24
+
+### Complete artifact review
+- Run #236: https://github.com/Hasnat26/DokanTools/actions/runs/45332050415
+- Exact checkout SHA: `f3b2585fb65bda2c0e21e5dad65ef9ab07178edb`.
+- Artifact: `dokantools-v1-chromium-a6-45332050415`, ID `14892223297`. The Chromium job log and all three Playwright error-context snapshots, screenshots, videos and trace ZIPs were reviewed.
+- Result: 4/5 CI jobs passed; Chromium failed. Unit tests, PostgreSQL tenant-integrity, application build/startup and A6 artifact verification passed. The Chromium job failed before the fresh application-generated PDF verification steps, which were skipped.
+
+### Confirmed causes (not service-worker failure)
+1. Offline test failed at the Unit input locator: strict mode matched the local catalogue Unit field and invoice-line Unit field. The test had not yet reached service-worker readiness, cache inspection, offline reload or offline calculations. Run #236 therefore provides no evidence of a service-worker defect.
+2. Authenticated shop-profile test decoded QR destination `/shop/<id>`, while dashboard link was `/shop/?shopId=<id>`. Static public-shop page reads `shopId` from the query string. This was an application route-generation mismatch; the QR destination was corrected to the supported static query route.
+3. PDF/share test failed at the same ambiguous Unit selector before generating or sharing a PDF.
+
+### Corrections committed to PR branch
+- `9cd2c13c7418ba3b82d28cc98e7e5e377212b22e`: scope offline test Unit locator to the invoice-line container.
+- `84375182411d32586f853f8fff9e3d4a1edc78f8`: add stable `data-testid="local-invoice-line"` to local invoice line markup.
+- `7498168d58ccee07e56593fca015cef9fd905568`: align public-shop QR destination with `/shop/?shopId=<id>` used by static export and dashboard.
+
+### Acceptance sequence preserved
+No acceptance step was removed, skipped or weakened in the test source. The suite still requires online load, service-worker control, local invoice shell and static asset cache assertions, offline reload, IndexedDB draft reopen, offline edit/calculation, offline A6 PDF generation/download, no Supabase/invoice API requests, PDF invalidation/regeneration and device-share invocation.
+
+### Exact-head CI after correction
+- Run #238: https://github.com/Hasnat26/DokanTools/actions/runs/45332893169 was created for corrected code HEAD `7498168d58ccee07e56593fca015cef9fd905568`; it was pending/queued at this tracker revision and is not acceptance evidence.
+- Tracker update commit and its triggered run supersede Run #238 if the concurrency policy cancels it. Record the new exact-head run after it completes. Code-stage acceptance requires all five jobs PASS on the final branch HEAD.
+
+### Governance / external preview gate
+- PR #55 remains Draft and unmerged; invoice issuance OFF; no production promotion or paid infrastructure.
+- Cloudflare preview remains blocked on authorized repository/project integration. Deploy only as a non-production preview, keep production branch unchanged, then record actual preview URL and deployed SHA and validate hosted offline reload, IndexedDB and A6 PDF.
+- Google OAuth/Drive is optional and must not delay preview. No frontend client secret.
+
+
+### Tracker revision CI record
+- Run #239: https://github.com/Hasnat26/DokanTools/actions/runs/45332999741 was triggered for tracker/code HEAD `2fa87ccedc7963ed03e9656e0371a52c11191ddf`; it was pending at this update. Run #238 is superseded by the tracker commit and must not be used as final acceptance.
+- The next run must validate the new tracker HEAD, including the selector and QR route fixes. Final acceptance remains 5/5 PASS on the exact current PR HEAD.
+
+
+## Run #240 unit-test root cause and correction — 2026-11-24
+
+- Exact tested SHA: `9e240d761662fefb9bd6185608e07b1fd0aeace5`.
+- Run #240: https://github.com/Hasnat26/DokanTools/actions/runs/45333044615. Verified PASS: Application build/startup, PostgreSQL 17 tenant-integrity, and retained A6 PDF artifact verification (3/5). Chromium was still executing when this tracker update was prepared.
+- Unit test job failed: 129 passed, 1 failed, 2 skipped (existing suite totals). Root cause is the QR destination unit test retained the old dynamic route expectation `/shop/qa-shop` after the application was correctly changed to static export route `/shop/?shopId=qa-shop`. The failing assertion is `tests/shop-branding.test.mjs` test “QR destination prioritizes configured Maps and only uses explicitly public profile fallback”. Actual output matches the static route used by dashboard/public shop.
+- Correction: update the unit test expected destination to `https://dokantools.example/shop/?shopId=qa-shop`. No production logic was reverted and no test was skipped or weakened.
+- This correction creates a new exact HEAD and a new full CI run. Run #240 remains useful for the Chromium result but cannot satisfy exact-head acceptance after this commit. Require all five jobs PASS on the new exact HEAD.
+
+
+## Run #240 Chromium root cause and offline reopen correction — 2026-11-24
+
+- Run #240: https://github.com/Hasnat26/DokanTools/actions/runs/45333044615, exact SHA `9e240d761662fefb9bd6185608e07b1fd0aeace5`, concluded 3/5 PASS and 2/5 FAIL. PASS: application build/startup, PostgreSQL tenant-integrity, retained A6 PDF artifact. FAIL: unit test (stale QR route expectation, corrected in commit `b4dc53effa85245e12938c67cbf3c2669fdeef3c`) and Chromium.
+- Chromium failure artifact #14893260601 (`dokantools-v1-chromium-a6-45333044615`) was downloaded and inspected, including screenshot, error-context snapshot and trace.
+- Exact Chromium failure: after offline reload, test expected the active editor to auto-populate the previous draft. The screenshot/snapshot shows the local draft still persisted in IndexedDB and appears under “Saved drafts (1)” with the Edit action; the editor is a fresh empty draft until the user explicitly selects Edit. The trace proves the earlier online reload + Edit successfully restored “Offline QA Product” and quantity 2, then the later offline reload opened a blank editor. Therefore this is an acceptance-test assumption mismatch, not evidence of IndexedDB data loss or a service-worker defect.
+- Correction in this commit: after offline reload, assert the saved customer/draft is present, click the saved draft’s exact Edit button, assert status “Draft loaded from IndexedDB”, then verify line data and perform offline quantity edit/calculation and A6 PDF generation/download. This strengthens explicit offline draft reopening and preserves the complete cache/offline/no-network/PDF sequence; no step is skipped or weakened.
+- Run #241 was triggered for unit-test correction HEAD `b4dc53effa85245e12938c67cbf3c2669fdeef3`; it is superseded by this browser-test correction. New exact-head full CI is required; all five jobs must PASS.
+
+
+## Code-stage acceptance — Run #242 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact code/test SHA `d52b33cc0824e5103ba00e0deff5f1a5af1df73d`.
+- Run: https://github.com/Hasnat26/DokanTools/actions/runs/45334126944
+- Jobs PASS: Application build and startup; Unit tests (including A6 PDF assertions); Chromium authenticated V1 workflow and fresh A6 PDF; PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification.
+- Chromium artifact: `dokantools-v1-chromium-a6-45334126944`, ID `14893795975` (retained). The corrected browser test explicitly reopened the IndexedDB draft after offline reload and passed the offline calculation, PDF download and no-Supabase/no-invoice-API checks.
+- Corrections validated: static shop QR route, matching unit test expectation, precise invoice-line selectors, explicit offline saved-draft reopening. No acceptance steps were removed or skipped.
+- This tracker update creates a documentation-only commit and triggers a new CI run against the resulting tracker HEAD. Do not claim final exact-head acceptance until that follow-up run also passes 5/5.
+- Governance: PR #55 remains Draft/unmerged; invoice issuance OFF; no production promotion or paid infrastructure. Cloudflare preview remains external authorization-gated.
+
+
+## Tracker revision exact-head validation — Run #243 — 2026-11-24
+
+- Run #243: https://github.com/Hasnat26/DokanTools/actions/runs/45334590115
+- Result: **5/5 PASS** on tracker revision SHA `47efb3e6162e330a5abce37d0526d74b14440f7b`.
+- The tested SHA matched PR #55 HEAD at completion. Jobs PASS: application build/startup, unit tests, authenticated Chromium V1 workflow and fresh A6 PDF, PostgreSQL tenant-integrity, and A6 PDF artifact verification.
+- This entry is the final Run #243 result. Its documentation commit triggers one final CI run on the new tracker HEAD; record that exact-head result in the PR acceptance comment without further tracker edits to avoid an endless documentation-triggered run loop.
+- External preview blocker remains: Cloudflare Pages project/repository authorization. No preview URL or deployed SHA exists. Google OAuth is not required for Cloudflare preview.
+
+
+## Run #244 dependency-bootstrap failure and correction — 2026-11-24
+
+- Run #244 (`45335120716`) failed on exact PR HEAD `b783eacbc6008dd37b54e5b3c8198f610805cb4f`; 4/5 jobs passed and Chromium job failed before acceptance.
+- Chromium log evidence: `apt-get update` completed in approximately 86 seconds. Package installation then stalled on intermittent Ubuntu mirror downloads (`Ign` responses) and was terminated by the existing 180-second timeout with exit code 124. Required commands `psql`, `pdfinfo` and `zbarimg` were not available, so authenticated Chromium, offline, QR and fresh A6 PDF checks did not execute.
+- Run #244 artifact `dokantools-v1-chromium-a6-45335120716` (ID `14894301279`) was only 287 bytes; no browser screenshots, trace, test result or fresh PDF was produced. The subsequent cleanup failure was secondary: `supabase` was not installed because setup had not been reached.
+- Corrective workflow commit: `bbfdcdb803d4b4c8d662972db61964737f84c13e` increases the browser job timeout, adds apt mirror retry/HTTP timeout controls and up to three 15-minute package-install attempts with partial-install recovery, and verifies all three tools after installation.
+- Follow-up workflow commit: `9bed7c83d9a3d3342c1172a91896461202ea9613` makes Supabase cleanup conditional on successful CLI setup and failure-safe; a missing CLI is not reported as a second cleanup failure, and cleanup warnings do not mask the primary failure.
+- All acceptance assertions and test commands remain unchanged. The full five-job workflow must run against the new tracker HEAD. Final acceptance requires the Chromium authenticated workflow to pass and evidence to show offline reload, tenant isolation, QR verification and a newly generated/validated A6 PDF actually executed.
+- Governance remains unchanged: PR #55 Draft/unmerged, invoice issuance OFF, no production deployment or paid infrastructure.
+
+
+## Corrective exact-head acceptance — Run #247 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR HEAD `2689bee7a18a74461cddeced0652a26600d6c168`; Run #247: https://github.com/Hasnat26/DokanTools/actions/runs/45337619629.
+- Job conclusions: Application build and startup — PASS; Unit tests (including A6 PDF assertions) — PASS; PostgreSQL 17 category tenant-integrity regression — PASS; A6 PDF artifact verification — PASS; Chromium authenticated V1 workflow and fresh A6 PDF — PASS.
+- Chromium commit-identity artifact confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` all equal `2689bee7a18a74461cddeced0652a26600d6c168`.
+- Playwright result: 3 passed, 0 skipped, 0 unexpected, 0 flaky. Passed scenarios: local invoice workspace offline persistence/calculation without Supabase; authenticated configurable multi-product bill with IndexedDB lifecycle and fresh A6 PDF; A6 PDF regeneration after edits and device-file-sharing invocation.
+- Evidence artifact `dokantools-v1-chromium-a6-45337619629`, ID `14895081972`, 138,825 bytes, SHA-256 `ccbb54104ff75f2c383a5ebf81c6ffd467ddd650e6f12e183ff2c673c97617fb`. Artifact ZIP was downloaded and inspected.
+- Fresh application-generated PDF: `artifacts/dokantools-authenticated-a6.pdf`, 33,883 bytes, one-page portrait A6 (297.638 × 419.528 pt), validation result PASS; 33 text bounding boxes checked, zero out-of-bounds text/images; expected invoice content verified; QR decoded from the fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Maps link annotation verified.
+- Dependency correction worked: retry-safe apt installed `psql`, `pdfinfo` and `zbarimg`; Playwright Chromium installation completed; Supabase CLI setup succeeded; guarded cleanup completed. No acceptance assertion was removed or skipped.
+- This tracker update creates a new exact HEAD and a follow-up full CI run. Run #247 is validated evidence for the corrective commit, but the tracker-updated HEAD must complete 5/5 before current-head acceptance is reported.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
+
+
+## Tracker-updated exact-head acceptance — Run #248 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact tracker HEAD `fa1320599de1747ff80f9e357ad2e98c713f4e83`; Run #248: https://github.com/Hasnat26/DokanTools/actions/runs/45338869324.
+- All required jobs passed: application build/startup; unit tests including A6 assertions; PostgreSQL 17 tenant-integrity; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- Browser artifact `dokantools-v1-chromium-a6-45338869324`, ID `14895432441`, 139,346 bytes, SHA-256 `a6cb0743dcc22a552b9e2463fe386da9ee7368526be60e3f767316cb4138b2ae` was downloaded and inspected. The commit identity JSON confirms PR head, expected checkout and actual checkout all equal `fa1320599de1747ff80f9e357ad2e98c713f4e83`.
+- Playwright: 3 passed, 0 skipped, 0 unexpected, 0 flaky. All three scenarios passed: offline local invoice persistence/calculation without Supabase; authenticated multi-product invoice with IndexedDB lifecycle and fresh A6 PDF; PDF regeneration after edit and device sharing invocation.
+- Fresh PDF validation PASS: one-page portrait A6 (297.638 × 419.528 pt); 33 text boxes checked, zero out-of-bounds text/images; expected content and draft-only label verified; QR decoded from generated PDF and Maps annotation verified. The PDF artifact is 33,883 bytes, SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`.
+- This tracker entry itself advances the branch and triggers a new exact-head Run #249. Run #248 is successful evidence for the tracker revision; final current-head acceptance must be confirmed from Run #249 without another tracker edit.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
+
+
+## Final exact-current-HEAD validation — Run #249 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact current PR HEAD `c038c2b107a51638a13df5fce8c19f55024448d3`; Run #249: https://github.com/Hasnat26/DokanTools/actions/runs/45339451761.
+- All five required jobs passed: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD and workflow `head_sha` both match `c038c2b107a51638a13df5fce8c19f55024448d3`. Browser artifact commit identity confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` are identical.
+- Chromium evidence artifact `dokantools-v1-chromium-a6-45339451761`, ID `14896765015`, size 139,125 bytes, SHA-256 `f1687af3870f549d24917721dced3e37642cd0ff175408c974bb4181275d4231`; downloaded and inspected.
+- Playwright summary: 3 expected/passed, 0 skipped, 0 unexpected, 0 flaky. Scenarios passed: offline invoice workspace persistence/calculation without Supabase; authenticated configurable multi-product bill with IndexedDB lifecycle and fresh A6 PDF; A6 PDF regeneration after edits and device file-sharing invocation.
+- Fresh PDF validation: PASS; 1 page portrait A6 (297.638 × 419.528 pt); 33 text bounding boxes checked, 0 out-of-bounds text; 0 out-of-bounds images; expected invoice content and `DRAFT ONLY` verified; QR decoded from the freshly generated PDF to `https://maps.google.com/?q=23.7806,0.4142`; Maps link annotation verified.
+- Retry-safe dependency bootstrap succeeded, including required PostgreSQL/PDF/QR tools, pinned Supabase CLI and Playwright Chromium. Supabase local migration parity/reset and synthetic tenant setup completed; cleanup completed. No acceptance checks were removed or skipped.
+- This tracker update creates a new exact-head Run #250. Run #249 is complete verified evidence; current-head acceptance will be reaffirmed by Run #250.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure.
+
+## Exact-current-HEAD acceptance — Run #251 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `a0c0cc1bc08e832c0895ae6317542a00d3681b46`; Run #251: https://github.com/Hasnat26/DokanTools/actions/runs/45342981504.
+- Live GitHub Actions job inspection confirms all five required jobs completed successfully on this run: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live head SHA and workflow run `head_sha` match `a0c0cc1bc08e832c0895ae6317542a00d3681b46`. PR remains open, Draft and unmerged.
+- Browser evidence artifact `dokantools-v1-chromium-a6-45342981504`, ID `14896559692`, size 139,041 bytes; downloadable from https://github.com/Hasnat26/DokanTools/actions/runs/45342981504/artifacts/14896559692.
+- Playwright results: 3 passed, 0 skipped, 0 unexpected, 0 flaky. Scenarios: offline invoice persistence/calculation without Supabase; authenticated multi-product invoice with IndexedDB lifecycle and fresh A6 PDF; PDF regeneration after edits and device file-sharing invocation.
+- Fresh application-generated PDF verification: PASS; one portrait A6 page (297.638 × 419.528 pt); 33 text bounding boxes checked; zero out-of-bounds text and zero out-of-bounds images; QR decoded from the fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Google Maps annotation verified.
+- Failure-safe Supabase cleanup: PASS. No acceptance checks were removed, skipped or suppressed.
+- PR conversation acceptance report posted: https://github.com/Hasnat26/DokanTools/pull/55#issuecomment-7124489440.
+- This tracker documentation commit advances the branch and may trigger another full CI run. Run #251 remains the verified acceptance evidence for the exact code/test SHA above; do not claim that a later tracker-only SHA has passed until its own exact-head run completes.
+- Governance unchanged: PR #55 remains Draft/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain outstanding.
+
+## Run #252 — tracker-updated exact-head CI acceptance — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `74885ca3c8f4dc7db2e6fe5481d40863213e1f8f`; Run #252: https://github.com/Hasnat26/DokanTools/actions/runs/45344923075.
+- All five required jobs passed on this exact SHA: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- Live PR #55 HEAD and Run #252 artifact `head_sha` both equal `74885ca3c8f4dc7db2e6fe5481d40863213e1f8f`. Chromium commit-identity evidence confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` all match.
+- Browser evidence artifact `dokantools-v1-chromium-a6-45344923075`, ID `14897419164`, size 138,581 bytes; SHA-256 `ccc57f614d352260a73b4f41fe9bca00e5d2ebfdf856e81ca1c640da188580ba`. Artifact downloaded and inspected.
+- Playwright result: **3 passed, 0 skipped, 0 unexpected, 0 flaky**. Passed scenarios: offline local invoice persistence/calculation without Supabase; authenticated configurable multi-product invoice with IndexedDB lifecycle and fresh A6 PDF; PDF regeneration after edits and device sharing invocation.
+- Fresh generated PDF validation: **PASS**; one page, portrait A6 (297.638 × 419.528 pt), zero-degree rotation; 33 text bounding boxes checked, zero out-of-bounds text boxes, zero out-of-bounds images; expected content including `DRAFT ONLY` verified; QR decoded from fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Google Maps link annotation verified.
+- Failure-safe Supabase cleanup completed successfully. All Chromium job steps completed successfully; no acceptance step was skipped.
+- Run #252 validates tracker commit `74885ca3c8f4dc7db2e6fe5481d40863213e1f8f`. This entry advances the branch; the resulting new tracker HEAD requires its own full exact-head 5/5 CI confirmation. Do not claim that the new tracker HEAD has passed until that run completes.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain outstanding external setup items.
+
+## Run #253 — exact-current-HEAD V1 acceptance — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `4b3dc221982b53dfff28a41612604c49a8e9eea4`; Run #253: https://github.com/Hasnat26/DokanTools/actions/runs/45349176579.
+- Live GitHub Actions inspection confirms all five required jobs completed successfully on this exact SHA: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD and workflow `head_sha` both equal `4b3dc221982b53dfff28a41612604c49a8e9eea4`. PR remains open, Draft and unmerged.
+- Application job: lint, TypeScript check, production static build, static export server and PWA route/manifest smoke tests completed successfully.
+- Unit suite: 132 total, 130 passed, 0 failed, 2 skipped (existing unit-suite skip statuses; no test failure). Chromium acceptance is separately confirmed as 3 expected, 0 skipped, 0 unexpected, 0 flaky.
+- PostgreSQL 17 job: disposable schema, category migration, tenant/map/stock-identity remediation, database-level inventory-linked catalogue guard, positive/negative integrity checks and two-authenticated-user category RLS isolation regression all passed.
+- Retained A6 PDF artifact verification job: PASS; Poppler `pdfinfo` installed and retained A6 PDF geometry/content checks passed.
+- Chromium job: all steps completed successfully, including retry-safe PostgreSQL/PDF/QR dependency bootstrap, pinned PDF normalizer, pinned Supabase CLI, local Supabase Auth/PostgreSQL startup, migration inventory/dry-run, migration directory parity/rollback quarantine, full migration-chain reset, schema parity and invoice issuance OFF, two synthetic Auth users, production build, static server, pinned Chromium install, full real authenticated Playwright workflow, exact commit identity stamp, fresh PDF A6 normalization/verification, evidence upload, and failure-safe Supabase cleanup.
+- Chromium evidence artifact `dokantools-v1-chromium-a6-45349176579`, ID `14899896165`, 137,788 bytes, SHA-256 `be12205c9b49ce26d54dd45ae96d506989829816c1f46abb598b753035109cdf`; downloaded and inspected. Artifact URL: https://github.com/Hasnat26/DokanTools/actions/runs/45349176579/artifacts/14899896165.
+- `commit-identity.json` independently confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` all equal `4b3dc221982b53dfff28a41612604c49a8e9eea4`.
+- Playwright result JSON: 3 expected/passed, 0 skipped, 0 unexpected, 0 flaky. Scenarios executed: offline invoice persistence/calculation without Supabase; authenticated multi-product invoice and IndexedDB lifecycle with fresh A6 PDF; PDF regeneration after edits and device file-sharing invocation.
+- Fresh application-generated PDF `artifacts/dokantools-authenticated-a6.pdf`: validation PASS; 33,883 bytes; SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`; one portrait A6 page (297.638 × 419.528 pt), rotation 0; 33 text bounding boxes checked, zero out-of-bounds text, zero out-of-bounds images; expected content and `DRAFT ONLY` verified; QR decoded from the fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Google Maps link annotation verified. Chromium normalization confirms `contentScaled: false`.
+- Cleanup log explicitly confirms: `Stopped supabase local development setup.` and `Disposable Supabase stack stopped.` — PASS.
+- No acceptance tests were removed or weakened. All three browser acceptance scenarios executed; browser skip count is zero.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain separate outstanding external dependencies.
+- This tracker entry creates a new documentation HEAD and triggers a follow-up CI run. Run #253 remains verified acceptance evidence for the exact code/test SHA above; the tracker-updated HEAD must also complete 5/5 before final tracker-head acceptance is reported.
+
+## Run #254 — tracker-updated exact-head acceptance — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `2c9bc44232d2c0486d876065da72683a4bed4325`; Run #254: https://github.com/Hasnat26/DokanTools/actions/runs/45349984507.
+- All five GitHub Actions jobs completed successfully on that exact SHA: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD and workflow run `head_sha` equal `2c9bc44232d2c0486d876065da72683a4bed4325`. Browser `commit-identity.json` independently confirms `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` all match. PR remains open, Draft and unmerged.
+- Playwright result JSON: 3 expected/passed, 0 skipped, 0 unexpected, 0 flaky. Scenarios cover offline invoice persistence/calculation without Supabase; authenticated multi-product invoice and IndexedDB lifecycle with fresh A6 PDF; PDF regeneration after edits and device file-sharing invocation.
+- Chromium evidence artifact `dokantools-v1-chromium-a6-45349984507`, ID `14899703924`, 136,703 bytes, SHA-256 `7f6c930261cd32c2919e2b85eebd2cbfb18e06eb6073b2aed5de7dbbbb66fe51`; downloaded and inspected. Artifact URL: https://github.com/Hasnat26/DokanTools/actions/runs/45349984507/artifacts/14899703924.
+- Fresh application-generated PDF validation PASS: `artifacts/dokantools-authenticated-a6.pdf`, 33,883 bytes, SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`; one portrait A6 page (297.638 × 419.528 pt), rotation 0; 33 text bounding boxes checked, 0 out-of-bounds text, 0 out-of-bounds images; expected content and `DRAFT ONLY` verified; QR decoded from fresh PDF to `https://maps.google.com/?q=23.7806,90.4142`; Maps annotation PASS; page normalization confirms content was not scaled.
+- Unit tests completed: 132 total, 130 passed, 0 failed, 2 skipped (unit-suite skip statuses). Browser acceptance independently reports 0 skipped and 0 flaky.
+- PostgreSQL tenant-integrity job completed schema/migration checks, positive and negative integrity tests and two-user category RLS isolation regression. Application job completed lint, TypeScript, static production build and PWA route smoke tests. Retained A6 artifact job passed.
+- Chromium job completed retry-safe apt dependency setup, pinned PDF normalizer and Supabase CLI installation, disposable Supabase Auth/PostgreSQL startup, full migration-chain reset and schema parity, invoice issuance OFF verification, two synthetic Auth users, production build, static server, pinned Playwright Chromium, real authenticated workflow, PDF generation/verification and evidence upload.
+- Failure-safe cleanup log confirms `Stopped supabase local development setup.` and `Disposable Supabase stack stopped.` — PASS.
+- No acceptance test was removed, weakened, skipped or suppressed. The temporary Chromium installation step delay resolved without a code correction; all downstream acceptance steps executed successfully.
+- This Run #254 validates the tracker revision that recorded Run #253. This entry itself advances the branch and triggers a final documentation-only exact-head CI run; do not claim that the new tracker SHA has passed until its own five jobs complete.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain separate external dependencies.
+
+## Final tracker-head confirmation — Run #255 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact final PR #55 HEAD `757fcec62af2e119ba761630cf082150fb181fc4`; Run #255: https://github.com/Hasnat26/DokanTools/actions/runs/45351653408.
+- This run validates the final tracker revision containing the Run #253 and Run #254 acceptance records. All five required jobs completed successfully: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD, workflow `head_sha`, and browser evidence `prHeadSha` / `expectedCheckoutSha` / `actualCheckoutSha` all equal `757fcec62af2e119ba761630cf082150fb181fc4`. PR remains open, Draft and unmerged.
+- Browser evidence artifact `dokantools-v1-chromium-a6-45351653408`, ID `14900911137`, 135,911 bytes, SHA-256 `c04f60946b16810e3f3a429a1cd764b06d4f820af5dcb537f81931610f5e648e`; downloaded and inspected. Artifact URL: https://github.com/Hasnat26/DokanTools/actions/runs/45351653408/artifacts/14900911137.
+- Playwright result JSON: 3 expected/passed, 0 skipped, 0 unexpected, 0 flaky. Offline persistence/calculation without Supabase, authenticated multi-product invoice + IndexedDB lifecycle/fresh A6 PDF, and PDF regeneration after edits + device sharing all passed.
+- Fresh PDF validation PASS: 33,883 bytes; SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`; one portrait A6 page (297.638 × 419.528 pt), rotation 0; 33 text boxes checked; zero out-of-bounds text/images; expected invoice contents and `DRAFT ONLY` verified; QR decoded to `https://maps.google.com/?q=23.7806,90.4142`; Maps annotation verified; normalization did not scale content.
+- All Chromium setup and acceptance steps completed, including retry-safe package installation, local Supabase migration/reset/schema parity, invoice issuance OFF, synthetic Auth tenant users, production build/static server, pinned Chromium, authenticated Playwright, fresh PDF verification, artifact upload and failure-safe Supabase cleanup.
+- Supabase cleanup step and entire Chromium job concluded PASS. All five jobs are green on this final tracker HEAD.
+- This entry records Run #255 as the final exact-head confirmation; do not make additional tracker edits without a deliberate new acceptance cycle.
+- Governance unchanged: PR #55 open, Draft and unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain separate external dependencies and are not blockers to this code-stage CI acceptance.
+
+## Final tracker-head confirmation — Run #256 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact final tracker-updated PR #55 HEAD `42a18fc0ade3410085537256a649d0e56620055b`; Run #256: https://github.com/Hasnat26/DokanTools/actions/runs/45352284202.
+- All five required jobs completed successfully on this exact SHA: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD and workflow `head_sha` match `42a18fc0ade3410085537256a649d0e56620055b`. Browser evidence `prHeadSha`, `expectedCheckoutSha` and `actualCheckoutSha` all match the same SHA. PR remains open, Draft and unmerged.
+- Evidence artifact `dokantools-v1-chromium-a6-45352284202`, ID `14901585153`, size 135,147 bytes, SHA-256 `3d437c71d1a78f16db2c667d62ebf77ee77b040cd6147381ed088834c22fe88f`; downloaded and inspected. URL: https://github.com/Hasnat26/DokanTools/actions/runs/45352284202/artifacts/14901585153.
+- Playwright results: 3 expected/passed, 0 skipped, 0 unexpected, 0 flaky. Authenticated browser acceptance covers offline invoice persistence/calculation without Supabase, multi-product invoice and IndexedDB lifecycle, fresh A6 PDF, PDF regeneration after edits and device sharing invocation.
+- Fresh PDF validation PASS: 33,883 bytes; SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`; one portrait A6 page (297.638 × 419.528 pt), rotation 0; 33 text boxes checked; zero out-of-bounds text and images; expected content including `DRAFT ONLY` verified; QR decoded to `https://maps.google.com/?q=23.7806,90.4142`; Google Maps annotation verified; normalization did not scale content.
+- Chromium logs confirm package/bootstrap, disposable local Supabase Auth/PostgreSQL, full migration reset/schema parity, invoice issuance OFF, two synthetic Auth tenants, production build/static server, pinned Chromium, authenticated workflow, PDF validation, evidence upload and successful failure-safe cleanup. Log confirms `Stopped supabase local development setup.` and `Disposable Supabase stack stopped.`.
+- Unit test job and all other four CI jobs passed. No acceptance tests were removed, weakened or suppressed; browser skip count is zero.
+- This entry records Run #256 as successful verification of the tracker revision that contains Run #255. This documentation entry itself advances the branch; its new HEAD requires one final full CI confirmation before closing the tracker-head acceptance loop.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain separate external dependencies.
+
+## Final tracker-head confirmation — Run #257 — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `99d00c1341f528fc1551ff676f0bd3e50fda1f45`; Run #257: https://github.com/Hasnat26/DokanTools/actions/runs/45352998521.
+- All five required jobs completed successfully: Application build and startup; Unit tests (including A6 PDF assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD, workflow `head_sha`, and browser evidence `prHeadSha` / `expectedCheckoutSha` / `actualCheckoutSha` all equal `99d00c1341f528fc1551ff676f0bd3e50fda1f45`. PR remains open, Draft and unmerged.
+- Browser evidence artifact `dokantools-v1-chromium-a6-45352998521`, ID `14900773836`, 134,564 bytes, SHA-256 `a640243321a1cd40947f234e2e971129ef055a3b5435a92d0ac9c84de8654450`; downloaded and inspected. Artifact URL: https://github.com/Hasnat26/DokanTools/actions/runs/45352998521/artifacts/14900773836.
+- Playwright JSON: 3 expected/passed, 0 skipped, 0 unexpected, 0 flaky. Offline invoice persistence/calculation without Supabase; authenticated multi-product invoice and IndexedDB lifecycle with fresh A6 PDF; PDF regeneration after edits and device sharing invocation all passed.
+- Fresh application-generated PDF validation PASS: 33,883 bytes; SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`; one portrait A6 page (297.638 × 419.528 pt), rotation 0; 33 text bounding boxes checked, zero out-of-bounds text and zero out-of-bounds images; expected content including `DRAFT ONLY` verified; QR decoded to `https://maps.google.com/?q=23.7806,90.4142`; Google Maps annotation verified; page normalization did not scale content.
+- Chromium setup, migration reset/schema parity, invoice issuance OFF, two synthetic Auth users, production build, static server, pinned Chromium, authenticated browser tests, PDF verification, artifact upload and failure-safe Supabase cleanup all completed successfully. Cleanup log confirms `Stopped supabase local development setup.` and `Disposable Supabase stack stopped.`.
+- All acceptance checks were preserved. Browser acceptance ran three scenarios with zero skips/flaky/unexpected results.
+- This Run #257 entry records the exact SHA above. This tracker change triggers the final post-entry exact-head CI validation; do not report the post-entry SHA as accepted until its own five jobs have completed.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment or paid infrastructure. Cloudflare preview authorization and Google Drive OAuth remain separate external dependencies.
+
+
+## Run #258 — exact code-stage CI acceptance — 2026-11-24
+
+- **Result: 5/5 PASS** on exact PR #55 HEAD `2f180659df106c84f9c15c6dc0bbd8ec6cdace49`; Run #258: https://github.com/Hasnat26/DokanTools/actions/runs/45353746199.
+- All five required jobs completed successfully: application build/startup; unit tests (including A6 assertions); PostgreSQL 17 category tenant-integrity regression; A6 PDF artifact verification; Chromium authenticated V1 workflow and fresh A6 PDF.
+- PR #55 live HEAD and Run #258 checkout identity matched the exact SHA above. PR remained open, Draft and unmerged.
+- Chromium evidence artifact ID `14900658873`, size 133,119 bytes, SHA-256 `7a304fa8f5a9381bc5607c48ca924426eef041ab6c3442c67b7e3e8ee6c1fb64`; downloaded and inspected. Playwright: 3 passed, 0 skipped, 0 unexpected, 0 flaky.
+- Fresh A6 PDF validation PASS: one portrait A6 page (297.638 × 419.528 pt), 33 text boxes, zero text/image overflow, `DRAFT ONLY`; QR and Maps annotation verified; contentScaled false. PDF SHA-256 `281ca91e7594acfe29030ae7bdfc3da1b181f9c6bf0f645a52aa8db81a450d3d`.
+- Disposable Supabase cleanup PASS. This closes the code-stage Run #258 acceptance record. The new preview/demo work is a separate hosted acceptance gate and is not represented as completed by this CI run.
+- Governance unchanged: PR #55 remains Draft/open/unmerged; invoice issuance OFF; no production deployment, paid infrastructure or destructive migration.
