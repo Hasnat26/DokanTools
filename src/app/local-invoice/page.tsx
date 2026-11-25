@@ -167,10 +167,10 @@ export default function LocalInvoicePage() {
     if (!priceCheck.valid) { setError("Unit price must be greater than zero and use up to 2 decimal places."); return; }
     setBusy(true); setError("");
     try {
-      await localFirstStore.saveProduct({
-        id: productEditId || crypto.randomUUID(), workspace_id: workspace.id,
-        name: productName.trim(), unit: productUnit.trim() || "pc", unitPrice: productPrice.trim(),
-      }, workspace.id);
+      const productRecord = { id: productEditId || crypto.randomUUID(), workspace_id: workspace.id,
+        name: productName.trim(), unit: productUnit.trim() || "pc", unitPrice: productPrice.trim() };
+      if (productEditId) await localFirstStore.updateProduct(productRecord, workspace.id);
+      else await localFirstStore.saveProduct(productRecord, workspace.id);
       setProductEditId(""); setProductName(""); setProductUnit("pc"); setProductPrice("");
       await reload(workspace); setStatus(productEditId ? "Product updated locally." : "Product created locally.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "PRODUCT_SAVE_FAILED"); }
@@ -197,8 +197,10 @@ export default function LocalInvoicePage() {
     if (!customerEditId && duplicates.length && !window.confirm("A Customer with the same name or phone exists. Create a separate Customer record anyway?")) return;
     setBusy(true); setError("");
     try {
-      await localFirstStore.saveCustomer({ id: customerEditId || crypto.randomUUID(), workspace_id: workspace.id,
-        name: customerFormName.trim(), phone }, workspace.id);
+      const customerRecord = { id: customerEditId || crypto.randomUUID(), workspace_id: workspace.id,
+        name: customerFormName.trim(), phone };
+      if (customerEditId) await localFirstStore.updateCustomer(customerRecord, workspace.id);
+      else await localFirstStore.saveCustomer(customerRecord, workspace.id);
       const savedId = customerEditId;
       setCustomerEditId(""); setCustomerFormName(""); setCustomerFormPhone("");
       await reload(workspace); setStatus(savedId ? "Customer updated locally." : "Customer created locally.");
