@@ -168,6 +168,83 @@ test("local invoice workspace persists and calculates offline without Supabase",
   await isolatedContext.close();
 });
 
+test("local Product and Customer CRUD persists and protects saved invoice snapshots", async ({ browser }) => {
+  test.setTimeout(90000);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(new URL("/local-invoice/", baseURL).toString());
+  await expect(page.getByRole("heading", { name: "Local Invoice Workspace" })).toBeVisible();
+
+  // Create synthetic catalogue records only.
+  await page.getByLabel("Product name").fill("QA CRUD Product Original");
+  await page.getByLabel("Product unit").fill("box");
+  await page.getByLabel("Product price").fill("25.50");
+  await page.getByRole("button", { name: "Create Product" }).click();
+  await expect(page.getByText("QA CRUD Product Original", { exact: true })).toBeVisible();
+
+  await page.getByLabel("Customer catalogue name").fill("QA CRUD Customer Original");
+  await page.getByLabel("Customer catalogue phone").fill("01000000071");
+  await page.getByRole("button", { name: "Create Customer" }).click();
+  await expect(page.getByText("QA CRUD Customer Original", { exact: true })).toBeVisible();
+
+  const customerRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Customer Original" }).first();
+  await customerRow.getByRole("button", { name: "Use" }).click();
+  const productRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Product Original" }).first();
+  await productRow.getByRole("button", { name: "Add to invoice" }).click();
+  await page.getByRole("button", { name: "Save draft locally" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved locally in IndexedDB");
+
+  // Edit catalogue records; the saved invoice must retain the original copied values.
+  await productRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Product name").fill("QA CRUD Product Updated");
+  await page.getByLabel("Product unit").fill("pack");
+  await page.getByLabel("Product price").fill("99.00");
+  await page.getByRole("button", { name: "Update Product" }).click();
+
+  const customerUpdatedRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Customer Original" }).first();
+  await customerUpdatedRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Customer catalogue name").fill("QA CRUD Customer Updated");
+  await page.getByLabel("Customer catalogue phone").fill("01000000072");
+  await page.getByRole("button", { name: "Update Customer" }).click();
+
+  const draftsSection = page.getByRole("heading", { name: /Saved drafts/ }).locator("xpath=..");
+  await draftsSection.getByRole("button", { name: "Edit" }).first().click();
+  await expect(page.getByLabel("Customer name")).toHaveValue("QA CRUD Customer Original");
+  await expect(page.getByLabel("Customer phone")).toHaveValue("01000000071");
+  await expect(page.getByLabel("Item")).toHaveValue("QA CRUD Product Original");
+  await expect(page.getByLabel("Unit", { exact: true }).first()).toHaveValue("box");
+  await expect(page.getByLabel("Unit price (BDT)")).toHaveValue("25.50");
+  await expect(page.getByLabel("Quantity")).toHaveValue("1");
+  await expect(page.getByText("BDT 25.50", { exact: true })).toBeVisible();
+
+  // Delete catalogue records; draft snapshots must still be recoverable.
+  const updatedProductRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Product Updated" }).first();
+  page.once("dialog", dialog => dialog.accept());
+  await updatedProductRow.getByRole("button", { name: "Delete" }).click();
+  const updatedCustomerRow2 = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Customer Updated" }).first();
+  page.once("dialog", dialog => dialog.accept());
+  await updatedCustomerRow2.getByRole("button", { name: "Delete" }).click();
+
+  await draftsSection.getByRole("button", { name: "Edit" }).first().click();
+  await expect(page.getByLabel("Customer name")).toHaveValue("QA CRUD Customer Original");
+  await expect(page.getByLabel("Customer phone")).toHaveValue("01000000071");
+  await expect(page.getByLabel("Item")).toHaveValue("QA CRUD Product Original");
+  await expect(page.getByLabel("Unit", { exact: true }).first()).toHaveValue("box");
+  await expect(page.getByLabel("Unit price (BDT)")).toHaveValue("25.50");
+  await page.getByRole("button", { name: "Generate A6 PDF" }).click();
+  await expect(page.getByRole("status")).toContainText("A6 PDF generated in this browser");
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF" }).click();
+  const download = await downloadEvent;
+  const pdfPath = await download.path();
+  expect(pdfPath).toBeTruthy();
+  const pdfText = execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" });
+  expect(pdfText).toContain("QA CRUD Product Original");
+  expect(pdfText).toContain("QA CRUD Customer Original");
+  expect(pdfText).toContain("25.50");
+  await context.close();
+});
+
 test("authenticated configurable multi-product bill, IndexedDB lifecycle and fresh A6 PDF", async ({
   page,
 }) => {
