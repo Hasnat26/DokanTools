@@ -191,6 +191,13 @@ test("local Product and Customer CRUD persists and protects saved invoice snapsh
   await page.getByRole("button", { name: "Create Customer" }).click();
   await expect(page.getByText("QA CRUD Customer Original", { exact: true })).toBeVisible();
 
+  // Duplicate phone is warned about, but an explicit confirmation creates a separate stable-ID record.
+  await page.getByLabel("Customer catalogue name").fill("QA CRUD Customer Duplicate");
+  await page.getByLabel("Customer catalogue phone").fill("01000000071");
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Create Customer" }).click();
+  await expect(page.getByText("QA CRUD Customer Duplicate", { exact: true })).toBeVisible();
+
   const customerRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Customer Original" }).first();
   await customerRow.getByRole("button", { name: "Use" }).click();
   const productRow = page.locator("div.rounded.border.p-2").filter({ hasText: "QA CRUD Product Original" }).first();
