@@ -7,6 +7,7 @@ import {
   invoiceContentFingerprint,
   shouldApplyBackupRecord,
   validateLocalBackup,
+  validateLocalUnitPrice,
 } from "../src/lib/local-first-invoice.mjs";
 
 test("local invoice calculates integer minor units with quantity precision", () => {
@@ -83,4 +84,15 @@ test("backup validation rejects cross-workspace product and customer records", (
     ...base,
     data: { ...base.data, products: [{ id: "p1", workspace_id: "other" }] },
   }), /INVALID_BACKUP_RECORD/);
+});
+
+
+test("shared Product and invoice unit-price validation preserves positive-price policy", () => {
+  assert.deepEqual(validateLocalUnitPrice("0.01"), { valid: true, reason: null, minor: 1 });
+  assert.deepEqual(validateLocalUnitPrice("12.50"), { valid: true, reason: null, minor: 1250 });
+  assert.equal(validateLocalUnitPrice("0").valid, false);
+  assert.equal(validateLocalUnitPrice("-1").valid, false);
+  assert.equal(validateLocalUnitPrice("1.001").valid, false);
+  assert.equal(validateLocalUnitPrice("abc").valid, false);
+  assert.equal(calculateLocalInvoice([{ name: "Free item", quantity: "1", unitPrice: "0" }]).valid, false);
 });
