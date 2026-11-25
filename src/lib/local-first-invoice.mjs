@@ -6,6 +6,13 @@ const toMinor = value => {
   return Number.isSafeInteger(minor) ? minor : null;
 };
 
+export function validateLocalUnitPrice(value) {
+  const minor = toMinor(value);
+  if (minor === null) return { valid: false, reason: "INVALID_PRICE", minor: null };
+  if (minor <= 0) return { valid: false, reason: "PRICE_MUST_BE_POSITIVE", minor };
+  return { valid: true, reason: null, minor };
+}
+
 export function calculateLocalInvoice(lines) {
   if (!Array.isArray(lines) || lines.length === 0) {
     return { valid: false, reason: "EMPTY_INVOICE", lineTotalsMinor: [], totalMinor: 0 };
@@ -20,8 +27,9 @@ export function calculateLocalInvoice(lines) {
       return { valid: false, reason: "INVALID_QUANTITY", lineTotalsMinor: [], totalMinor: 0 };
     }
     const quantity = Number(quantityText);
-    const priceMinor = toMinor(line?.unitPrice);
-    if (!Number.isFinite(quantity) || quantity <= 0 || priceMinor === null || priceMinor <= 0) {
+    const price = validateLocalUnitPrice(line?.unitPrice);
+    const priceMinor = price.minor;
+    if (!Number.isFinite(quantity) || quantity <= 0 || !price.valid) {
       return { valid: false, reason: "INVALID_LINE", lineTotalsMinor: [], totalMinor: 0 };
     }
     const lineMinor = Math.round(quantity * priceMinor);
