@@ -1,4 +1,4 @@
-import { shouldApplyBackupRecord, validateLocalBackup } from "./local-first-invoice.mjs";
+import { shouldApplyBackupRecord, validateLocalBackup, validateLocalUnitPrice } from "./local-first-invoice.mjs";
 
 const DB_NAME = "dokantools-local-first";
 const DB_VERSION = 1;
@@ -105,6 +105,7 @@ async function listRecords(storeName, workspaceId) {
 async function putRecord(storeName, record, workspaceId, invalidatePdf = false, requireExisting = false) {
   if (!record?.id || !workspaceId) throw new Error("LOCAL_RECORD_ID_REQUIRED");
   if (record.workspace_id && record.workspace_id !== workspaceId) throw new Error("WORKSPACE_MISMATCH");
+  if (storeName === "products" && (!record.name?.trim() || !record.unit?.trim() || !validateLocalUnitPrice(record.unitPrice).valid)) throw new Error("INVALID_PRODUCT");
   const db = await openDb();
   const tx = db.transaction(storeName, "readwrite");
   const store = tx.objectStore(storeName);
