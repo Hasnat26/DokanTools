@@ -4,6 +4,13 @@ const DB_NAME = "dokantools-local-first";
 const DB_VERSION = 1;
 const RECORD_STORES = ["invoices", "products", "customers"];
 
+export function assertLocalWorkspaceOwnership(record, workspaceId) {
+  if (!workspaceId) throw new Error("WORKSPACE_ID_REQUIRED");
+  if (!record) throw new Error("LOCAL_RECORD_NOT_FOUND");
+  if (record.workspace_id !== workspaceId) throw new Error("WORKSPACE_MISMATCH");
+  return true;
+}
+
 function openDb() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") return reject(new Error("LOCAL_STORAGE_UNAVAILABLE"));
@@ -114,15 +121,12 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false, 
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error || new Error("LOCAL_RECORD_READ_FAILED"));
   });
-  if (old && old.workspace_id !== workspaceId) {
-    tx.abort();
-    db.close();
-    throw new Error("WORKSPACE_MISMATCH");
+  if (old) {
+    try { assertLocalWorkspaceOwnership(old, workspaceId); }
+    catch (error) { tx.abort(); db.close(); throw error; }
   }
   if (requireExisting && !old) {
-    tx.abort();
-    db.close();
-    throw new Error("LOCAL_RECORD_NOT_FOUND");
+    tx.abort(); db.close(); throw new Error("LOCAL_RECORD_NOT_FOUND");
   }
   const now = new Date().toISOString();
   const next = {
@@ -154,8 +158,9 @@ async function deleteRecord(storeName, id, workspaceId) {
     const current = request.result;
     if (!current) return;
     found = true;
-    if (current.workspace_id !== workspaceId) {
-      mismatch = true;
+    try { assertLocalWorkspaceOwnership(current, workspaceId); }
+    catch (error) {
+      mismatch = error instanceof Error && error.message === "WORKSPACE_MISMATCH";
       tx.abort();
       return;
     }
