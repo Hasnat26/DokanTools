@@ -178,6 +178,10 @@ test("local Product and Customer CRUD persists and protects saved invoice snapsh
   // Create synthetic catalogue records only.
   await page.getByLabel("Product name").fill("QA CRUD Product Original");
   await page.getByLabel("Product unit").fill("box");
+  await page.getByLabel("Product price").fill("0");
+  await page.getByRole("button", { name: "Create Product" }).click();
+  await expect(page.getByRole("alert")).toContainText("Unit price must be greater than zero");
+  await expect(page.getByText("QA CRUD Product Original", { exact: true })).toHaveCount(0);
   await page.getByLabel("Product price").fill("25.50");
   await page.getByRole("button", { name: "Create Product" }).click();
   await expect(page.getByText("QA CRUD Product Original", { exact: true })).toBeVisible();
