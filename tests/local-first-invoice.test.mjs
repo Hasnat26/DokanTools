@@ -1,4 +1,5 @@
 import test from "node:test";
+import { assertLocalWorkspaceOwnership } from "../src/lib/local-first-store.mjs";
 import assert from "node:assert/strict";
 import {
   calculateLocalInvoice,
@@ -95,4 +96,12 @@ test("shared Product and invoice unit-price validation preserves positive-price 
   assert.equal(validateLocalUnitPrice("1.001").valid, false);
   assert.equal(validateLocalUnitPrice("abc").valid, false);
   assert.equal(calculateLocalInvoice([{ name: "Free item", quantity: "1", unitPrice: "0" }]).valid, false);
+});
+
+
+test("workspace ownership assertion rejects cross-workspace mutation targets", () => {
+  const target = { id: "customer-b", workspace_id: "workspace-b", name: "Synthetic B" };
+  assert.equal(assertLocalWorkspaceOwnership(target, "workspace-b"), true);
+  assert.throws(() => assertLocalWorkspaceOwnership(target, "workspace-a"), /WORKSPACE_MISMATCH/);
+  assert.throws(() => assertLocalWorkspaceOwnership(null, "workspace-a"), /LOCAL_RECORD_NOT_FOUND/);
 });
