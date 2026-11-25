@@ -116,6 +116,7 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false, 
   const db = await openDb();
   const tx = db.transaction(storeName, "readwrite");
   const store = tx.objectStore(storeName);
+  const completion = transactionDone(tx).then(() => null, error => error);
   try {
     const old = await new Promise((resolve, reject) => {
       const request = store.get(record.id);
@@ -130,7 +131,8 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false, 
       ownershipError = new Error("LOCAL_RECORD_NOT_FOUND");
     }
     if (ownershipError) {
-      await transactionDone(tx);
+      const transactionError = await completion;
+      if (transactionError) throw transactionError;
       throw ownershipError;
     }
     const now = new Date().toISOString();
@@ -146,10 +148,12 @@ async function putRecord(storeName, record, workspaceId, invalidatePdf = false, 
       } : {}),
     };
     store.put(next);
-    await transactionDone(tx);
+    const transactionError = await completion;
+    if (transactionError) throw transactionError;
     return next;
   } catch (error) {
-    try { if (tx.readyState !== "done") tx.abort(); } catch {}
+    try { tx.abort(); } catch {}
+    await completion;
     throw error;
   } finally {
     db.close();
